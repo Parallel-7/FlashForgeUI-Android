@@ -20,3 +20,4 @@ val GeometricBluePrimary = Color(0xFF3B82F6)
 val GeometricBlueContainer = Color(0xFFBFDBFE)
 val GeometricGreenPrimary = Color(0xFF22C55E)
 val GeometricGreenText = Color(0xFF15803D)
+val GeometricYellowPrimary = Color(0xFFFACC15) // lit LED indicator

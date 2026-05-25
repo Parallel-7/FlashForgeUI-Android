@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
@@ -99,10 +100,17 @@ fun DashboardScreen(
                             scope.launch { currentSession.setLight(!isLightOn) }
                         }) {
                             Icon(
-                                if (isLightOn) Icons.Filled.Lightbulb else Icons.Outlined.Lightbulb,
-                                contentDescription = "Toggle Light"
+                                imageVector = if (isLightOn) Icons.Filled.Lightbulb else Icons.Outlined.Lightbulb,
+                                contentDescription = if (isLightOn) "Turn light off" else "Turn light on",
+                                tint = if (isLightOn) com.example.ui.theme.GeometricYellowPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                    IconButton(onClick = { viewModel.disconnect() }) {
+                        Icon(
+                            Icons.Default.LinkOff,
+                            contentDescription = "Disconnect"
+                        )
                     }
                 }
             )

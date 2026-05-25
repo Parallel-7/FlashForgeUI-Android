@@ -1,5 +1,6 @@
 package com.example.ui
 
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -91,7 +92,12 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
         NavHost(
             navController = navController,
             startDestination = DashboardRoute,
-            modifier = Modifier.padding(padding)
+            // Reserve space for the bottom nav + status bar here, then mark those insets as
+            // consumed so each screen's own TopAppBar doesn't add the status-bar inset a second
+            // time (which made every top bar ~2x too tall).
+            modifier = Modifier
+                .padding(padding)
+                .consumeWindowInsets(padding)
         ) {
             composable<DashboardRoute> {
                 DashboardScreen(viewModel = viewModel)

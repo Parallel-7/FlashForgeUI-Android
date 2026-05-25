@@ -36,23 +36,24 @@ class FlashForgeHttpApi(private val ipAddress: String) {
         }
     }
 
-    suspend fun getMatlStation(serialNumber: String, checkCode: String): Result<MatlStationInfo> = withContext(Dispatchers.IO) {
+    /**
+     * Fetches the `/product` capability flags. Per the recommended init sequence this also doubles
+     * as credential validation — a non-zero `code` means the serial/checkCode pair was rejected.
+     */
+    suspend fun getProduct(serialNumber: String, checkCode: String): Result<Product> = withContext(Dispatchers.IO) {
         try {
             val reqBody = json.encodeToString(PrinterDetailRequest(serialNumber, checkCode))
             val request = Request.Builder()
-                .url("$baseUrl/matlStation")
+                .url("$baseUrl/product")
                 .post(reqBody.toRequestBody(mediaType))
                 .build()
 
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(Exception("HTTP ${response.code}"))
                 val bodyStr = response.body?.string() ?: return@withContext Result.failure(Exception("Empty body"))
-                // Create a temporary decoder for MatlStation wrapper
-                @kotlinx.serialization.Serializable
-                data class MatlStationWrapper(val code: Int = 0, val matlStation: MatlStationInfo? = null)
-                val wrapper = json.decodeFromString<MatlStationWrapper>(bodyStr)
-                if (wrapper.code != 0) return@withContext Result.failure(Exception("API Error"))
-                wrapper.matlStation?.let { Result.success(it) } ?: Result.failure(Exception("No matlStation"))
+                val wrapper = json.decodeFromString<ProductWrapper>(bodyStr)
+                if (wrapper.code != 0) return@withContext Result.failure(Exception("API Error: ${wrapper.message}"))
+                wrapper.product?.let { Result.success(it) } ?: Result.failure(Exception("No product in response"))
             }
         } catch (e: Exception) {
             Result.failure(e)

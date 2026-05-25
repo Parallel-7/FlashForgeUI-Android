@@ -71,15 +71,13 @@ class FlashForgeTcpClient(private val ipAddress: String, private val scope: Coro
                     }
                 }
                 
-                // Keep-alive loop
+                // Keep-alive heartbeat. Modern 5M/AD5X printers get all status over HTTP /detail,
+                // so TCP only needs a light ping to hold the control lock open. Status/temp polling
+                // over TCP (~M105/~M119) is reserved for the legacy backend.
                 launch(Dispatchers.IO) {
                     while (isActive && _isConnected.value) {
-                        sendCommand("~M27") // status
-                        delay(2000)
-                        sendCommand("~M105") // temp
-                        delay(2000)
-                        sendCommand("~M119") // machine state
-                        delay(1000)
+                        sendCommand("~M27")
+                        delay(5000)
                     }
                 }
                 
@@ -158,6 +156,15 @@ class FlashForgeTcpClient(private val ipAddress: String, private val scope: Coro
             writeLine(cmd)
         }
     }
+
+    /** Turns custom LEDs full-white via `~M146` (5M / AD5X custom-LED path). */
+    fun ledOn() = sendCommand("~M146 r255 g255 b255 F0")
+
+    /** Turns custom LEDs off via `~M146` (5M / AD5X custom-LED path). */
+    fun ledOff() = sendCommand("~M146 r0 g0 b0 F0")
+
+    /** Homes all axes (`~G28`). Low-level motion control — only available over TCP. */
+    fun homeAxes() = sendCommand("~G28")
 
     fun disconnect() {
         scope.launch(Dispatchers.IO) {

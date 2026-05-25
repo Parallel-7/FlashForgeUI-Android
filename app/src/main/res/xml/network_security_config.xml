@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FlashForge printers expose their LAN API over plain HTTP (port 8898) and raw TCP (8899) with no
+  TLS, so the app must permit cleartext traffic. Printer IPs are assigned by the user's router and
+  aren't known ahead of time, so cleartext is permitted broadly rather than pinned to specific
+  hosts. This is a local-network monitoring/control tool — no traffic leaves the LAN.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

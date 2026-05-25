@@ -53,31 +53,42 @@ Gradle is rejected). Runs on **JDK 25** (Temurin). Windows shell is PowerShell �
 ```
 com.example
 ├── api/                      Networking & protocol
-│   ├── UdpDiscovery          UDP broadcast scan (WifiManager.MulticastLock). WORKS.
-│   ├── FlashForgeHttpApi     OkHttp + kotlinx.serialization; POST /detail, /matlStation,
+│   ├── UdpDiscovery          UDP broadcast scan (WifiManager.MulticastLock). WORKS — do NOT
+│   │                         change the (empty) broadcast payload; it works on real hardware.
+│   ├── FlashForgeHttpApi     OkHttp + kotlinx.serialization; POST /detail, /product,
 │   │                         /control (light, temp, job pause/resume/cancel, clearPlatform)
-│   ├── FlashForgeTcpClient   Raw Socket on 8899; M601 lock, M27/M105/M119 keep-alive loop,
-│   │                         line parser for temps + MachineStatus  (⚠ see Known issues)
-│   └── FlashForgeModels      @Serializable request/response shapes
+│   ├── FlashForgeTcpClient   Raw Socket on 8899; M601 lock, light ~M27 keep-alive heartbeat,
+│   │                         ledOn/ledOff (~M146), homeAxes (~G28). Control-only for modern.
+│   ├── PrinterModel          PrinterModel enum + pid-based detection; PrinterCapabilities.
+│   └── FlashForgeModels      @Serializable shapes; /detail carries matlStationInfo INLINE.
+├── backend/                  Per-model strategy (mirrors FFUI-Electron backends)
+│   ├── PrinterBackend        abstract: capabilities via /product, shared job/LED control
+│   ├── DualApiBackend        modern base — polls HTTP /detail
+│   ├── Adventurer5M / 5MPro / AD5X / GenericLegacyBackend
+│   └── PrinterBackendFactory create(model, …)
 ├── data/                     Room persistence
-│   ├── AppDatabase / PrinterDao / PrinterEntity / PrinterRepository
+│   ├── AppDatabase (v2) / PrinterDao / PrinterEntity / PrinterRepository
 │   └── ActivePrinterSession  (lives INSIDE PrinterRepository.kt, not its own file)
-│                             Owns one http+tcp client pair; adaptive HTTP poll loop
-│                             (1.5s printing/busy, 2.5s paused, 10s error, 5s idle).
+│                             Owns a PrinterBackend + http/tcp pair; HTTP /detail poll loop
+│                             with ConnectionState (Connecting/Connected/Offline/AuthFailed)
+│                             and adaptive cadence (1.5s printing, 2.5s paused, 3s offline,
+│                             5s idle, 10s error, 15s auth-failed).
 └── ui/
-    ├── MainViewModel         AndroidViewModel; holds the single `activeSession`
+    ├── MainViewModel         AndroidViewModel; `activeSession: StateFlow<ActivePrinterSession?>`
     ├── FlasherApp            Scaffold + bottom NavigationBar, 3 typed routes
     │                         (DashboardRoute / PrintersRoute / SettingsRoute)
     ├── dashboard/ discovery/ settings/   screens
     └── theme/                Color, Theme, Type
 ```
 
-- **Single active printer.** `MainViewModel.activeSession` holds exactly one
-  `ActivePrinterSession`; connecting a new printer stops the previous one. Multi-printer is
-  not yet supported despite Room storing many.
-- **Two transports, one coordinator.** `ActivePrinterSession` runs the HTTP `/detail` poll;
-  `FlashForgeTcpClient` runs its own socket read + keep-alive loops. State is exposed as
-  `StateFlow` (`status`, `matlStation`, `telemetry`, `isConnected`).
+- **Single active printer (for now).** `MainViewModel.activeSession` is a `StateFlow` holding one
+  `ActivePrinterSession`; connecting a new printer stops the previous one. Concurrent multi-printer
+  (top tabs + swipe) is Phase 2 — the StateFlow shape is the seam to extend.
+- **Model is detected by `pid`** (35=5M, 36=5M Pro, 38=AD5X) on first `/detail`, not by name.
+  `PrinterBackendFactory` picks the backend; `/product` flags + per-printer `customLedEnabled`
+  resolve `PrinterCapabilities`. UI controls are capability-gated (hide unsupported).
+- **HTTP `/detail` is the single source of truth** for modern printers (status + IFS inline). TCP
+  is control-only (custom LEDs `~M146`, homing `~G28`). Only `GenericLegacyBackend` polls over TCP.
 - **No DI framework.** Dependencies are constructed manually (`AppDatabase.getDatabase`,
   `PrinterRepository(dao)`, clients `new`'d in the session). Keep it that way unless asked.
 
@@ -105,16 +116,22 @@ com.example
 
 ## Known rough edges (verify, don't trust)
 
-- **TCP send/lock fixed, but unverified against hardware.** `FlashForgeTcpClient` now writes
-  commands correctly (`"$cmd\r\n"` via a synchronous `writeLine`), acquires `~M601 S1` before
-  the keep-alive loop starts, and releases `~M602` before closing. This compiles but has not
-  yet been confirmed against a real printer — validate telemetry parsing (`M105`/`M119`) end
-  to end before trusting it. Note there is still no reconnect/backoff on socket drop.
-- HTTP failures in the poll loop are swallowed (empty `onFailure`); there's no surfaced
-  connection/offline state in the UI yet.
-- `/matlStation` is queried as a separate endpoint; confirm against `BASE_BLUEPRINT.md`
-  (which models IFS via `matlStationInfo` on `/detail`) when touching AD5X material code.
-- Camera, Spoolman, notifications, G-code terminal, and manual motion are **not started**.
+- **Phase 1 is verified against a live AD5X** (firmware 3.1.0): `/detail` poll loop, `pid`
+  detection, `/product` capability gating, and the inline IFS card all work. Two gotchas were
+  fixed in the process: (1) **cleartext HTTP must be permitted** — see
+  `res/xml/network_security_config.xml` (printers are plain HTTP/TCP, no TLS); removing it silently
+  breaks all polling. (2) **firmware serializes numbers inconsistently** (decimals vs ints), so
+  every numeric `/detail` field is typed `Float?` (only `pid` is `Int?`) — keep new numeric fields
+  `Float?`. The 5M / 5M Pro paths are still unverified (no hardware on hand).
+- **TCP is control-only and unverified.** `FlashForgeTcpClient` writes correctly (`"$cmd\r\n"`),
+  acquires `~M601 S1`, releases `~M602`, and now runs only a light `~M27` heartbeat. `ledOn/ledOff`
+  (`~M146`) and `homeAxes` (`~G28`) exist but aren't wired to UI yet. No reconnect/backoff on drop.
+- **Temperature SET is still the old HTTP `temperatureCtl_cmd`** (`FlashForgeHttpApi.controlTemp`)
+  and is suspect — the reference TS lib sets temps over TCP G-code (M104/M140) and leaves the HTTP
+  path commented out as unverified. Move temp-set to TCP in Phase 3; don't trust the HTTP path.
+- Filtration *controls*, the full IFS spool card, file lists/printing, camera, multi-printer,
+  per-printer settings screen, Spoolman, notifications, and manual motion are **not started**
+  (Phases 2–5). The dashboard currently shows filtration/IFS state read-only, capability-gated.
 
 ## Skills installed (`.claude/skills/`)
 

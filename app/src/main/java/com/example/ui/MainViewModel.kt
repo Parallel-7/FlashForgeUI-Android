@@ -30,8 +30,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isDiscovering = MutableStateFlow(false)
     val isDiscovering: StateFlow<Boolean> = _isDiscovering
 
-    var activeSession: ActivePrinterSession? = null
-        private set
+    private val _activeSession = MutableStateFlow<ActivePrinterSession?>(null)
+    val activeSession: StateFlow<ActivePrinterSession?> = _activeSession
 
     fun discoverPrinters() {
         if (_isDiscovering.value) return
@@ -51,14 +51,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun connectToPrinter(printer: PrinterEntity) {
-        activeSession?.stopSession()
-        activeSession = ActivePrinterSession(printer, viewModelScope)
-        activeSession?.startSession()
+        _activeSession.value?.stopSession()
+        val session = ActivePrinterSession(
+            printer = printer,
+            scope = viewModelScope,
+            onIdentity = { pid, firmware, cameraUrl ->
+                repository.updateIdentity(printer.serialNumber, pid, firmware, cameraUrl)
+            }
+        )
+        _activeSession.value = session
+        session.startSession()
     }
 
     fun disconnect() {
-        activeSession?.stopSession()
-        activeSession = null
+        _activeSession.value?.stopSession()
+        _activeSession.value = null
     }
 
     override fun onCleared() {

@@ -23,20 +23,28 @@ module (`:app`), package `com.example` (note: `applicationId` is the auto-genera
 
 ## Build, test, run
 
-Windows shell is PowerShell — use `.\gradlew.bat`; the Bash tool can use `./gradlew`.
+Builds via the **Gradle wrapper** pinned to **Gradle 9.3.1** (required by AGP 9.1.1; older
+Gradle is rejected). Runs on **JDK 25** (Temurin). Windows shell is PowerShell — use
+`.\gradlew.bat`; the Bash tool can use `./gradlew`.
 
 ```
-.\gradlew.bat assembleDebug        # build debug APK
+.\gradlew.bat assembleDebug        # build debug APK -> app/build/outputs/apk/debug/app-debug.apk
 .\gradlew.bat test                 # unit + Robolectric + Roborazzi screenshot tests
 .\gradlew.bat installDebug         # install on connected device/emulator
 .\gradlew.bat recordRoborazziDebug # (re)record screenshot baselines
 ```
 
-- `minSdk 24`, `targetSdk 36`, `compileSdk 36`. Java 11 source/target.
+- `minSdk 24`, `targetSdk 36`, `compileSdk 36` (uses `android-36.1`). App code is Java 11
+  source/target; the Gradle/AGP toolchain itself runs on JDK 25.
+- **Per-machine setup (untracked, must exist locally — both are gitignored):**
+  - `local.properties` with `sdk.dir=<Android SDK path>` (e.g.
+    `C:\Users\...\AppData\Local\Android\Sdk`).
+  - `debug.keystore` at repo root. The `debugConfig` signing config expects it with the
+    standard debug creds. Regenerate with:
+    `keytool -genkeypair -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"`
 - Secrets Gradle Plugin reads a root **`.env`** file (template: `.env.example`); e.g.
-  `GEMINI_API_KEY`. Build fails or misses keys if `.env` is absent.
-- Debug builds use the checked-in `debug.keystore`; release signing pulls from
-  `KEYSTORE_PATH` / `STORE_PASSWORD` / `KEY_PASSWORD` env vars.
+  `GEMINI_API_KEY`.
+- Release signing pulls from `KEYSTORE_PATH` / `STORE_PASSWORD` / `KEY_PASSWORD` env vars.
 - For device/emulator/SDK orchestration, logcat, and screenshots, use the **`android-cli`**
   skill (in `.claude/skills/`).
 

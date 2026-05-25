@@ -50,11 +50,13 @@ class FlashForgeTcpClient(private val ipAddress: String, private val scope: Coro
                 outWriter = PrintWriter(OutputStreamWriter(socket!!.getOutputStream(), Charsets.US_ASCII), true)
                 inReader = BufferedReader(InputStreamReader(socket!!.getInputStream(), Charsets.US_ASCII))
                 
-                // Acquire lock
-                sendCommand("~M601 S1")
-                
                 _isConnected.value = true
-                
+
+                // Acquire the control lock first. Written synchronously (we're already on
+                // Dispatchers.IO) so it is guaranteed to reach the printer before the
+                // keep-alive loop below starts firing commands.
+                writeLine("~M601 S1")
+
                 // Read loop
                 launch(Dispatchers.IO) {
                     try {
@@ -137,16 +139,23 @@ class FlashForgeTcpClient(private val ipAddress: String, private val scope: Coro
         }
     }
 
+    /**
+     * Writes a single command line to the socket. Must be called on [Dispatchers.IO].
+     * FlashForge's TCP protocol expects each command terminated with CRLF.
+     */
+    private fun writeLine(cmd: String) {
+        try {
+            outWriter?.print("$cmd\r\n")
+            outWriter?.flush()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     fun sendCommand(cmd: String) {
+        if (!_isConnected.value) return
         scope.launch(Dispatchers.IO) {
-            try {
-                if (_isConnected.value) {
-                    outWriter?.print("\$cmd\\r\\n")
-                    outWriter?.flush()
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            writeLine(cmd)
         }
     }
 
@@ -154,16 +163,20 @@ class FlashForgeTcpClient(private val ipAddress: String, private val scope: Coro
         scope.launch(Dispatchers.IO) {
             try {
                 if (_isConnected.value) {
-                    sendCommand("~M602") // Release lock
+                    // Release the control lock synchronously before closing the socket,
+                    // otherwise the close can race ahead of the write.
+                    writeLine("~M602")
                 }
             } catch (e: Exception) {}
-            
+
+            // Stop the read / keep-alive loops before tearing down the streams.
+            _isConnected.value = false
+
             try { outWriter?.close() } catch (e: Exception) {}
             try { inReader?.close() } catch (e: Exception) {}
             try { socket?.close() } catch (e: Exception) {}
-            
+
             connectionJob?.cancel()
-            _isConnected.value = false
         }
     }
 }

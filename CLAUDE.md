@@ -105,13 +105,11 @@ com.example
 
 ## Known rough edges (verify, don't trust)
 
-- **TCP commands are effectively broken.** `FlashForgeTcpClient.sendCommand` does
-  `outWriter?.print("\$cmd\\r\\n")` — escaped `$` and literal `\r\n`, so it transmits the
-  literal text `$cmd\r\n` instead of the command + CRLF. It should be
-  `outWriter?.print("$cmd\r\n")`. Also `~M601 S1` is sent before `_isConnected` is set to
-  `true`, and `sendCommand` early-returns while disconnected, so the lock likely never goes
-  out. This is the leading reason TCP control/telemetry doesn't really function yet — fix
-  before relying on any 8899 path.
+- **TCP send/lock fixed, but unverified against hardware.** `FlashForgeTcpClient` now writes
+  commands correctly (`"$cmd\r\n"` via a synchronous `writeLine`), acquires `~M601 S1` before
+  the keep-alive loop starts, and releases `~M602` before closing. This compiles but has not
+  yet been confirmed against a real printer — validate telemetry parsing (`M105`/`M119`) end
+  to end before trusting it. Note there is still no reconnect/backoff on socket drop.
 - HTTP failures in the poll loop are swallowed (empty `onFailure`); there's no surfaced
   connection/offline state in the UI yet.
 - `/matlStation` is queried as a separate endpoint; confirm against `BASE_BLUEPRINT.md`

@@ -100,6 +100,10 @@ data class TemperatureCtlArgs(val rightTemp: Int = -200, val leftTemp: Int = -20
 @Serializable
 data class StateCtrlArgs(val action: String)
 
+/** Args for `circulateCtl_cmd` (5M Pro air filtration); values are `"open"`/`"close"`. */
+@Serializable
+data class CirculateCtlArgs(val internal: String, val external: String)
+
 @Serializable
 data class JobCtlArgs(val jobID: String = "", val action: String)
 

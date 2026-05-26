@@ -166,6 +166,15 @@ class FlashForgeTcpClient(private val ipAddress: String, private val scope: Coro
     /** Homes all axes (`~G28`). Low-level motion control — only available over TCP. */
     fun homeAxes() = sendCommand("~G28")
 
+    /**
+     * Sets the nozzle/extruder target temperature via `~M104 S<celsius>` (pass 0 to cancel
+     * heating). The reference ff-5mp-api-ts lib sets temps over TCP G-code, not HTTP.
+     */
+    fun setNozzleTemp(celsius: Int) = sendCommand("~M104 S$celsius")
+
+    /** Sets the bed/platform target temperature via `~M140 S<celsius>` (pass 0 to cancel). */
+    fun setBedTemp(celsius: Int) = sendCommand("~M140 S$celsius")
+
     fun disconnect() {
         scope.launch(Dispatchers.IO) {
             try {

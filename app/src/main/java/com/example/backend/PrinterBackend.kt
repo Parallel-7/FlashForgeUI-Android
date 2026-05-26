@@ -9,6 +9,9 @@ import com.example.api.PrinterDetailResponse
 import com.example.api.Product
 import com.example.data.PrinterEntity
 
+/** Air-filtration mode for the 5M Pro circulation fans (mapped to internal/external open/close). */
+enum class FiltrationMode { EXTERNAL, INTERNAL, OFF }
+
 /**
  * A per-model strategy that knows how to talk to one connected printer. Mirrors the
  * `BasePrinterBackend → DualAPIBackend → {model}` hierarchy from FlashForgeUI-Electron.
@@ -63,6 +66,40 @@ abstract class PrinterBackend(
 
     /** The material-station view for a status snapshot (AD5X only; null elsewhere). */
     open fun materialStation(detail: PrinterDetailResponse): MatlStationInfo? = null
+
+    // ---- Shared temperature control (TCP G-code) ----
+    /**
+     * Sets the nozzle target temperature over TCP `~M104` (pass 0 to cancel heating). Routed over
+     * TCP, not HTTP — the reference lib leaves the HTTP temperatureCtl_cmd path commented out as
+     * unverified.
+     */
+    open suspend fun setNozzleTemp(celsius: Int): Result<Unit> {
+        tcp.setNozzleTemp(celsius)
+        return Result.success(Unit)
+    }
+
+    /** Sets the bed target temperature over TCP `~M140` (pass 0 to cancel heating). */
+    open suspend fun setBedTemp(celsius: Int): Result<Unit> {
+        tcp.setBedTemp(celsius)
+        return Result.success(Unit)
+    }
+
+    // ---- Filtration control (HTTP; 5M Pro only) ----
+    /**
+     * Switches air filtration. Only meaningful when [PrinterCapabilities.filtrationControl] is set;
+     * fails otherwise. Maps the high-level [mode] to the printer's internal/external fan pair.
+     */
+    open suspend fun setFiltration(mode: FiltrationMode): Result<Unit> {
+        if (!capabilities.filtrationControl) {
+            return Result.failure(IllegalStateException("Filtration control not available for $model"))
+        }
+        val (internal, external) = when (mode) {
+            FiltrationMode.EXTERNAL -> "close" to "open"
+            FiltrationMode.INTERNAL -> "open" to "close"
+            FiltrationMode.OFF -> "close" to "close"
+        }
+        return http.controlFiltration(printer.serialNumber, printer.checkCode, internal, external)
+    }
 
     // ---- Shared job control (HTTP) ----
     suspend fun pause() = http.pauseJob(printer.serialNumber, printer.checkCode)

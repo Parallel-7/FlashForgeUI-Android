@@ -1,12 +1,15 @@
 package com.example.ui.discovery
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,16 +18,19 @@ import androidx.compose.ui.unit.dp
 import com.example.api.DiscoveredPrinter
 import com.example.data.PrinterEntity
 import com.example.ui.MainViewModel
+import com.example.ui.theme.StatusConnected
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoveryScreen(
     viewModel: MainViewModel,
-    onNavigateToDashboard: () -> Unit
+    onNavigateToDashboard: () -> Unit,
+    onNavigateToSettings: (String) -> Unit = {}
 ) {
     val discovered by viewModel.discoveredPrinters.collectAsState()
     val savedPrinters by viewModel.savedPrinters.collectAsState()
     val isDiscovering by viewModel.isDiscovering.collectAsState()
+    val sessions by viewModel.sessions.collectAsState()
     
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedToConnect by remember { mutableStateOf<DiscoveredPrinter?>(null) }
@@ -57,14 +63,17 @@ fun DiscoveryScreen(
                 if (savedPrinters.isNotEmpty()) {
                     item { Text("Saved Printers", style = MaterialTheme.typography.titleMedium) }
                     items(savedPrinters) { printer ->
+                        val isConnected = sessions.containsKey(printer.serialNumber)
                         PrinterCard(
                             name = printer.name,
                             ip = printer.ipAddress,
                             isSaved = true,
+                            isConnected = isConnected,
                             onClick = {
                                 viewModel.connectToPrinter(printer)
                                 onNavigateToDashboard()
-                            }
+                            },
+                            onSettingsClick = { onNavigateToSettings(printer.serialNumber) }
                         )
                     }
                 }
@@ -78,6 +87,7 @@ fun DiscoveryScreen(
                                 name = printer.name,
                                 ip = printer.ipAddress,
                                 isSaved = false,
+                                isConnected = false,
                                 onClick = { selectedToConnect = printer }
                             )
                         }
@@ -115,7 +125,14 @@ fun DiscoveryScreen(
 }
 
 @Composable
-fun PrinterCard(name: String, ip: String, isSaved: Boolean, onClick: () -> Unit) {
+fun PrinterCard(
+    name: String,
+    ip: String,
+    isSaved: Boolean,
+    isConnected: Boolean,
+    onClick: () -> Unit,
+    onSettingsClick: (() -> Unit)? = null
+) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
@@ -123,12 +140,41 @@ fun PrinterCard(name: String, ip: String, isSaved: Boolean, onClick: () -> Unit)
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Connection status dot for saved printers
+            if (isSaved) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(
+                            if (isConnected) StatusConnected
+                            else MaterialTheme.colorScheme.outlineVariant,
+                            CircleShape
+                        )
+                )
+                Spacer(Modifier.width(12.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(name, style = MaterialTheme.typography.titleLarge)
                 Text(ip, style = MaterialTheme.typography.bodyMedium)
             }
-            if (isSaved) {
+            if (isConnected) {
+                Badge(
+                    containerColor = StatusConnected.copy(alpha = 0.15f),
+                    contentColor = StatusConnected
+                ) { Text("Connected") }
+                Spacer(Modifier.width(8.dp))
+            } else if (isSaved) {
                 Badge { Text("Saved") }
+                Spacer(Modifier.width(8.dp))
+            }
+            if (onSettingsClick != null) {
+                IconButton(onClick = onSettingsClick) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = "Printer Settings",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

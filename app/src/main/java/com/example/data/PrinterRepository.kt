@@ -6,6 +6,7 @@ import com.example.api.MatlStationInfo
 import com.example.api.PrinterCapabilities
 import com.example.api.PrinterModel
 import com.example.api.PrinterDetailResponse
+import com.example.backend.FiltrationMode
 import com.example.backend.PrinterBackend
 import com.example.backend.PrinterBackendFactory
 import kotlinx.coroutines.CoroutineScope
@@ -152,6 +153,9 @@ class ActivePrinterSession(
 
     // ---- Control passthrough (capability-aware via the backend) ----
     suspend fun setLight(on: Boolean) = backend?.setLight(on)
+    suspend fun setNozzleTemp(celsius: Int) = backend?.setNozzleTemp(celsius)
+    suspend fun setBedTemp(celsius: Int) = backend?.setBedTemp(celsius)
+    suspend fun setFiltration(mode: FiltrationMode) = backend?.setFiltration(mode)
     suspend fun pause() = backend?.pause()
     suspend fun resume() = backend?.resume()
     suspend fun cancel() = backend?.cancel()

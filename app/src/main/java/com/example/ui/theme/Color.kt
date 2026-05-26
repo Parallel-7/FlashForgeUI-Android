@@ -21,3 +21,9 @@ val GeometricBlueContainer = Color(0xFFBFDBFE)
 val GeometricGreenPrimary = Color(0xFF22C55E)
 val GeometricGreenText = Color(0xFF15803D)
 val GeometricYellowPrimary = Color(0xFFFACC15) // lit LED indicator
+
+// Printer tab status-dot colors (matching desktop CSS: printer-tabs.css)
+val StatusConnected = Color(0xFF00E676)   // green — polling successfully
+val StatusConnecting = Color(0xFFFFD54F)  // amber — establishing connection
+val StatusOffline = Color(0xFF9E9E9E)     // grey — transient network failure
+val StatusError = Color(0xFFF44336)       // red — auth failed / permanent error

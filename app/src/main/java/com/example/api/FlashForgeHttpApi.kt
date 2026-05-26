@@ -83,6 +83,19 @@ class FlashForgeHttpApi(private val ipAddress: String) {
         postControl(req)
     }
 
+    /**
+     * Controls the 5M Pro air filtration via `circulateCtl_cmd`. [internal] / [external] are each
+     * `"open"` or `"close"`; the caller (backend) maps a high-level mode to this pair.
+     */
+    suspend fun controlFiltration(serialNumber: String, checkCode: String, internal: String, external: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val req = ControlRequest(
+            serialNumber = serialNumber,
+            checkCode = checkCode,
+            payload = ControlPayload("circulateCtl_cmd", json.encodeToJsonElement(CirculateCtlArgs(internal, external)))
+        )
+        postControl(req)
+    }
+
     suspend fun clearPlatform(serialNumber: String, checkCode: String): Result<Unit> = withContext(Dispatchers.IO) {
         val req = ControlRequest(
             serialNumber = serialNumber,

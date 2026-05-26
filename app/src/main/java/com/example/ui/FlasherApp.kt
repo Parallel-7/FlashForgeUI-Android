@@ -24,8 +24,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.discovery.DiscoveryScreen
+import com.example.ui.settings.PrinterSettingsScreen
 import com.example.ui.settings.SettingsScreen
 import kotlinx.serialization.Serializable
 
@@ -37,6 +39,10 @@ object PrintersRoute
 
 @Serializable
 object SettingsRoute
+
+/** Route to the per-printer settings screen; takes the printer's serial as a nav argument. */
+@Serializable
+data class PrinterSettingsRoute(val serialNumber: String)
 
 @Composable
 fun FlasherApp(viewModel: MainViewModel = viewModel()) {
@@ -100,7 +106,19 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                 .consumeWindowInsets(padding)
         ) {
             composable<DashboardRoute> {
-                DashboardScreen(viewModel = viewModel)
+                DashboardScreen(
+                    viewModel = viewModel,
+                    onNavigateToSettings = { serial ->
+                        navController.navigate(PrinterSettingsRoute(serial))
+                    },
+                    onNavigateToPrinters = {
+                        navController.navigate(PrintersRoute) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
             }
             
             composable<PrintersRoute> {
@@ -112,12 +130,24 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                             launchSingleTop = true
                             restoreState = true
                         }
+                    },
+                    onNavigateToSettings = { serial ->
+                        navController.navigate(PrinterSettingsRoute(serial))
                     }
                 )
             }
 
             composable<SettingsRoute> {
-                SettingsScreen()
+                SettingsScreen(viewModel = viewModel)
+            }
+
+            composable<PrinterSettingsRoute> { backStackEntry ->
+                val route = backStackEntry.toRoute<PrinterSettingsRoute>()
+                PrinterSettingsScreen(
+                    serialNumber = route.serialNumber,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
     }

@@ -11,12 +11,19 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.io.PrintWriter
 import java.net.Socket
+import java.net.SocketTimeoutException
 
 class FlashForgeTcpClient(private val ipAddress: String, private val scope: CoroutineScope) {
+    private companion object {
+        /** Characters that are NOT valid in a printer filename — used to trim M661 binary framing. */
+        val INVALID_FILENAME_CHARS = Regex("""[^\w\s\-.()+%,@\[\]{}:;!#$^&*=<>?/]""")
+    }
+
     private var socket: Socket? = null
     private var outWriter: PrintWriter? = null
     private var inReader: BufferedReader? = null
@@ -157,6 +164,24 @@ class FlashForgeTcpClient(private val ipAddress: String, private val scope: Coro
         }
     }
 
+    /**
+     * Parses the raw `~M661` reply into clean filenames. Segments are split on `::`; within each,
+     * the text after `/data/` is the path, trimmed at the first byte that isn't a valid filename
+     * character (the binary framing). Mirrors ff-5mp-api-ts `parseFileListResponse`.
+     */
+    private fun parseFileListResponse(response: String): List<String> {
+        val files = mutableListOf<String>()
+        for (segment in response.split("::")) {
+            val dataIndex = segment.indexOf("/data/")
+            if (dataIndex == -1) continue
+            var filename = segment.substring(dataIndex + "/data/".length)
+            val invalid = INVALID_FILENAME_CHARS.find(filename)
+            if (invalid != null) filename = filename.substring(0, invalid.range.first)
+            if (filename.isNotBlank()) files.add(filename)
+        }
+        return files
+    }
+
     /** Turns custom LEDs full-white via `~M146` (5M / AD5X custom-LED path). */
     fun ledOn() = sendCommand("~M146 r255 g255 b255 F0")
 
@@ -174,6 +199,58 @@ class FlashForgeTcpClient(private val ipAddress: String, private val scope: Coro
 
     /** Sets the bed/platform target temperature via `~M140 S<celsius>` (pass 0 to cancel). */
     fun setBedTemp(celsius: Int) = sendCommand("~M140 S$celsius")
+
+    /**
+     * Lists local G-code files via `~M661`. The M661 reply is a binary blob (file paths embedded
+     * after `/data/`, segments split by `::`) that doesn't fit the persistent line-reader, so this
+     * runs on its own short-lived socket doing raw byte reads. Completion follows the reference lib:
+     * stop once `ok` has been seen *and* the stream has been quiet for ~1.2s (trailing data settle),
+     * with a hard 10s cap.
+     *
+     * NOTE: this opens a second socket on 8899 without acquiring the `~M601` control lock (file
+     * listing is a read-only query). Unverified against live hardware — see the TCP known-rough-edge.
+     */
+    suspend fun getFileList(): Result<List<String>> = withContext(Dispatchers.IO) {
+        var sock: Socket? = null
+        try {
+            sock = Socket(ipAddress, 8899).apply { soTimeout = 500 }
+            val out = sock.getOutputStream()
+            val input = sock.getInputStream()
+            out.write("~M661\r\n".toByteArray(Charsets.US_ASCII))
+            out.flush()
+
+            val buffer = ByteArrayOutputStream()
+            val chunk = ByteArray(8192)
+            val deadline = System.currentTimeMillis() + 10_000
+            var lastDataAt = System.currentTimeMillis()
+            var completionSeen = false
+
+            while (System.currentTimeMillis() < deadline) {
+                val n = try {
+                    input.read(chunk)
+                } catch (e: SocketTimeoutException) {
+                    // No data this slice: if the reply already completed and has settled, finish.
+                    if (completionSeen && System.currentTimeMillis() - lastDataAt >= 1200) break
+                    continue
+                }
+                if (n == -1) break // remote closed
+                if (n > 0) {
+                    buffer.write(chunk, 0, n)
+                    lastDataAt = System.currentTimeMillis()
+                    // Latin-1 keeps every byte 1:1; we only scan for the ASCII "ok" marker.
+                    if (!completionSeen && buffer.toString("ISO-8859-1").contains("ok")) {
+                        completionSeen = true
+                    }
+                }
+                if (completionSeen && System.currentTimeMillis() - lastDataAt >= 1200) break
+            }
+            Result.success(parseFileListResponse(buffer.toString("ISO-8859-1")))
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            try { sock?.close() } catch (_: Exception) {}
+        }
+    }
 
     fun disconnect() {
         scope.launch(Dispatchers.IO) {

@@ -137,6 +137,111 @@ data class IndepMatlInfo(
     val stateStep: Int = 0
 )
 
+// ── File management (Phase 4) ─────────────────────────────────────────────────
+
+/**
+ * Per-tool material info inside a multi-color G-code file (AD5X `gcodeListDetail`). Mirrors
+ * ff-5mp-api-ts `FFGcodeToolData`. [toolId] is 0-based (0-3); [slotId] is the file's *suggested*
+ * station slot (0 when none). Numeric weight is `Float?` per the firmware numeric-type gotcha.
+ */
+@Serializable
+data class FFGcodeToolData(
+    val toolId: Int = 0,
+    val slotId: Int = 0,
+    val materialName: String = "",
+    val materialColor: String = "",
+    val filamentWeight: Float? = null
+)
+
+/**
+ * One entry in the `/gcodeList` response. AD5X (and newer) populate [gcodeToolDatas] for
+ * multi-color files; older printers return only [gcodeFileName]. [printingTime] is seconds.
+ */
+@Serializable
+data class FFGcodeFileEntry(
+    val gcodeFileName: String = "",
+    val printingTime: Float? = null,
+    val gcodeToolCnt: Int? = null,
+    val gcodeToolDatas: List<FFGcodeToolData>? = null,
+    val totalFilamentWeight: Float? = null,
+    val useMatlStation: Boolean? = null
+) {
+    /** A file needs material matching when it declares more than one tool. */
+    val isMultiColor: Boolean get() = (gcodeToolDatas?.size ?: 0) > 1
+}
+
+/**
+ * `/gcodeList` wrapper. [gcodeListDetail] is the rich AD5X form (with tool data); [gcodeList] is
+ * the legacy form and may be either a JSON array of strings or of objects — left as raw
+ * [JsonElement]s and normalized by [FlashForgeHttpApi.getRecentFileList].
+ */
+@Serializable
+data class GcodeListWrapper(
+    val code: Int = 0,
+    val message: String? = null,
+    val gcodeList: List<JsonElement>? = null,
+    val gcodeListDetail: List<FFGcodeFileEntry>? = null
+)
+
+/** `/gcodeThumb` wrapper — [imageData] is a base64-encoded PNG. */
+@Serializable
+data class GcodeThumbWrapper(
+    val code: Int = 0,
+    val message: String? = null,
+    val imageData: String? = null
+)
+
+/** `/gcodeThumb` request body. */
+@Serializable
+data class GcodeThumbRequest(
+    val serialNumber: String,
+    val checkCode: String,
+    val fileName: String
+)
+
+/**
+ * A tool→slot assignment for an AD5X multi-color print. Sent as a *raw JSON array* in the
+ * `/printGcode` body (unlike upload, which base64-encodes it). [toolId] 0-based, [slotId] 1-based;
+ * colors must be `#RRGGBB`.
+ */
+@Serializable
+data class AD5XMaterialMapping(
+    val toolId: Int,
+    val slotId: Int,
+    val materialName: String,
+    val toolMaterialColor: String,
+    val slotMaterialColor: String
+)
+
+/**
+ * `/printGcode` request body. The printer accepts a superset across firmware versions: pre-3.1.3
+ * machines ignore the material-station fields, while ≥3.1.3 and AD5X require them. We always send
+ * the full shape and let [useMatlStation]/[materialMappings] drive behavior (matching the reference
+ * lib's new-firmware payload).
+ */
+@Serializable
+data class PrintGcodeRequest(
+    val serialNumber: String,
+    val checkCode: String,
+    val fileName: String,
+    val levelingBeforePrint: Boolean = false,
+    val flowCalibration: Boolean = false,
+    val firstLayerInspection: Boolean = false,
+    val timeLapseVideo: Boolean = false,
+    val useMatlStation: Boolean = false,
+    val gcodeToolCnt: Int = 0,
+    val materialMappings: List<AD5XMaterialMapping> = emptyList()
+)
+
+/** Minimal `/printGcode` body for pre-3.1.3 firmware (no material-station fields). */
+@Serializable
+data class PrintGcodeRequestLegacy(
+    val serialNumber: String,
+    val checkCode: String,
+    val fileName: String,
+    val levelingBeforePrint: Boolean = false
+)
+
 /** `/product` response wrapper. */
 @Serializable
 data class ProductWrapper(

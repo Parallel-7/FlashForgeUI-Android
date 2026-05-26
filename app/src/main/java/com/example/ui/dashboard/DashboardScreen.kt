@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Pause
@@ -71,6 +72,7 @@ private fun modelDisplayName(pid: Int?): String = when (pid) {
 fun DashboardScreen(
     viewModel: MainViewModel,
     onNavigateToSettings: (String) -> Unit = {},
+    onNavigateToFiles: (String) -> Unit = {},
     onNavigateToPrinters: () -> Unit = {}
 ) {
     val sessionsMap by viewModel.sessions.collectAsState()
@@ -129,6 +131,16 @@ fun DashboardScreen(
             TopAppBar(
                 title = { Text(titleText) },
                 actions = {
+                    // Files / print picker
+                    currentEntry?.key?.let { serial ->
+                        IconButton(onClick = { onNavigateToFiles(serial) }) {
+                            Icon(
+                                Icons.Default.Folder,
+                                contentDescription = "Files",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     // Settings gear → per-printer settings
                     currentEntry?.key?.let { serial ->
                         IconButton(onClick = { onNavigateToSettings(serial) }) {

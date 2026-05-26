@@ -1,5 +1,7 @@
 package com.example.data
 
+import com.example.api.AD5XMaterialMapping
+import com.example.api.FFGcodeFileEntry
 import com.example.api.FlashForgeHttpApi
 import com.example.api.FlashForgeTcpClient
 import com.example.api.MatlStationInfo
@@ -160,6 +162,14 @@ class ActivePrinterSession(
     suspend fun resume() = backend?.resume()
     suspend fun cancel() = backend?.cancel()
     suspend fun clearPlatform() = backend?.clearPlatform()
+
+    // ---- File management (Phase 4) ----
+    private fun notReady() = Result.failure<Nothing>(IllegalStateException("Printer not connected"))
+    suspend fun listRecentFiles(): Result<List<FFGcodeFileEntry>> = backend?.listRecentFiles() ?: notReady()
+    suspend fun listLocalFiles(): Result<List<String>> = backend?.listLocalFiles() ?: notReady()
+    suspend fun getThumbnail(fileName: String): Result<ByteArray?> = backend?.getThumbnail(fileName) ?: notReady()
+    suspend fun startPrint(fileName: String, leveling: Boolean, mappings: List<AD5XMaterialMapping> = emptyList()): Result<Unit> =
+        backend?.startPrint(fileName, leveling, mappings) ?: notReady()
 
     fun stopSession() {
         pollJob?.cancel()

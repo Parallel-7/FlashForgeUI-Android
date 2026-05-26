@@ -1,8 +1,11 @@
 package com.example.backend
 
+import com.example.api.AD5XMaterialMapping
+import com.example.api.FFGcodeFileEntry
 import com.example.api.FlashForgeHttpApi
 import com.example.api.FlashForgeTcpClient
 import com.example.api.MatlStationInfo
+import com.example.api.PrintGcodeRequest
 import com.example.api.PrinterCapabilities
 import com.example.api.PrinterModel
 import com.example.api.PrinterDetailResponse
@@ -66,6 +69,48 @@ abstract class PrinterBackend(
 
     /** The material-station view for a status snapshot (AD5X only; null elsewhere). */
     open fun materialStation(detail: PrinterDetailResponse): MatlStationInfo? = null
+
+    // ---- File management (Phase 4) ----
+
+    /** Recent-files list over HTTP `/gcodeList` (rich entries on AD5X, names elsewhere). */
+    open suspend fun listRecentFiles(): Result<List<FFGcodeFileEntry>> =
+        http.getRecentFileList(printer.serialNumber, printer.checkCode)
+
+    /** Local on-disk file names over TCP `~M661` (5M / 5M Pro). */
+    open suspend fun listLocalFiles(): Result<List<String>> = tcp.getFileList()
+
+    /** A file's thumbnail PNG bytes over HTTP `/gcodeThumb` (null when the file has none). */
+    open suspend fun getThumbnail(fileName: String): Result<ByteArray?> =
+        http.getGcodeThumbnail(printer.serialNumber, printer.checkCode, fileName)
+
+    /**
+     * Starts a print of a file already on the printer. The base path serves 5M / 5M Pro / legacy:
+     * full payload on firmware ≥3.1.3, minimal payload below that. [mappings] are ignored here
+     * (no material station); [AD5XBackend] overrides to honor them.
+     */
+    open suspend fun startPrint(
+        fileName: String,
+        leveling: Boolean,
+        mappings: List<AD5XMaterialMapping> = emptyList()
+    ): Result<Unit> = if (isNewFirmware()) {
+        http.printGcode(PrintGcodeRequest(printer.serialNumber, printer.checkCode, fileName, leveling))
+    } else {
+        http.printGcodeLegacy(printer.serialNumber, printer.checkCode, fileName, leveling)
+    }
+
+    /** True when the printer's firmware is ≥ 3.1.3 (selects the richer `/printGcode` payload). */
+    protected fun isNewFirmware(): Boolean {
+        val parts = (printer.firmwareVersion ?: return false)
+            .split(".")
+            .map { it.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
+        val min = listOf(3, 1, 3)
+        for (i in 0..2) {
+            val cur = parts.getOrElse(i) { 0 }
+            if (cur > min[i]) return true
+            if (cur < min[i]) return false
+        }
+        return true
+    }
 
     // ---- Shared temperature control (TCP G-code) ----
     /**

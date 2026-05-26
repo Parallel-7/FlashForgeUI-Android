@@ -27,6 +27,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.discovery.DiscoveryScreen
+import com.example.ui.files.FilesScreen
 import com.example.ui.settings.PrinterSettingsScreen
 import com.example.ui.settings.SettingsScreen
 import kotlinx.serialization.Serializable
@@ -43,6 +44,10 @@ object SettingsRoute
 /** Route to the per-printer settings screen; takes the printer's serial as a nav argument. */
 @Serializable
 data class PrinterSettingsRoute(val serialNumber: String)
+
+/** Route to the file browser / print picker for a printer. */
+@Serializable
+data class FilesRoute(val serialNumber: String)
 
 @Composable
 fun FlasherApp(viewModel: MainViewModel = viewModel()) {
@@ -111,6 +116,9 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                     onNavigateToSettings = { serial ->
                         navController.navigate(PrinterSettingsRoute(serial))
                     },
+                    onNavigateToFiles = { serial ->
+                        navController.navigate(FilesRoute(serial))
+                    },
                     onNavigateToPrinters = {
                         navController.navigate(PrintersRoute) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -144,6 +152,15 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
             composable<PrinterSettingsRoute> { backStackEntry ->
                 val route = backStackEntry.toRoute<PrinterSettingsRoute>()
                 PrinterSettingsScreen(
+                    serialNumber = route.serialNumber,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable<FilesRoute> { backStackEntry ->
+                val route = backStackEntry.toRoute<FilesRoute>()
+                FilesScreen(
                     serialNumber = route.serialNumber,
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() }

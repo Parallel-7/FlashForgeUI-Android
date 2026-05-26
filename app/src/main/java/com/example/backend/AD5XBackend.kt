@@ -1,8 +1,10 @@
 package com.example.backend
 
+import com.example.api.AD5XMaterialMapping
 import com.example.api.FlashForgeHttpApi
 import com.example.api.FlashForgeTcpClient
 import com.example.api.MatlStationInfo
+import com.example.api.PrintGcodeRequest
 import com.example.api.PrinterCapabilities
 import com.example.api.PrinterModel
 import com.example.api.PrinterDetailResponse
@@ -28,4 +30,26 @@ class AD5XBackend(
     )
 
     override fun materialStation(detail: PrinterDetailResponse): MatlStationInfo? = detail.matlStationInfo
+
+    /**
+     * AD5X always sends the full `/printGcode` payload (regardless of firmware): a non-empty
+     * [mappings] is a multi-color job (`useMatlStation=true`, tool count from the mappings); an empty
+     * one is a single-color job that bypasses the station.
+     */
+    override suspend fun startPrint(
+        fileName: String,
+        leveling: Boolean,
+        mappings: List<AD5XMaterialMapping>
+    ): Result<Unit> {
+        val req = PrintGcodeRequest(
+            serialNumber = printer.serialNumber,
+            checkCode = printer.checkCode,
+            fileName = fileName,
+            levelingBeforePrint = leveling,
+            useMatlStation = mappings.isNotEmpty(),
+            gcodeToolCnt = mappings.size,
+            materialMappings = mappings
+        )
+        return http.printGcode(req)
+    }
 }

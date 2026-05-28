@@ -12,14 +12,15 @@ LAN monitoring & control of FlashForge Adventurer 5M / 5M Pro / AD5X printers. S
 module (`:app`), package `com.example` (note: `applicationId` is the auto-generated
 `com.aistudio.flasher.kjhasd`).
 
-## Source-of-truth docs (read these before protocol work)
+## Source-of-truth docs
 
-- **`BASE_BLUEPRINT.md`** — the authoritative FlashForge LAN protocol reference: HTTP REST
-  (port **8898**), TCP G-code (port **8899**), MJPEG camera (port **8080**), UDP discovery,
-  auth (per-request `serialNumber` + `checkCode`), endpoints, G-code commands, and ~15
-  documented protocol quirks. When implementing any printer feature, start here.
 - **`GEMINI.md`** — original assistant guide + porting roadmap. Useful for intent/roadmap;
   its "Implemented" column overstates current reality.
+
+For the wire protocol itself (HTTP REST on **8898**, TCP G-code on **8899**, MJPEG camera on
+**8080**, UDP discovery, per-request `serialNumber` + `checkCode` auth), the reference repos in
+`C:\Users\coper\Documents\GitHub\1flashforge_printers\` (`ff-5mp-api-ts`, `FlashForgeUI-Electron`)
+are the ground truth — read the matching code there.
 
 ## Build, test, run
 

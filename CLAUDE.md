@@ -9,8 +9,7 @@ against the code before assuming a feature works.
 
 Native Android (Kotlin + Jetpack Compose) port of the desktop FlashForgeUI Electron app, for
 LAN monitoring & control of FlashForge Adventurer 5M / 5M Pro / AD5X printers. Single Gradle
-module (`:app`), package `com.example` (note: `applicationId` is the auto-generated
-`com.aistudio.flasher.kjhasd`).
+module (`:app`), package `me.ghost.ffui` (both `namespace` and `applicationId`).
 
 ## Source-of-truth docs
 
@@ -58,7 +57,7 @@ Gradle is rejected). Runs on **JDK 25** (Temurin). Windows shell is PowerShell �
 ## Architecture (as actually built)
 
 ```
-com.example
+me.ghost.ffui
 ├── api/                      Networking & protocol
 │   ├── UdpDiscovery          UDP broadcast scan (WifiManager.MulticastLock). WORKS — do NOT
 │   │                         change the (empty) broadcast payload; it works on real hardware.
@@ -117,8 +116,14 @@ com.example
   `#3B82F6` for bed indicators. Reach for `MaterialTheme.colorScheme` over literal `Color`.
 - **Edge-to-edge** is enabled (`enableEdgeToEdge()` in `MainActivity`); honor system-bar
   insets in new screens. See the `edge-to-edge` skill.
-- **Room migrations:** add one to `AppDatabase` whenever `PrinterEntity` changes; all DB
-  access goes through `PrinterRepository` asynchronously.
+- **Room migrations: DO NOT WRITE THEM.** We are in internal development / prototyping —
+  the only user is the maintainer and any local DB state is disposable. `AppDatabase` uses
+  `fallbackToDestructiveMigration(dropAllTables = true)`; when `PrinterEntity` (or any other
+  entity) changes, bump `@Database(version = …)` and let Room wipe the DB on next launch.
+  **Never** add `Migration` objects or `addMigrations(...)` calls. This rule will be lifted
+  in this file when we approach production — at that point we must never lose end-user data,
+  so real migrations become mandatory. Until that change lands here, no migrations.
+- All DB access goes through `PrinterRepository` asynchronously.
 - Follow `GEMINI.md`'s rules: KDoc new API/services, no TODO-stub placeholders, idiomatic
   Kotlin (`val`, strict nullability, `@Serializable`).
 

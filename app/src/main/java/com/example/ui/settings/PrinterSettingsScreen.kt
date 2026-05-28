@@ -188,6 +188,16 @@ fun PrinterSettingsScreen(
                     }
                 )
             }
+            item {
+                SettingToggle(
+                    label = "Auto-play camera",
+                    subtitle = "Automatically start playing the camera stream when viewing the dashboard",
+                    checked = currentPrinter.cameraAutoPlayEnabled,
+                    onCheckedChange = { enabled ->
+                        updatePrinter(currentPrinter.copy(cameraAutoPlayEnabled = enabled))
+                    }
+                )
+            }
             if (currentPrinter.customCameraEnabled) {
                 item {
                     Card(

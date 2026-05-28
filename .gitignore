@@ -19,3 +19,10 @@ debug.keystore
 *.jks
 *.keystore
 /.claude/settings.local.json
+
+# Local tooling / scratch (not part of the app)
+/.gemini/
+/.pi/
+/workspace/
+# Transient verification screenshots
+/ff_state.png

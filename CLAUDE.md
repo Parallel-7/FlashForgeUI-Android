@@ -28,13 +28,19 @@ Gradle is rejected). Runs on **JDK 25** (Temurin). Windows shell is PowerShell �
 `.\gradlew.bat`; the Bash tool can use `./gradlew`.
 
 ```
-.\gradlew.bat assembleDebug        # build debug APK -> app/build/outputs/apk/debug/app-debug.apk
+.\gradlew.bat assembleDebug        # build per-ABI debug APKs -> app/build/outputs/apk/debug/
 .\gradlew.bat test                 # unit + Robolectric + Roborazzi screenshot tests
-.\gradlew.bat installDebug         # install on connected device/emulator
+.\gradlew.bat installDebug         # install the matching ABI on connected device/emulator
 .\gradlew.bat recordRoborazziDebug # (re)record screenshot baselines
 ```
 
-- `minSdk 24`, `targetSdk 36`, `compileSdk 36` (uses `android-36.1`). App code is Java 11
+- **ABI splits are on** (`splits.abi`, `isUniversalApk = false`) to keep the libmpv-bloated
+  APK small. `assembleDebug` emits **four per-ABI APKs** — `app-{armeabi-v7a,arm64-v8a,x86,x86_64}-debug.apk`
+  — and **no universal `app-debug.apk`**. Install the right one explicitly: emulators are
+  `app-x86_64-debug.apk`; physical devices are usually `app-arm64-v8a-debug.apk`. (`installDebug`
+  auto-picks by device ABI; only the explicit `android run`/`adb install` paths need the right file.)
+
+- `minSdk 26`, `targetSdk 36`, `compileSdk 36` (uses `android-36.1`). App code is Java 11
   source/target; the Gradle/AGP toolchain itself runs on JDK 25.
 - **Per-machine setup (untracked, must exist locally — both are gitignored):**
   - `local.properties` with `sdk.dir=<Android SDK path>` (e.g.
@@ -77,6 +83,7 @@ com.example
     ├── MainViewModel         AndroidViewModel; `activeSession: StateFlow<ActivePrinterSession?>`
     ├── FlasherApp            Scaffold + bottom NavigationBar, 3 typed routes
     │                         (DashboardRoute / PrintersRoute / SettingsRoute)
+    ├── components/           MpvPlayer — libmpv-backed camera surface (see camera note below)
     ├── dashboard/ discovery/ settings/   screens
     └── theme/                Color, Theme, Type
 ```
@@ -129,7 +136,14 @@ com.example
 - **Temperature SET is still the old HTTP `temperatureCtl_cmd`** (`FlashForgeHttpApi.controlTemp`)
   and is suspect — the reference TS lib sets temps over TCP G-code (M104/M140) and leaves the HTTP
   path commented out as unverified. Move temp-set to TCP in Phase 3; don't trust the HTTP path.
-- Filtration *controls*, the full IFS spool card, file lists/printing, camera, multi-printer,
+- **Camera works (verified live on AD5X).** The dashboard `CameraCard` streams the MJPEG feed
+  via `ui/components/MpvPlayer` — a libmpv (`dev.jdtech.mpv:libmpv`) surface that replaced the
+  earlier libVLC player. mpv renders into a `TextureView` (so `Modifier.clip` keeps the rounded
+  corners) and uses `panscan=1.0` + `profile=low-latency` + `cache=no` to crop-to-fill the card
+  with no letterbox bars. Each card owns its own `MPVLib` instance, so multi-printer pagers can
+  coexist. **The libmpv native libs are why ABI splits are on** (see build note above) — bundling
+  all four ABIs into one universal APK would balloon it.
+- Filtration *controls*, the full IFS spool card, file lists/printing, multi-printer,
   per-printer settings screen, Spoolman, notifications, and manual motion are **not started**
   (Phases 2–5). The dashboard currently shows filtration/IFS state read-only, capability-gated.
 

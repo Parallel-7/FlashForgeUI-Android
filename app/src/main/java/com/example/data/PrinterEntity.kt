@@ -30,5 +30,7 @@ data class PrinterEntity(
     /** Force the TCP-only legacy backend even for a modern printer. */
     val forceLegacy: Boolean = false,
     /** AD5X: try to auto-match tools to IFS slots before falling back to the manual dialog. */
-    val autoMatchMaterials: Boolean = false
+    val autoMatchMaterials: Boolean = false,
+    /** Autoplay the camera stream when viewing the dashboard. */
+    val cameraAutoPlayEnabled: Boolean = false
 )

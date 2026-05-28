@@ -198,6 +198,16 @@ fun PrinterSettingsScreen(
                     }
                 )
             }
+            item {
+                SettingToggle(
+                    label = "Show FPS counter",
+                    subtitle = "Overlay the live frame rate on the camera feed",
+                    checked = currentPrinter.cameraFpsCounterEnabled,
+                    onCheckedChange = { enabled ->
+                        updatePrinter(currentPrinter.copy(cameraFpsCounterEnabled = enabled))
+                    }
+                )
+            }
             if (currentPrinter.customCameraEnabled) {
                 item {
                     Card(

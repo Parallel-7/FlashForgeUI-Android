@@ -32,5 +32,7 @@ data class PrinterEntity(
     /** AD5X: try to auto-match tools to IFS slots before falling back to the manual dialog. */
     val autoMatchMaterials: Boolean = false,
     /** Autoplay the camera stream when viewing the dashboard. */
-    val cameraAutoPlayEnabled: Boolean = false
+    val cameraAutoPlayEnabled: Boolean = false,
+    /** Overlay a live FPS counter on the camera feed (dashboard card + fullscreen). */
+    val cameraFpsCounterEnabled: Boolean = false
 )

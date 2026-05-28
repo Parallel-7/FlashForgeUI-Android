@@ -23,8 +23,6 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,7 +43,6 @@ import com.example.backend.FiltrationMode
 import com.example.data.ActivePrinterSession
 import com.example.data.ConnectionState
 import com.example.ui.MainViewModel
-import com.example.ui.components.MpvPlayer
 import com.example.ui.theme.GeometricPrimary
 import com.example.ui.theme.GeometricSurface
 import com.example.ui.theme.StatusConnected
@@ -596,7 +593,8 @@ private fun DashboardContent(
         CameraCard(
             streamUrl = session.printer.customCameraUrl.takeIf { session.printer.customCameraEnabled && it.isNotBlank() }
                 ?: session.printer.cameraStreamUrl,
-            autoPlay = session.printer.cameraAutoPlayEnabled
+            autoPlay = session.printer.cameraAutoPlayEnabled,
+            showFps = session.printer.cameraFpsCounterEnabled
         )
 
         // Material station (AD5X IFS) — full spool card.
@@ -932,94 +930,5 @@ private fun SpoolSlot(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-    }
-}
-
-// ── Camera Card ──────────────────────────────────────────────────────────────
-
-@Composable
-private fun CameraCard(streamUrl: String?, autoPlay: Boolean) {
-    var isPlaying by remember(streamUrl) { mutableStateOf(autoPlay) }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "CAMERA",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black, RoundedCornerShape(16.dp))
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-                    .clickable(enabled = !streamUrl.isNullOrBlank()) {
-                        isPlaying = !isPlaying
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                if (streamUrl.isNullOrBlank()) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.VideocamOff,
-                            contentDescription = "No Camera",
-                            tint = Color.Gray,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "Camera Not Available",
-                            color = Color.Gray,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                } else {
-                    MpvPlayer(
-                        videoUrl = streamUrl,
-                        modifier = Modifier.fillMaxSize(),
-                        isPlaying = isPlaying
-                    )
-                    if (!isPlaying) {
-                        Box(
-                            modifier = Modifier
-                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                                .padding(12.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.PlayArrow,
-                                contentDescription = "Play",
-                                tint = Color.White,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                    }
-                }
-            }
-            if (!streamUrl.isNullOrBlank() && !isPlaying) {
-                Text(
-                    "Tap to view live feed",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            }
-        }
     }
 }

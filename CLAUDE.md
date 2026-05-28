@@ -74,7 +74,7 @@ com.example
 │   ├── Adventurer5M / 5MPro / AD5X / GenericLegacyBackend
 │   └── PrinterBackendFactory create(model, …)
 ├── data/                     Room persistence
-│   ├── AppDatabase (v2) / PrinterDao / PrinterEntity / PrinterRepository
+│   ├── AppDatabase (v4) / PrinterDao / PrinterEntity / PrinterRepository
 │   └── ActivePrinterSession  (lives INSIDE PrinterRepository.kt, not its own file)
 │                             Owns a PrinterBackend + http/tcp pair; HTTP /detail poll loop
 │                             with ConnectionState (Connecting/Connected/Offline/AuthFailed)
@@ -84,7 +84,7 @@ com.example
     ├── MainViewModel         AndroidViewModel; `activeSession: StateFlow<ActivePrinterSession?>`
     ├── FlasherApp            Scaffold + bottom NavigationBar, 3 typed routes
     │                         (DashboardRoute / PrintersRoute / SettingsRoute)
-    ├── components/           MpvPlayer — libmpv-backed camera surface (see camera note below)
+    ├── components/           MpvPlayer.kt — MpvController + MpvVideoSurface (libmpv; see camera note)
     ├── dashboard/ discovery/ settings/   screens
     └── theme/                Color, Theme, Type
 ```
@@ -137,13 +137,24 @@ com.example
 - **Temperature SET is still the old HTTP `temperatureCtl_cmd`** (`FlashForgeHttpApi.controlTemp`)
   and is suspect — the reference TS lib sets temps over TCP G-code (M104/M140) and leaves the HTTP
   path commented out as unverified. Move temp-set to TCP in Phase 3; don't trust the HTTP path.
-- **Camera works (verified live on AD5X).** The dashboard `CameraCard` streams the MJPEG feed
-  via `ui/components/MpvPlayer` — a libmpv (`dev.jdtech.mpv:libmpv`) surface that replaced the
-  earlier libVLC player. mpv renders into a `TextureView` (so `Modifier.clip` keeps the rounded
-  corners) and uses `panscan=1.0` + `profile=low-latency` + `cache=no` to crop-to-fill the card
-  with no letterbox bars. Each card owns its own `MPVLib` instance, so multi-printer pagers can
-  coexist. **The libmpv native libs are why ABI splits are on** (see build note above) — bundling
-  all four ABIs into one universal APK would balloon it.
+- **Camera + fullscreen + FPS work (verified live on AD5X).** The dashboard `CameraCard`
+  (`ui/dashboard/CameraCard.kt`) plays the MJPEG feed via libmpv (`dev.jdtech.mpv:libmpv`,
+  replacing the earlier libVLC player). The player is split into `ui/components/MpvPlayer.kt`:
+  a `MpvController` owns one `MPVLib` instance + the network stream, and one or more
+  `MpvVideoSurface`s render it. mpv draws into a `TextureView` (so `Modifier.clip` keeps the
+  rounded corners), `profile=low-latency` + `cache=no` + `untimed=yes` for a low-latency live
+  feed, and `panscan` per surface (1.0 crop-to-fill for the card, 0.0 fit for fullscreen).
+  - **Tap-to-expand fullscreen** is a borderless `Dialog`; it shares the *same* `MpvController`,
+    so expanding swaps the output surface instead of opening a second connection (FlashForge
+    cameras are single-client). **Critical mpv rules, both the hard way:** (1) only **one**
+    surface may be attached at a time — the card's `MpvVideoSurface` is gated off while
+    fullscreen is open; (2) `activate()` must `attachSurface → force-window=yes → vo=gpu` **in
+    that order** (vo before the surface → black screen). See `MpvController.activate()`.
+  - **FPS** is measured by counting `onSurfaceTextureUpdated` callbacks over a 1s window, NOT
+    mpv's `estimated-vf-fps` (which returns 0 under `untimed`). Per-printer toggle
+    `cameraFpsCounterEnabled`; auto-play toggle `cameraAutoPlayEnabled`.
+  - `MainActivity` declares `configChanges` so rotating in fullscreen resizes in place.
+  - **The libmpv native libs are why ABI splits are on** (see build note above).
 - Filtration *controls*, the full IFS spool card, file lists/printing, multi-printer,
   per-printer settings screen, Spoolman, notifications, and manual motion are **not started**
   (Phases 2–5). The dashboard currently shows filtration/IFS state read-only, capability-gated.

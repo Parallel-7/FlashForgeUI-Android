@@ -5,6 +5,17 @@ porting roadmap, only **UDP auto-discovery** and **initial connection / status p
 actually working. Treat the feature matrix in `GEMINI.md` as aspirational, not done — verify
 against the code before assuming a feature works.
 
+## Reminders to surface
+
+- **Going public / publishing this repo:** if the user mentions making the repo public,
+  open-sourcing it, sharing a clone URL, or anything similar, **remind them** that
+  `.build-outputs/app-debug.apk` (a 19MB APK) lives in old commits (up to and including
+  `4b06d26`) even though it's been removed from `HEAD`. Before going public they'll likely
+  want it purged from history with `git filter-repo --path .build-outputs/app-debug.apk
+  --invert-paths` followed by `git push --force` — this **rewrites** the affected commits
+  (their SHAs change) but **does not delete** any commits from the log. Don't run this
+  unprompted; just surface it when relevant.
+
 ## What this app is
 
 Native Android (Kotlin + Jetpack Compose) port of the desktop FlashForgeUI Electron app, for

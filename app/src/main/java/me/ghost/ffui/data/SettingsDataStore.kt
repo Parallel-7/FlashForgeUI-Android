@@ -3,6 +3,7 @@ package me.ghost.ffui.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -39,6 +40,7 @@ class SettingsDataStore(private val context: Context) {
         val STARTUP_RECONNECT = stringPreferencesKey("startup_reconnect")
         val LAST_CONNECTED_SERIALS = stringSetPreferencesKey("last_connected_serials")
         val LAST_ACTIVE_SERIAL = stringPreferencesKey("last_active_serial")
+        val HIDE_SERIALS = booleanPreferencesKey("hide_serials")
     }
 
     // ---- Readers ----
@@ -60,6 +62,11 @@ class SettingsDataStore(private val context: Context) {
         prefs[Keys.LAST_ACTIVE_SERIAL]
     }
 
+    /** When true, serial numbers are masked in the UI (for screenshots / screen recordings). */
+    val hideSerials: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.HIDE_SERIALS] ?: false
+    }
+
     // ---- Writers ----
 
     suspend fun setStartupReconnect(mode: StartupReconnect) {
@@ -76,4 +83,11 @@ class SettingsDataStore(private val context: Context) {
             else prefs.remove(Keys.LAST_ACTIVE_SERIAL)
         }
     }
+
+    suspend fun setHideSerials(hidden: Boolean) {
+        context.dataStore.edit { it[Keys.HIDE_SERIALS] = hidden }
+    }
 }
+
+/** Mask for a serial number when [hide] is set; fixed length so it doesn't leak the real one. */
+fun maskSerial(serial: String, hide: Boolean): String = if (hide) "•••••••••" else serial

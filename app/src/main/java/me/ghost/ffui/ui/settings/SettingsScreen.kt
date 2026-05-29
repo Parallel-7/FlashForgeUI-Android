@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(viewModel: MainViewModel) {
     val scope = rememberCoroutineScope()
     val reconnectMode by viewModel.settingsDataStore.startupReconnect.collectAsState(initial = StartupReconnect.OFF)
+    val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsState(initial = false)
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Settings") }) }
@@ -75,6 +76,42 @@ fun SettingsScreen(viewModel: MainViewModel) {
                             label = "Off (manual connect)",
                             selected = reconnectMode == StartupReconnect.OFF,
                             onClick = { scope.launch { viewModel.settingsDataStore.setStartupReconnect(StartupReconnect.OFF) } }
+                        )
+                    }
+                }
+            }
+
+            // ── Privacy section ──
+            item {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Privacy",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Hide serial numbers", style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                "Mask printer serials throughout the app (for screenshots / recordings)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Switch(
+                            checked = hideSerials,
+                            onCheckedChange = { scope.launch { viewModel.settingsDataStore.setHideSerials(it) } }
                         )
                     }
                 }

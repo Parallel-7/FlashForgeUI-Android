@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import me.ghost.ffui.api.PrinterModel
 import me.ghost.ffui.data.PrinterEntity
+import me.ghost.ffui.data.maskSerial
 import me.ghost.ffui.ui.MainViewModel
 import kotlinx.coroutines.launch
 
@@ -32,6 +33,7 @@ fun PrinterSettingsScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val sessions by viewModel.sessions.collectAsState()
+    val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsState(initial = false)
 
     LaunchedEffect(serialNumber) {
         printer = viewModel.repository.getPrinter(serialNumber)
@@ -122,7 +124,7 @@ fun PrinterSettingsScreen(
                             thickness = 0.5.dp,
                             color = MaterialTheme.colorScheme.outlineVariant
                         )
-                        InfoRow(label = "SERIAL", value = currentPrinter.serialNumber)
+                        InfoRow(label = "SERIAL", value = maskSerial(currentPrinter.serialNumber, hideSerials))
 
                         if (!currentPrinter.cameraStreamUrl.isNullOrBlank()) {
                             HorizontalDivider(
@@ -314,7 +316,7 @@ fun PrinterSettingsScreen(
                 text = {
                     Text(
                         "Are you sure you want to remove \"${currentPrinter.name}\" " +
-                            "(${currentPrinter.serialNumber})? This cannot be undone."
+                            "(${maskSerial(currentPrinter.serialNumber, hideSerials)})? This cannot be undone."
                     )
                 },
                 confirmButton = {

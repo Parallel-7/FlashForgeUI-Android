@@ -50,6 +50,7 @@ import me.ghost.ffui.api.PrinterDetailResponse
 import me.ghost.ffui.api.PrinterModel
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.PrinterEntity
+import me.ghost.ffui.data.maskSerial
 import me.ghost.ffui.ui.MainViewModel
 import kotlinx.coroutines.launch
 
@@ -79,6 +80,7 @@ fun PrinterInfoScreen(
 
     val status by session.status.collectAsState()
     val livePrinter by session.printerFlow.collectAsState()
+    val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsState(initial = false)
     val scope = rememberCoroutineScope()
     val displayName = status?.name?.takeIf { it.isNotBlank() } ?: livePrinter.name
 
@@ -96,6 +98,7 @@ fun PrinterInfoScreen(
             printer = livePrinter,
             status = status,
             connected = true,
+            hideSerials = hideSerials,
             onRename = { scope.launch { session.rename(it) } },
             onAutoShutdown = { enabled, minutes -> scope.launch { session.setAutoShutdown(enabled, minutes) } },
             modifier = Modifier.padding(padding)
@@ -112,6 +115,7 @@ fun PrinterInfoScreen(
 fun PrinterInfoDialog(
     printer: PrinterEntity,
     session: ActivePrinterSession?,
+    hideSerials: Boolean,
     onDismiss: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -126,6 +130,7 @@ fun PrinterInfoDialog(
                         printer = livePrinter,
                         status = status,
                         connected = true,
+                        hideSerials = hideSerials,
                         onRename = { scope.launch { session.rename(it) } },
                         onAutoShutdown = { enabled, minutes -> scope.launch { session.setAutoShutdown(enabled, minutes) } }
                     )
@@ -135,6 +140,7 @@ fun PrinterInfoDialog(
                         printer = printer,
                         status = null,
                         connected = false,
+                        hideSerials = hideSerials,
                         onRename = {},
                         onAutoShutdown = { _, _ -> }
                     )
@@ -161,6 +167,7 @@ private fun PrinterInfoBody(
     printer: PrinterEntity,
     status: PrinterDetailResponse?,
     connected: Boolean,
+    hideSerials: Boolean,
     onRename: (String) -> Unit,
     onAutoShutdown: (enabled: Boolean, minutes: Int) -> Unit,
     modifier: Modifier = Modifier
@@ -185,7 +192,7 @@ private fun PrinterInfoBody(
             InfoRow("Name", displayName)
             InfoRow("Model", model)
             InfoRow("Firmware", firmware ?: "—")
-            InfoRow("Serial", printer.serialNumber)
+            InfoRow("Serial", maskSerial(printer.serialNumber, hideSerials))
             InfoRow("MAC", status?.macAddr ?: "—")
             InfoRow("IP", printer.ipAddress)
             InfoRow("Camera", cameraUrl ?: "—")

@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import me.ghost.ffui.api.DiscoveredPrinter
 import me.ghost.ffui.data.PrinterEntity
+import me.ghost.ffui.data.maskSerial
 import me.ghost.ffui.ui.MainViewModel
 import me.ghost.ffui.ui.info.PrinterInfoDialog
 import me.ghost.ffui.ui.theme.StatusConnected
@@ -37,6 +38,7 @@ fun DiscoveryScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedToConnect by remember { mutableStateOf<DiscoveredPrinter?>(null) }
     var infoFor by remember { mutableStateOf<PrinterEntity?>(null) }
+    val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsState(initial = false)
 
     Scaffold(
         topBar = {
@@ -116,6 +118,7 @@ fun DiscoveryScreen(
         PrinterInfoDialog(
             printer = printer,
             session = sessions[printer.serialNumber],
+            hideSerials = hideSerials,
             onDismiss = { infoFor = null }
         )
     }

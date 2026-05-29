@@ -9,6 +9,7 @@ import me.ghost.ffui.api.PrinterCapabilities
 import me.ghost.ffui.api.PrinterModel
 import me.ghost.ffui.api.PrinterDetailResponse
 import me.ghost.ffui.backend.FiltrationMode
+import me.ghost.ffui.backend.SlotAction
 import me.ghost.ffui.backend.PrinterBackend
 import me.ghost.ffui.backend.PrinterBackendFactory
 import kotlinx.coroutines.CoroutineScope
@@ -56,10 +57,23 @@ sealed interface ConnectionState {
  * @param onIdentity invoked once after the model is identified, to persist pid/firmware/camera.
  */
 class ActivePrinterSession(
-    val printer: PrinterEntity,
+    initialPrinter: PrinterEntity,
     private val scope: CoroutineScope,
     private val onIdentity: suspend (pid: Int?, firmware: String?, cameraUrl: String?) -> Unit = { _, _, _ -> }
 ) {
+    private val _printer = MutableStateFlow(initialPrinter)
+    /**
+     * The live per-printer entity. Per-printer settings edits (camera prefs, auto-match, name) push
+     * here via [updatePrinterSettings] so the dashboard reflects them immediately — no reconnect.
+     * Transport-affecting toggles (forceLegacy, customLed) still go through a full reconnect.
+     */
+    val printerFlow: StateFlow<PrinterEntity> = _printer
+    /** Latest entity snapshot for non-Compose reads (`session.printer.xyz`). */
+    val printer: PrinterEntity get() = _printer.value
+
+    /** Applies edited settings to the live session without reconnecting. */
+    fun updatePrinterSettings(updated: PrinterEntity) { _printer.value = updated }
+
     val httpApi = FlashForgeHttpApi(printer.ipAddress)
     val tcpClient = FlashForgeTcpClient(printer.ipAddress, scope)
 
@@ -116,6 +130,14 @@ class ActivePrinterSession(
                 _status.value = detail
                 _matlStation.value = newBackend.materialStation(detail)
                 _connectionState.value = ConnectionState.Connected
+                // Reflect identity learned from /detail in the LIVE entity, not just the DB — otherwise
+                // the camera URL (only known after first /detail) stays blank in the running session
+                // until a reconnect, so a freshly-paired printer shows "Camera Not Available".
+                _printer.value = _printer.value.copy(
+                    modelPid = detail.pid ?: _printer.value.modelPid,
+                    firmwareVersion = detail.firmwareVersion ?: _printer.value.firmwareVersion,
+                    cameraStreamUrl = detail.cameraStreamUrl ?: _printer.value.cameraStreamUrl
+                )
                 onIdentity(detail.pid, detail.firmwareVersion, detail.cameraStreamUrl)
             }
             .onFailure { e -> applyFailure(e) }
@@ -142,13 +164,37 @@ class ActivePrinterSession(
         }
     }
 
-    private fun nextDelayMs(): Long = when (_connectionState.value) {
-        is ConnectionState.AuthFailed -> 15_000L
-        is ConnectionState.Offline -> 3_000L
-        else -> when (_status.value?.status?.lowercase()) {
-            "printing", "busy", "building_from_sd" -> 1_500L
-            "paused", "pausing" -> 2_500L
+    // Tracks when the printer first entered `completed` so we can poll fast briefly (the user often
+    // clears the platform right after) then relax to idle cadence.
+    private var lastStatusKey: String? = null
+    private var completedSinceMs: Long = 0L
+
+    /**
+     * Adaptive poll cadence keyed off the connection state, then the wire-level `status` (see the
+     * HTTP REST "Machine States"). The `status` set here is purely the modern HTTP state machine —
+     * legacy-only strings like `building_from_sd` are normalized to modern equivalents by
+     * [GenericLegacyBackend] before they reach this point.
+     */
+    private fun nextDelayMs(): Long {
+        when (_connectionState.value) {
+            is ConnectionState.AuthFailed -> return 15_000L
+            is ConnectionState.Offline -> return 3_000L
+            else -> {}
+        }
+        val status = _status.value?.status?.lowercase()
+        if (status != lastStatusKey) {
+            lastStatusKey = status
+            if (status == "completed") completedSinceMs = System.currentTimeMillis()
+        }
+        return when (status) {
+            // Active / user-watched operations — climb fast.
+            "printing", "working", "busy", "heating", "calibrate_doing", "canceling" -> 1_500L
+            // Paused or a transient end-of-job dialog the user is likely interacting with.
+            "paused", "pausing", "cancel" -> 2_500L
+            // Just finished: stay responsive for ~30s (platform-clear), then fall to idle.
+            "completed" -> if (System.currentTimeMillis() - completedSinceMs < 30_000L) 2_500L else 5_000L
             "error" -> 10_000L
+            // `ready` and anything unrecognized.
             else -> 5_000L
         }
     }
@@ -158,16 +204,33 @@ class ActivePrinterSession(
     suspend fun setNozzleTemp(celsius: Int) = backend?.setNozzleTemp(celsius)
     suspend fun setBedTemp(celsius: Int) = backend?.setBedTemp(celsius)
     suspend fun setFiltration(mode: FiltrationMode) = backend?.setFiltration(mode)
+    suspend fun setSlotMaterial(slot: Int, materialName: String, hexRgb: String) = backend?.setSlotMaterial(slot, materialName, hexRgb)
+    suspend fun slotAction(slot: Int, action: SlotAction) = backend?.slotAction(slot, action)
     suspend fun pause() = backend?.pause()
     suspend fun resume() = backend?.resume()
     suspend fun cancel() = backend?.cancel()
     suspend fun clearPlatform() = backend?.clearPlatform()
+    suspend fun rename(name: String) = backend?.rename(name)
+    suspend fun setAutoShutdown(enabled: Boolean, minutes: Int) = backend?.setAutoShutdown(enabled, minutes)
 
     // ---- File management (Phase 4) ----
     private fun notReady() = Result.failure<Nothing>(IllegalStateException("Printer not connected"))
     suspend fun listRecentFiles(): Result<List<FFGcodeFileEntry>> = backend?.listRecentFiles() ?: notReady()
     suspend fun listLocalFiles(): Result<List<String>> = backend?.listLocalFiles() ?: notReady()
     suspend fun getThumbnail(fileName: String): Result<ByteArray?> = backend?.getThumbnail(fileName) ?: notReady()
+
+    /**
+     * Thumbnail bytes for the *active job*, used by the dashboard's "what am I printing?" tile.
+     * Tries the printer's unauthenticated [thumbUrl] (`printFileThumbUrl`) first — cheapest, the
+     * printer already serves the PNG there — then falls back to the authenticated `/gcodeThumb`
+     * path. Returns `null` when neither source yields an image.
+     */
+    suspend fun getJobThumbnail(fileName: String, thumbUrl: String?): ByteArray? {
+        thumbUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            httpApi.getBytes(url)?.let { return it }
+        }
+        return backend?.getThumbnail(fileName)?.getOrNull()
+    }
     suspend fun startPrint(fileName: String, leveling: Boolean, mappings: List<AD5XMaterialMapping> = emptyList()): Result<Unit> =
         backend?.startPrint(fileName, leveling, mappings) ?: notReady()
 

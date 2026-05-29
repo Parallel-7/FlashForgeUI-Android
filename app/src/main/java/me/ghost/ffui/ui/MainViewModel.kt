@@ -113,7 +113,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val session = ActivePrinterSession(
-            printer = printer,
+            initialPrinter = printer,
             scope = viewModelScope,
             onIdentity = { pid, firmware, cameraUrl ->
                 repository.updateIdentity(printer.serialNumber, pid, firmware, cameraUrl)
@@ -149,6 +149,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Switches the visible dashboard tab to [serial]. */
     fun setActive(serial: String) {
         _activeSerial.value = serial
+    }
+
+    /**
+     * Persists edited per-printer settings and pushes them to the live session so UI-only prefs
+     * (camera autoplay / FPS / custom URL, auto-match) apply immediately without a reconnect.
+     * Transport-affecting toggles additionally call [reconnectSession].
+     */
+    fun updatePrinterSettings(updated: PrinterEntity) {
+        viewModelScope.launch { repository.updatePrinter(updated) }
+        _sessions.value[updated.serialNumber]?.updatePrinterSettings(updated)
     }
 
     /**

@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -18,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import me.ghost.ffui.api.DiscoveredPrinter
 import me.ghost.ffui.data.PrinterEntity
 import me.ghost.ffui.ui.MainViewModel
+import me.ghost.ffui.ui.info.PrinterInfoDialog
 import me.ghost.ffui.ui.theme.StatusConnected
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,6 +36,7 @@ fun DiscoveryScreen(
     
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedToConnect by remember { mutableStateOf<DiscoveredPrinter?>(null) }
+    var infoFor by remember { mutableStateOf<PrinterEntity?>(null) }
 
     Scaffold(
         topBar = {
@@ -73,6 +76,7 @@ fun DiscoveryScreen(
                                 viewModel.connectToPrinter(printer)
                                 onNavigateToDashboard()
                             },
+                            onInfoClick = { infoFor = printer },
                             onSettingsClick = { onNavigateToSettings(printer.serialNumber) }
                         )
                     }
@@ -108,6 +112,14 @@ fun DiscoveryScreen(
         )
     }
     
+    infoFor?.let { printer ->
+        PrinterInfoDialog(
+            printer = printer,
+            session = sessions[printer.serialNumber],
+            onDismiss = { infoFor = null }
+        )
+    }
+
     if (selectedToConnect != null) {
         val ptr = selectedToConnect!!
         AddPrinterDialog(
@@ -131,6 +143,7 @@ fun PrinterCard(
     isSaved: Boolean,
     isConnected: Boolean,
     onClick: () -> Unit,
+    onInfoClick: (() -> Unit)? = null,
     onSettingsClick: (() -> Unit)? = null
 ) {
     Card(
@@ -166,6 +179,15 @@ fun PrinterCard(
             } else if (isSaved) {
                 Badge { Text("Saved") }
                 Spacer(Modifier.width(8.dp))
+            }
+            if (onInfoClick != null) {
+                IconButton(onClick = onInfoClick) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = "Printer Info",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             if (onSettingsClick != null) {
                 IconButton(onClick = onSettingsClick) {

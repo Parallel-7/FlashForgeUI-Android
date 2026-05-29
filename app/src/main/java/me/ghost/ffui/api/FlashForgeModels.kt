@@ -72,6 +72,17 @@ data class PrinterDetailResponse(
     val cameraStreamUrl: String? = null,
     val name: String? = null,
     val firmwareVersion: String? = null,
+    val macAddr: String? = null,
+    // Auto-shutdown ("open"/"close"; time in minutes after a completed print).
+    val autoShutdown: String? = null,
+    val autoShutdownTime: Float? = null,
+    // Lifetime stats (see "Printer Info" screen). cumulativeFilament is meters, cumulativePrintTime
+    // is minutes (verified against ff-5mp-api-ts MachineInfo); remainingDiskSpace is GB free —
+    // confirmed on an AD5X as a fractional value (~4.94), so it MUST be Float? not Long? (the
+    // firmware serializes it as a decimal and a decimal literal won't parse into an integer type).
+    val cumulativeFilament: Float? = null,
+    val cumulativePrintTime: Float? = null,
+    val remainingDiskSpace: Float? = null,
     // Material station (AD5X) — reported inline on /detail.
     val hasMatlStation: Boolean? = null,
     val matlStationInfo: MatlStationInfo? = null,
@@ -106,6 +117,22 @@ data class CirculateCtlArgs(val internal: String, val external: String)
 
 @Serializable
 data class JobCtlArgs(val jobID: String = "", val action: String)
+
+/** Args for `msConfig_cmd` (AD5X IFS slot metadata). [slot] is 1-based; [rgb] is hex WITHOUT `#`. */
+@Serializable
+data class MsConfigArgs(val slot: Int, val mt: String, val rgb: String)
+
+/** Args for `ms_cmd` (AD5X IFS load/unload/cancel). [action]: 0=load, 1=unload, 2=cancel. */
+@Serializable
+data class MsCtlArgs(val slot: Int, val action: Int)
+
+/** Args for `reName_cmd` (changes the printer's display name). */
+@Serializable
+data class ReNameArgs(val name: String)
+
+/** Args for `delayClose_cmd` (auto-shutdown). [automaticShutdown] is `"open"`/`"close"`. */
+@Serializable
+data class DelayCloseArgs(val automaticShutdown: String, val shutdownAfterTime: Int)
 
 @Serializable
 data class MatlStationInfo(

@@ -99,6 +99,53 @@ class FlashForgeHttpApi(private val ipAddress: String) {
         postControl(req)
     }
 
+    /**
+     * Configures an AD5X IFS slot's material metadata via `msConfig_cmd`. [slot] is 1-based;
+     * [hexRgb] must be a 6-digit hex string WITHOUT the `#` prefix (the firmware rejects the `#`).
+     */
+    suspend fun configureSlot(serialNumber: String, checkCode: String, slot: Int, materialName: String, hexRgb: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val rgb = hexRgb.removePrefix("#")
+        val req = ControlRequest(
+            serialNumber = serialNumber,
+            checkCode = checkCode,
+            payload = ControlPayload("msConfig_cmd", json.encodeToJsonElement(MsConfigArgs(slot, materialName, rgb)))
+        )
+        postControl(req)
+    }
+
+    /**
+     * Drives an AD5X IFS load/unload/cancel via `ms_cmd`. [slot] is 1-based; [action] is
+     * 0=load, 1=unload, 2=cancel (cancel ignores the slot — pass 0).
+     */
+    suspend fun slotAction(serialNumber: String, checkCode: String, slot: Int, action: Int): Result<Unit> = withContext(Dispatchers.IO) {
+        val req = ControlRequest(
+            serialNumber = serialNumber,
+            checkCode = checkCode,
+            payload = ControlPayload("ms_cmd", json.encodeToJsonElement(MsCtlArgs(slot, action)))
+        )
+        postControl(req)
+    }
+
+    /** Renames the printer via `reName_cmd`. */
+    suspend fun renamePrinter(serialNumber: String, checkCode: String, name: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val req = ControlRequest(
+            serialNumber = serialNumber,
+            checkCode = checkCode,
+            payload = ControlPayload("reName_cmd", json.encodeToJsonElement(ReNameArgs(name)))
+        )
+        postControl(req)
+    }
+
+    /** Configures auto-shutdown via `delayClose_cmd`. [minutes] is the delay after a completed print. */
+    suspend fun setAutoShutdown(serialNumber: String, checkCode: String, enabled: Boolean, minutes: Int): Result<Unit> = withContext(Dispatchers.IO) {
+        val req = ControlRequest(
+            serialNumber = serialNumber,
+            checkCode = checkCode,
+            payload = ControlPayload("delayClose_cmd", json.encodeToJsonElement(DelayCloseArgs(if (enabled) "open" else "close", minutes)))
+        )
+        postControl(req)
+    }
+
     suspend fun clearPlatform(serialNumber: String, checkCode: String): Result<Unit> = withContext(Dispatchers.IO) {
         val req = ControlRequest(
             serialNumber = serialNumber,
@@ -198,6 +245,22 @@ class FlashForgeHttpApi(private val ipAddress: String) {
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * GETs raw bytes from an absolute [url]. Used for the printer's unauthenticated
+     * `printFileThumbUrl` (e.g. `http://<ip>:8898/thumb/Benchy.gcode`), which serves the job
+     * thumbnail PNG directly on the LAN with no `serialNumber`/`checkCode`. Returns `null` on any
+     * failure or an empty body so the caller can fall back to `/gcodeThumb`.
+     */
+    suspend fun getBytes(url: String): ByteArray? = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder().url(url).get().build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                response.body?.bytes()?.takeIf { it.isNotEmpty() }
+            }
+        }.getOrNull()
     }
 
     /**

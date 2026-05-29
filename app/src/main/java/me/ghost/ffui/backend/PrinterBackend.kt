@@ -15,6 +15,9 @@ import me.ghost.ffui.data.PrinterEntity
 /** Air-filtration mode for the 5M Pro circulation fans (mapped to internal/external open/close). */
 enum class FiltrationMode { EXTERNAL, INTERNAL, OFF }
 
+/** AD5X IFS slot operation, carrying the on-wire `ms_cmd` action code (0=load, 1=unload, 2=cancel). */
+enum class SlotAction(val code: Int) { LOAD(0), UNLOAD(1), CANCEL(2) }
+
 /**
  * A per-model strategy that knows how to talk to one connected printer. Mirrors the
  * `BasePrinterBackend → DualAPIBackend → {model}` hierarchy from FlashForgeUI-Electron.
@@ -145,6 +148,31 @@ abstract class PrinterBackend(
         }
         return http.controlFiltration(printer.serialNumber, printer.checkCode, internal, external)
     }
+
+    // ---- Material station control (HTTP; AD5X only) ----
+    /**
+     * Sets an IFS slot's material metadata (`msConfig_cmd`). [slot] is 1-based; [hexRgb] may carry a
+     * leading `#` (stripped before sending). A capability-gated no-op (failure) on non-station
+     * models; [AD5XBackend] overrides.
+     */
+    open suspend fun setSlotMaterial(slot: Int, materialName: String, hexRgb: String): Result<Unit> =
+        Result.failure(IllegalStateException("Material station not available for $model"))
+
+    /**
+     * Drives an IFS load/unload/cancel (`ms_cmd`). [slot] is 1-based (ignored for [SlotAction.CANCEL]).
+     * A capability-gated no-op (failure) on non-station models; [AD5XBackend] overrides.
+     */
+    open suspend fun slotAction(slot: Int, action: SlotAction): Result<Unit> =
+        Result.failure(IllegalStateException("Material station not available for $model"))
+
+    // ---- Printer info / settings (HTTP; modern) ----
+    /** Renames the printer (`reName_cmd`). */
+    open suspend fun rename(name: String): Result<Unit> =
+        http.renamePrinter(printer.serialNumber, printer.checkCode, name)
+
+    /** Configures auto-shutdown (`delayClose_cmd`); [minutes] is the post-print delay. */
+    open suspend fun setAutoShutdown(enabled: Boolean, minutes: Int): Result<Unit> =
+        http.setAutoShutdown(printer.serialNumber, printer.checkCode, enabled, minutes)
 
     // ---- Shared job control (HTTP) ----
     suspend fun pause() = http.pauseJob(printer.serialNumber, printer.checkCode)

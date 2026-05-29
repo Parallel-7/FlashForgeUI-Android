@@ -46,6 +46,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.Image
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import me.ghost.ffui.data.ActivePrinterSession
+import me.ghost.ffui.data.ThumbnailCache
 import me.ghost.ffui.ui.components.MpvController
 import me.ghost.ffui.ui.components.MpvVideoSurface
 import me.ghost.ffui.ui.components.rememberMpvController
@@ -61,8 +69,24 @@ import kotlinx.coroutines.delay
  * while fullscreen is open and restored on close. The controller keeps the stream loaded across
  * that handoff, so there's no reconnect.
  */
+/**
+ * Identifies the active print job for the dashboard's "what am I printing?" thumbnail tile. Held by
+ * [CameraCard] and resolved through [ThumbnailCache] (shared with the Files list), preferring the
+ * printer's unauthenticated `printFileThumbUrl` over `/gcodeThumb`.
+ */
+data class JobThumbnailRef(
+    val session: ActivePrinterSession,
+    val fileName: String,
+    val thumbUrl: String?
+)
+
 @Composable
-fun CameraCard(streamUrl: String?, autoPlay: Boolean, showFps: Boolean) {
+fun CameraCard(
+    streamUrl: String?,
+    autoPlay: Boolean,
+    showFps: Boolean,
+    jobThumbnail: JobThumbnailRef? = null
+) {
     var isPlaying by remember(streamUrl) { mutableStateOf(autoPlay) }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
 
@@ -159,6 +183,17 @@ fun CameraCard(streamUrl: String?, autoPlay: Boolean, showFps: Boolean) {
                         if (showFps && isPlaying) FpsBadge(fps)
                     }
                 }
+
+                // "What am I printing?" overlay — only while a job is active (independent of the
+                // camera stream, so it still shows when no camera is configured).
+                if (jobThumbnail != null && !fullscreen) {
+                    JobThumbnailTile(
+                        ref = jobThumbnail,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                    )
+                }
             }
         }
     }
@@ -222,6 +257,37 @@ private fun FullscreenCamera(
                 )
             }
         }
+    }
+}
+
+/**
+ * Small PNG tile of the file currently printing, fetched lazily through [ThumbnailCache] (memory +
+ * disk, keyed by `serial:fileName` so it shares bytes with the Files list). Renders nothing until
+ * an image resolves — a brief absence reads better than a placeholder box for a transient cue.
+ */
+@Composable
+private fun JobThumbnailTile(ref: JobThumbnailRef, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val cacheKey = "${ref.session.printer.serialNumber}:${ref.fileName}"
+    val initial = remember(cacheKey) { ThumbnailCache.peek(cacheKey)?.asImageBitmap() }
+    val bitmap by produceState<ImageBitmap?>(initialValue = initial, cacheKey, ref.thumbUrl) {
+        if (value == null) {
+            value = ThumbnailCache.get(context, cacheKey) {
+                ref.session.getJobThumbnail(ref.fileName, ref.thumbUrl)
+            }?.asImageBitmap()
+        }
+    }
+    bitmap?.let {
+        Image(
+            bitmap = it,
+            contentDescription = "Printing ${ref.fileName}",
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+                .size(72.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.Black, RoundedCornerShape(12.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+        )
     }
 }
 

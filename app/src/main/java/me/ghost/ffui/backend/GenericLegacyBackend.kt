@@ -32,7 +32,7 @@ class GenericLegacyBackend(
         val t = tcp.telemetry.value
         return Result.success(
             PrinterDetailResponse(
-                status = t.machineStatus,
+                status = normalizeStatus(t.machineStatus),
                 rightTemp = t.extCurrentTemp,
                 rightTargetTemp = t.extTargetTemp,
                 platTemp = t.bedCurrentTemp,
@@ -40,5 +40,20 @@ class GenericLegacyBackend(
                 name = printer.name
             )
         )
+    }
+
+    /**
+     * Maps the legacy `M119` `MachineStatus` token onto the modern lowercase `status` strings the
+     * rest of the app (and the adaptive cadence) speaks. In particular `BUILDING_FROM_SD` — which
+     * only ever comes from this TCP flow — becomes `printing` here, so the HTTP cadence table never
+     * has to know about it.
+     */
+    private fun normalizeStatus(raw: String): String = when (raw.uppercase()) {
+        "READY" -> "ready"
+        "BUILDING_FROM_SD" -> "printing"
+        "BUILDING_COMPLETED" -> "completed"
+        "PAUSED" -> "paused"
+        "BUSY" -> "busy"
+        else -> raw.lowercase()
     }
 }

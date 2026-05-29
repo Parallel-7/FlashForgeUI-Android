@@ -10,7 +10,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import me.ghost.ffui.api.PrinterModel
 import me.ghost.ffui.data.PrinterEntity
@@ -38,10 +37,10 @@ fun PrinterSettingsScreen(
         printer = viewModel.repository.getPrinter(serialNumber)
     }
 
-    /** Persist the updated entity to Room and refresh local state. */
+    /** Persist the updated entity (Room + live session) and refresh local state. */
     fun updatePrinter(updated: PrinterEntity) {
         printer = updated
-        scope.launch { viewModel.repository.updatePrinter(updated) }
+        viewModel.updatePrinterSettings(updated)
     }
 
     Scaffold(
@@ -225,22 +224,12 @@ fun PrinterSettingsScreen(
                             label = { Text("Camera URL") },
                             placeholder = { Text("rtsp://192.168.1.x:554/stream") },
                             singleLine = true,
+                            supportingText = {
+                                Text("Blank falls back to the printer's built-in stream.")
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(16.dp)
-                                .onFocusChanged { focusState ->
-                                    if (!focusState.isFocused &&
-                                        currentPrinter.customCameraEnabled &&
-                                        currentPrinter.customCameraUrl.isBlank()
-                                    ) {
-                                        updatePrinter(
-                                            currentPrinter.copy(
-                                                customCameraEnabled = false,
-                                                customCameraUrl = ""
-                                            )
-                                        )
-                                    }
-                                }
                         )
                     }
                 }

@@ -31,6 +31,12 @@ class AD5XBackend(
 
     override fun materialStation(detail: PrinterDetailResponse): MatlStationInfo? = detail.matlStationInfo
 
+    override suspend fun setSlotMaterial(slot: Int, materialName: String, hexRgb: String): Result<Unit> =
+        http.configureSlot(printer.serialNumber, printer.checkCode, slot, materialName, hexRgb)
+
+    override suspend fun slotAction(slot: Int, action: SlotAction): Result<Unit> =
+        http.slotAction(printer.serialNumber, printer.checkCode, slot, action.code)
+
     /**
      * AD5X always sends the full `/printGcode` payload (regardless of firmware): a non-empty
      * [mappings] is a multi-color job (`useMatlStation=true`, tool count from the mappings); an empty

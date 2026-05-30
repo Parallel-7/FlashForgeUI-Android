@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.ui.MainViewModel
+import me.ghost.ffui.ui.jobStateOf
 import me.ghost.ffui.ui.dashboard.FiltrationCard
 import me.ghost.ffui.ui.dashboard.HeaterGrid
 import me.ghost.ffui.ui.dashboard.TemperatureDialog
@@ -92,13 +93,8 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
     val capabilities by session.capabilities.collectAsState()
     val scope = rememberCoroutineScope()
 
-    // Same job-state machine the dashboard uses (see DashboardScreen.DashboardContent).
-    val state = (status?.status ?: "").lowercase()
-    val isPrinting = state in listOf("printing", "building_from_sd", "busy")
-    val isPrepping = state in listOf("heating", "calibrate_doing")
-    val isPaused = state == "paused"
-    val isPausing = state == "pausing"
-    val isActiveJob = isPrinting || isPrepping || isPaused || isPausing
+    // Shared job-state machine (see ui/JobState.kt) — same derivation the dashboard uses.
+    val job = jobStateOf(status)
 
     var showTempDialog by remember { mutableStateOf<String?>(null) } // "Nozzle" / "Bed"
 
@@ -111,11 +107,11 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
     ) {
         // ── Job ─────────────────────────────────────────────────────────────
         ControlSection("Job") {
-            if (isActiveJob) {
+            if (job.isActiveJob) {
                 JobControlRow(
-                    isPrinting = isPrinting,
-                    isPaused = isPaused,
-                    isPausing = isPausing,
+                    isPrinting = job.isPrinting,
+                    isPaused = job.isPaused,
+                    isPausing = job.isPausing,
                     onPause = { scope.launch { session.pause() } },
                     onResume = { scope.launch { session.resume() } },
                     onCancel = { scope.launch { session.cancel() } }
@@ -150,7 +146,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
         ControlSection("Motion") {
             Button(
                 onClick = { scope.launch { session.home() } },
-                enabled = !isActiveJob,
+                enabled = !job.isActiveJob,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
@@ -194,7 +190,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
                     internalFanOn = status?.internalFanStatus == "open",
                     externalFanOn = status?.externalFanStatus == "open",
                     tvoc = status?.tvoc,
-                    controlsEnabled = !(isPrinting || isPrepping),
+                    controlsEnabled = !(job.isPrinting || job.isPrepping),
                     onSelect = { mode -> scope.launch { session.setFiltration(mode) } }
                 )
             }

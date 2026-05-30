@@ -21,6 +21,7 @@ import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.ConnectionState
 import me.ghost.ffui.ui.MainViewModel
 import me.ghost.ffui.ui.controls.JobControlRow
+import me.ghost.ffui.ui.jobStateOf
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
@@ -186,14 +187,8 @@ private fun DashboardContent(session: ActivePrinterSession) {
     val printerState = status?.status ?: "—"
     val progress = status?.printProgress?.let { (it * 100).toInt() } ?: 0
 
-    // Normalized job state → which controls show/enable (see BASE_BLUEPRINT state machine).
-    val state = printerState.lowercase()
-    val isPrinting = state in listOf("printing", "building_from_sd", "busy")
-    val isPrepping = state in listOf("heating", "calibrate_doing") // pre-print warm-up
-    val isPaused = state == "paused"
-    val isPausing = state == "pausing"
-    val isCompleted = state in listOf("completed", "building_completed")
-    val isActiveJob = isPrinting || isPrepping || isPaused || isPausing
+    // Normalized job state → which controls show/enable. Shared with the Controls tab via jobStateOf.
+    val job = jobStateOf(status)
 
     var showTempDialog by remember { mutableStateOf<String?>(null) } // heater: "Nozzle" / "Bed"
 
@@ -215,8 +210,7 @@ private fun DashboardContent(session: ActivePrinterSession) {
         // Camera feed first — at-a-glance "what is it doing right now". Job thumbnail overlay only
         // while there's an active job.
         val jobFileName = status?.printFileName
-        val showJobThumb = state in listOf("printing", "paused", "pausing", "heating", "calibrate_doing") &&
-            !jobFileName.isNullOrBlank()
+        val showJobThumb = job.isActiveJob && !jobFileName.isNullOrBlank()
         CameraCard(
             streamUrl = livePrinter.customCameraUrl.takeIf { livePrinter.customCameraEnabled && it.isNotBlank() }
                 ?: livePrinter.cameraStreamUrl,
@@ -231,11 +225,11 @@ private fun DashboardContent(session: ActivePrinterSession) {
 
         // At-a-glance job control — directly under the progress bar, above remaining/layer. Gated
         // against the live job state; shares JobControlRow with the Controls tab (ui/controls).
-        if (isActiveJob) {
+        if (job.isActiveJob) {
             JobControlRow(
-                isPrinting = isPrinting,
-                isPaused = isPaused,
-                isPausing = isPausing,
+                isPrinting = job.isPrinting,
+                isPaused = job.isPaused,
+                isPausing = job.isPausing,
                 onPause = { scope.launch { session.pause() } },
                 onResume = { scope.launch { session.resume() } },
                 onCancel = { scope.launch { session.cancel() } }
@@ -252,7 +246,7 @@ private fun DashboardContent(session: ActivePrinterSession) {
                 internalFanOn = status?.internalFanStatus == "open",
                 externalFanOn = status?.externalFanStatus == "open",
                 tvoc = status?.tvoc,
-                controlsEnabled = !(isPrinting || isPrepping),
+                controlsEnabled = !(job.isPrinting || job.isPrepping),
                 onSelect = { mode -> scope.launch { session.setFiltration(mode) } }
             )
         }
@@ -262,7 +256,7 @@ private fun DashboardContent(session: ActivePrinterSession) {
             matlStation?.let { IfsStationCard(it, session) }
         }
 
-        if (isCompleted) {
+        if (job.isCompleted) {
             Button(
                 onClick = { scope.launch { session.clearPlatform() } },
                 modifier = Modifier.fillMaxWidth().height(56.dp),

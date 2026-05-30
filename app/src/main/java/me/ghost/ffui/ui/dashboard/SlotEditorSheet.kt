@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -29,7 +28,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,7 +42,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import me.ghost.ffui.api.MatlSlotInfo
-import me.ghost.ffui.backend.SlotAction
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.ui.components.IfsPalette
 import kotlinx.coroutines.launch
@@ -56,11 +53,13 @@ private fun parseHex(hex: String): Color? {
 }
 
 /**
- * Bottom-sheet editor for one AD5X IFS slot — the single place spool work happens. Lets the user set
- * the slot's material + color (`msConfig_cmd`) and drive load / unload / cancel (`ms_cmd`). Material
- * and color are restricted to the printer-recognized [IfsPalette.MATERIALS] / [IfsPalette.COLORS] so
- * we never push a value the printer UI can't render. Submitting fires the command and dismisses; the
- * next `/detail` poll reflects the change.
+ * Bottom-sheet editor for one AD5X IFS slot. Lets the user set the slot's material + color
+ * (`msConfig_cmd`). Material and color are restricted to the printer-recognized
+ * [IfsPalette.MATERIALS] / [IfsPalette.COLORS] so we never push a value the printer UI can't render.
+ * Submitting fires the command and dismisses; the next `/detail` poll reflects the change.
+ *
+ * Load / unload / cancel (`ms_cmd`) actions are intentionally omitted for now — held back until we
+ * verify exactly what each does on real hardware (the backend `slotAction` plumbing still exists).
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -171,25 +170,6 @@ fun SlotEditorSheet(
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(14.dp)
             ) { Text("Save material") }
-
-            // Load / Unload / Cancel.
-            Text("Spool operations", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { scope.launch { session.slotAction(slotId, SlotAction.LOAD) }; onDismiss() },
-                    enabled = slot?.hasFilament == true,
-                    modifier = Modifier.weight(1f)
-                ) { Text("Load") }
-                OutlinedButton(
-                    onClick = { scope.launch { session.slotAction(slotId, SlotAction.UNLOAD) }; onDismiss() },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Unload") }
-                OutlinedButton(
-                    onClick = { scope.launch { session.slotAction(slotId, SlotAction.CANCEL) }; onDismiss() },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Cancel") }
-            }
         }
     }
 }

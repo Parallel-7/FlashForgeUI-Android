@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Settings
@@ -24,6 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import me.ghost.ffui.ui.controls.ControlsScreen
 import me.ghost.ffui.ui.dashboard.DashboardScreen
 import me.ghost.ffui.ui.discovery.DiscoveryScreen
 import me.ghost.ffui.ui.files.FilesScreen
@@ -34,6 +36,9 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 object DashboardRoute
+
+@Serializable
+object ControlsRoute
 
 @Serializable
 object PrintersRoute
@@ -71,6 +76,18 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                     selected = currentDestination?.hierarchy?.any { it.route?.contains("DashboardRoute") == true } == true,
                     onClick = {
                         navController.navigate(DashboardRoute) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Build, contentDescription = "Controls") },
+                    label = { Text("Controls") },
+                    selected = currentDestination?.hierarchy?.any { it.route?.contains("ControlsRoute") == true } == true,
+                    onClick = {
+                        navController.navigate(ControlsRoute) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
@@ -136,6 +153,10 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                 )
             }
             
+            composable<ControlsRoute> {
+                ControlsScreen(viewModel = viewModel)
+            }
+
             composable<PrintersRoute> {
                 DiscoveryScreen(
                     viewModel = viewModel,

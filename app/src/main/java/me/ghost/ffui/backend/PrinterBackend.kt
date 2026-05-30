@@ -132,6 +132,16 @@ abstract class PrinterBackend(
         return Result.success(Unit)
     }
 
+    // ---- Shared motion control (TCP G-code) ----
+    /**
+     * Homes all axes over TCP `~G28`. Routed over TCP like temperature control — the reference
+     * lib's `Control.home()` delegates to the TCP G-code client (`homeAxes`), not HTTP.
+     */
+    open suspend fun home(): Result<Unit> {
+        tcp.homeAxes()
+        return Result.success(Unit)
+    }
+
     // ---- Filtration control (HTTP; 5M Pro only) ----
     /**
      * Switches air filtration. Only meaningful when [PrinterCapabilities.filtrationControl] is set;

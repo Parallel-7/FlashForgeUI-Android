@@ -207,6 +207,7 @@ class ActivePrinterSession(
     suspend fun setLight(on: Boolean) = backend?.setLight(on)
     suspend fun setNozzleTemp(celsius: Int) = backend?.setNozzleTemp(celsius)
     suspend fun setBedTemp(celsius: Int) = backend?.setBedTemp(celsius)
+    suspend fun home() = backend?.home()
     suspend fun setFiltration(mode: FiltrationMode) = backend?.setFiltration(mode)
     suspend fun setSlotMaterial(slot: Int, materialName: String, hexRgb: String) = backend?.setSlotMaterial(slot, materialName, hexRgb)
     suspend fun slotAction(slot: Int, action: SlotAction) = backend?.slotAction(slot, action)

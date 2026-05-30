@@ -11,10 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.LinkOff
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,6 +20,7 @@ import androidx.compose.ui.Modifier
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.ConnectionState
 import me.ghost.ffui.ui.MainViewModel
+import me.ghost.ffui.ui.controls.JobControlRow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
@@ -214,22 +212,8 @@ private fun DashboardContent(session: ActivePrinterSession) {
             is ConnectionState.Connected -> {}
         }
 
-        JobProgressHeader(fileName = status?.printFileName, progress = progress, stateLabel = printerState)
-
-        TempInfoGrid(status = status, onHeaterClick = { showTempDialog = it })
-
-        // Air filtration (5M Pro) — interactive, capability-gated.
-        if (capabilities.filtrationControl) {
-            FiltrationCard(
-                internalFanOn = status?.internalFanStatus == "open",
-                externalFanOn = status?.externalFanStatus == "open",
-                tvoc = status?.tvoc,
-                controlsEnabled = !(isPrinting || isPrepping),
-                onSelect = { mode -> scope.launch { session.setFiltration(mode) } }
-            )
-        }
-
-        // Camera feed + "what am I printing?" job thumbnail overlay (active jobs only).
+        // Camera feed first — at-a-glance "what is it doing right now". Job thumbnail overlay only
+        // while there's an active job.
         val jobFileName = status?.printFileName
         val showJobThumb = state in listOf("printing", "paused", "pausing", "heating", "calibrate_doing") &&
             !jobFileName.isNullOrBlank()
@@ -243,50 +227,39 @@ private fun DashboardContent(session: ActivePrinterSession) {
             } else null
         )
 
+        JobProgressHeader(fileName = status?.printFileName, progress = progress, stateLabel = printerState)
+
+        // At-a-glance job control — directly under the progress bar, above remaining/layer. Gated
+        // against the live job state; shares JobControlRow with the Controls tab (ui/controls).
+        if (isActiveJob) {
+            JobControlRow(
+                isPrinting = isPrinting,
+                isPaused = isPaused,
+                isPausing = isPausing,
+                onPause = { scope.launch { session.pause() } },
+                onResume = { scope.launch { session.resume() } },
+                onCancel = { scope.launch { session.cancel() } }
+            )
+        }
+
+        JobStatsRow(status = status)
+
+        HeaterGrid(status = status, onHeaterClick = { showTempDialog = it })
+
+        // Air filtration (5M Pro) — interactive, capability-gated.
+        if (capabilities.filtrationControl) {
+            FiltrationCard(
+                internalFanOn = status?.internalFanStatus == "open",
+                externalFanOn = status?.externalFanStatus == "open",
+                tvoc = status?.tvoc,
+                controlsEnabled = !(isPrinting || isPrepping),
+                onSelect = { mode -> scope.launch { session.setFiltration(mode) } }
+            )
+        }
+
         // Material station (AD5X IFS) — full spool card; tap a slot to edit material / load-unload.
         if (capabilities.hasMaterialStation) {
             matlStation?.let { IfsStationCard(it, session) }
-        }
-
-        // Controls — gated against the live job state. Pause/resume are mutually exclusive and
-        // disabled mid-transition (pausing); stop is available for any active job.
-        if (isActiveJob) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (isPaused) {
-                    Button(
-                        onClick = { scope.launch { session.resume() } },
-                        modifier = Modifier.weight(1f).height(56.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Resume")
-                        Spacer(Modifier.width(8.dp))
-                        Text("RESUME")
-                    }
-                } else {
-                    Button(
-                        onClick = { scope.launch { session.pause() } },
-                        enabled = isPrinting,
-                        modifier = Modifier.weight(1f).height(56.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
-                    ) {
-                        Icon(Icons.Default.Pause, contentDescription = "Pause")
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isPausing) "PAUSING…" else "PAUSE")
-                    }
-                }
-
-                Button(
-                    onClick = { scope.launch { session.cancel() } },
-                    modifier = Modifier.size(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(0.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
-                ) {
-                    Icon(Icons.Default.Stop, contentDescription = "Stop")
-                }
-            }
         }
 
         if (isCompleted) {

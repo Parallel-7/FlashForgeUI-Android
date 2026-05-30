@@ -4,6 +4,7 @@ import me.ghost.ffui.api.FlashForgeHttpApi
 import me.ghost.ffui.api.FlashForgeTcpClient
 import me.ghost.ffui.api.PrinterCapabilities
 import me.ghost.ffui.api.PrinterDetailResponse
+import me.ghost.ffui.api.PrinterModel
 import me.ghost.ffui.api.Product
 import me.ghost.ffui.data.PrinterEntity
 
@@ -32,7 +33,11 @@ abstract class DualApiBackend(
             // Prefer HTTP when the firmware reports it; otherwise keep the custom-TCP baseline.
             ledControl = httpLed || base.ledControl,
             ledViaHttp = httpLed,
-            filtrationControl = product.internalFanCtrlState != 0 && product.externalFanCtrlState != 0
+            // Air filtration is a 5M Pro feature. The /product fan-ctrl flags are unreliable on the
+            // plain 5M (its firmware reports both non-zero despite having no filtration), so gate on
+            // the model as well rather than trusting the flags alone.
+            filtrationControl = model == PrinterModel.ADVENTURER_5M_PRO &&
+                product.internalFanCtrlState != 0 && product.externalFanCtrlState != 0
         )
     }
 }

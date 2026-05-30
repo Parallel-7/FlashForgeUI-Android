@@ -78,50 +78,57 @@ internal fun JobProgressHeader(fileName: String?, progress: Int, stateLabel: Str
     }
 }
 
-/** 2×2 grid of nozzle / bed (tap-to-set) + remaining / layer cards. */
+/**
+ * Row of nozzle / bed (tap-to-set) heater cards. Split out from the old combined grid so the
+ * dashboard can place job stats (remaining / layer) above the temperatures, and the Controls tab
+ * can reuse just the heaters. See [JobStatsRow].
+ */
 @Composable
-internal fun TempInfoGrid(status: PrinterDetailResponse?, onHeaterClick: (String) -> Unit) {
+internal fun HeaterGrid(status: PrinterDetailResponse?, onHeaterClick: (String) -> Unit) {
     val nozzleCurrent = status?.rightTemp ?: 0f
     val nozzleTarget = status?.rightTargetTemp ?: 0f
     val bedCurrent = status?.platTemp ?: 0f
     val bedTarget = status?.platTargetTemp ?: 0f
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HeaterCard(
-                label = "NOZZLE",
-                value = "%.0f/%.0f°".format(nozzleCurrent, nozzleTarget),
-                progress = if (nozzleTarget > 0) (nozzleCurrent / nozzleTarget).coerceIn(0f, 1f) else 0f,
-                barColor = GeometricOrangePrimary,
-                trackColor = GeometricOrangeContainer,
-                onClick = { onHeaterClick("Nozzle") },
-                modifier = Modifier.weight(1f)
-            )
-            HeaterCard(
-                label = "BED",
-                value = "%.0f/%.0f°".format(bedCurrent, bedTarget),
-                progress = if (bedTarget > 0) (bedCurrent / bedTarget).coerceIn(0f, 1f) else 0f,
-                barColor = GeometricBluePrimary,
-                trackColor = GeometricBlueContainer,
-                onClick = { onHeaterClick("Bed") },
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            val remMins = status?.estimatedTime?.let { (it / 60f).toInt() } ?: 0
-            MetricCard(
-                label = "REMAINING",
-                value = "${remMins / 60}:${(remMins % 60).toString().padStart(2, '0')} hr",
-                modifier = Modifier.weight(1f)
-            )
-            val cur = status?.printLayer?.toInt() ?: 0
-            val tgt = status?.targetPrintLayer?.toInt() ?: 0
-            MetricCard(
-                label = "LAYER",
-                value = if (tgt > 0) "$cur/$tgt" else "—",
-                modifier = Modifier.weight(1f)
-            )
-        }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        HeaterCard(
+            label = "NOZZLE",
+            value = "%.0f/%.0f°".format(nozzleCurrent, nozzleTarget),
+            progress = if (nozzleTarget > 0) (nozzleCurrent / nozzleTarget).coerceIn(0f, 1f) else 0f,
+            barColor = GeometricOrangePrimary,
+            trackColor = GeometricOrangeContainer,
+            onClick = { onHeaterClick("Nozzle") },
+            modifier = Modifier.weight(1f)
+        )
+        HeaterCard(
+            label = "BED",
+            value = "%.0f/%.0f°".format(bedCurrent, bedTarget),
+            progress = if (bedTarget > 0) (bedCurrent / bedTarget).coerceIn(0f, 1f) else 0f,
+            barColor = GeometricBluePrimary,
+            trackColor = GeometricBlueContainer,
+            onClick = { onHeaterClick("Bed") },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+/** Row of remaining-time / current-layer stat cards. */
+@Composable
+internal fun JobStatsRow(status: PrinterDetailResponse?) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        val remMins = status?.estimatedTime?.let { (it / 60f).toInt() } ?: 0
+        MetricCard(
+            label = "REMAINING",
+            value = "${remMins / 60}:${(remMins % 60).toString().padStart(2, '0')} hr",
+            modifier = Modifier.weight(1f)
+        )
+        val cur = status?.printLayer?.toInt() ?: 0
+        val tgt = status?.targetPrintLayer?.toInt() ?: 0
+        MetricCard(
+            label = "LAYER",
+            value = if (tgt > 0) "$cur/$tgt" else "—",
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 

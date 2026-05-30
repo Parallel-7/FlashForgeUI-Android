@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -122,6 +123,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _sessions.update { it + (printer.serialNumber to session) }
         setActive(printer.serialNumber)
         session.startSession()
+        persistSessionState()
     }
 
     /** Disconnects a single printer by serial number. */
@@ -132,6 +134,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_activeSerial.value == serial) {
             _activeSerial.value = _sessions.value.keys.firstOrNull()
         }
+        persistSessionState()
     }
 
     /** Convenience overload: disconnect whatever printer is currently active. */
@@ -149,6 +152,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Switches the visible dashboard tab to [serial]. */
     fun setActive(serial: String) {
         _activeSerial.value = serial
+        persistSessionState()
+    }
+
+    /**
+     * Writes the live connected-serials set + active serial to DataStore so startup-reconnect can
+     * restore them. Done eagerly on every session/active-tab change rather than in [onCleared] —
+     * `viewModelScope` is cancelled the moment `onCleared` returns, so a write launched there would
+     * almost always be cancelled before it completed. Deliberately NOT called from [disconnectAll]
+     * (which fires during teardown): persisting an empty set there would erase the very state we
+     * want to reconnect to next launch.
+     */
+    private fun persistSessionState() {
+        val serials = _sessions.value.keys
+        val active = _activeSerial.value
+        viewModelScope.launch {
+            settingsDataStore.setLastConnectedSerials(serials)
+            settingsDataStore.setLastActiveSerial(active)
+        }
     }
 
     /**
@@ -180,16 +201,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
-        // Persist connection state for startup-reconnect before tearing down.
-        viewModelScope.launch {
-            settingsDataStore.setLastConnectedSerials(_sessions.value.keys)
-            settingsDataStore.setLastActiveSerial(_activeSerial.value)
-        }
+        // Connection state is persisted eagerly via persistSessionState() on every change, so by
+        // the time we get here DataStore already holds the correct last state — we only tear down.
         disconnectAll()
-    }
-
-    // ---- MutableStateFlow.update helper ----
-    private fun <T> MutableStateFlow<T>.update(transform: (T) -> T) {
-        value = transform(value)
     }
 }

@@ -85,59 +85,21 @@ fun PrinterSettingsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ── Read-Only Info Card ─────────────────────────────────────────
+            // ── Header ──────────────────────────────────────────────────────
+            // Full identity (model/firmware/IP/serial) lives behind the (i) info screen; this page
+            // just needs to say which printer is being configured.
             item {
-                Card(
-                    shape = RoundedCornerShape(24.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        InfoRow(
-                            label = "MODEL",
-                            value = when (currentPrinter.modelPid) {
-                                PrinterModel.PID_5M -> "Adventurer 5M"
-                                PrinterModel.PID_5M_PRO -> "Adventurer 5M Pro"
-                                PrinterModel.PID_AD5X -> "AD5X"
-                                else -> "Unknown"
-                            }
-                        )
-                        HorizontalDivider(
-                            thickness = 0.5.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant
-                        )
-                        InfoRow(
-                            label = "FIRMWARE",
-                            value = currentPrinter.firmwareVersion ?: "Not detected"
-                        )
-                        HorizontalDivider(
-                            thickness = 0.5.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant
-                        )
-                        InfoRow(label = "IP ADDRESS", value = currentPrinter.ipAddress)
-                        HorizontalDivider(
-                            thickness = 0.5.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant
-                        )
-                        InfoRow(label = "SERIAL", value = maskSerial(currentPrinter.serialNumber, hideSerials))
-
-                        if (!currentPrinter.cameraStreamUrl.isNullOrBlank()) {
-                            HorizontalDivider(
-                                thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant
-                            )
-                            InfoRow(
-                                label = "CAMERA URL",
-                                value = currentPrinter.cameraStreamUrl
-                            )
-                        }
-                    }
+                val modelName = when (currentPrinter.modelPid) {
+                    PrinterModel.PID_5M -> "Adventurer 5M"
+                    PrinterModel.PID_5M_PRO -> "Adventurer 5M Pro"
+                    PrinterModel.PID_AD5X -> "AD5X"
+                    else -> "Printer"
                 }
+                Text(
+                    text = "Settings for ${currentPrinter.name.ifBlank { modelName }}",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
 
             // ── LED Control ─────────────────────────────────────────────────
@@ -259,13 +221,55 @@ fun PrinterSettingsScreen(
                     }
                 )
             }
+            // Auto-match is an AD5X material-station feature; hide it for models without one.
+            if (currentPrinter.modelPid == PrinterModel.PID_AD5X) {
+                item {
+                    SettingToggle(
+                        label = "Auto-match materials",
+                        subtitle = "Automatically map tool slots when starting prints",
+                        checked = currentPrinter.autoMatchMaterials,
+                        onCheckedChange = { enabled ->
+                            updatePrinter(currentPrinter.copy(autoMatchMaterials = enabled))
+                        }
+                    )
+                }
+            }
+
+            // ── Notifications ───────────────────────────────────────────────
+            item {
+                Text(
+                    "Notifications",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             item {
                 SettingToggle(
-                    label = "Auto-match materials",
-                    subtitle = "Automatically map tool slots when starting prints (AD5X)",
-                    checked = currentPrinter.autoMatchMaterials,
+                    label = "Print complete",
+                    subtitle = "Push a notification the moment a print finishes",
+                    checked = currentPrinter.notifyOnComplete,
                     onCheckedChange = { enabled ->
-                        updatePrinter(currentPrinter.copy(autoMatchMaterials = enabled))
+                        updatePrinter(currentPrinter.copy(notifyOnComplete = enabled))
+                    }
+                )
+            }
+            item {
+                SettingToggle(
+                    label = "Print cooled",
+                    subtitle = "Notify once the bed cools below 40 °C — safe to remove the print",
+                    checked = currentPrinter.notifyOnCooled,
+                    onCheckedChange = { enabled ->
+                        updatePrinter(currentPrinter.copy(notifyOnCooled = enabled))
+                    }
+                )
+            }
+            item {
+                SettingToggle(
+                    label = "Printer errors",
+                    subtitle = "Notify when the printer reports a new error code",
+                    checked = currentPrinter.notifyOnError,
+                    onCheckedChange = { enabled ->
+                        updatePrinter(currentPrinter.copy(notifyOnError = enabled))
                     }
                 )
             }
@@ -348,24 +352,6 @@ fun PrinterSettingsScreen(
 }
 
 // ── Private helpers ─────────────────────────────────────────────────────────
-
-/** A single label + value row used inside the read-only info card. */
-@Composable
-private fun InfoRow(label: String, value: String) {
-    Column {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-    }
-}
 
 /**
  * A reusable settings-toggle row: label + subtitle on the left, [Switch] on the right,

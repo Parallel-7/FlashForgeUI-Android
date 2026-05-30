@@ -34,5 +34,11 @@ data class PrinterEntity(
     /** Autoplay the camera stream when viewing the dashboard. */
     val cameraAutoPlayEnabled: Boolean = false,
     /** Overlay a live FPS counter on the camera feed (dashboard card + fullscreen). */
-    val cameraFpsCounterEnabled: Boolean = false
+    val cameraFpsCounterEnabled: Boolean = false,
+    /** Push a notification the moment a print finishes (status → completed). */
+    val notifyOnComplete: Boolean = false,
+    /** Push a notification once the bed cools below 40 °C after a print (safe to remove). */
+    val notifyOnCooled: Boolean = false,
+    /** Push a notification when /detail reports a new printer error code. */
+    val notifyOnError: Boolean = false
 )

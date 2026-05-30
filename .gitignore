@@ -21,6 +21,9 @@ debug.keystore
 *.keystore
 /.claude/settings.local.json
 
+# Per-machine printer check-codes for scripts/seed_printers.py (secrets — never commit)
+/scripts/printers.local.json
+
 # Local tooling / scratch (not part of the app)
 /.gemini/
 /.pi/

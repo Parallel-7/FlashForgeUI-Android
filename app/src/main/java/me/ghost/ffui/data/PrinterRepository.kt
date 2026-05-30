@@ -34,6 +34,20 @@ class PrinterRepository(private val dao: PrinterDao) {
         dao.updateIdentity(serialNumber, pid, firmware, cameraUrl)
 }
 
+/**
+ * A notifiable state transition detected by the poll loop. The session only emits an event after
+ * the *first* observation (so connecting to an already-completed / already-errored printer stays
+ * quiet) and re-checks the per-printer opt-in flag at emit time.
+ */
+sealed interface PrinterEvent {
+    /** Status transitioned into `completed`. */
+    data object PrintCompleted : PrinterEvent
+    /** Bed temperature fell below the safe-to-remove threshold after a witnessed completion. */
+    data object PrintCooled : PrinterEvent
+    /** `/detail` reported a new non-zero error code. */
+    data class PrinterError(val code: String) : PrinterEvent
+}
+
 /** Connection lifecycle for a single [ActivePrinterSession]. */
 sealed interface ConnectionState {
     /** Establishing the connection / identifying the model. */
@@ -59,7 +73,8 @@ sealed interface ConnectionState {
 class ActivePrinterSession(
     initialPrinter: PrinterEntity,
     private val scope: CoroutineScope,
-    private val onIdentity: suspend (pid: Int?, firmware: String?, cameraUrl: String?) -> Unit = { _, _, _ -> }
+    private val onIdentity: suspend (pid: Int?, firmware: String?, cameraUrl: String?) -> Unit = { _, _, _ -> },
+    private val onEvent: (printer: PrinterEntity, event: PrinterEvent) -> Unit = { _, _ -> }
 ) {
     private val _printer = MutableStateFlow(initialPrinter)
     /**
@@ -130,6 +145,7 @@ class ActivePrinterSession(
                 _status.value = detail
                 _matlStation.value = newBackend.materialStation(detail)
                 _connectionState.value = ConnectionState.Connected
+                detectEvents(detail)
                 // Reflect identity learned from /detail in the LIVE entity, not just the DB — otherwise
                 // the camera URL (only known after first /detail) stays blank in the running session
                 // until a reconnect, so a freshly-paired printer shows "Camera Not Available".
@@ -150,8 +166,57 @@ class ActivePrinterSession(
                 _status.value = detail
                 _matlStation.value = b.materialStation(detail)
                 _connectionState.value = ConnectionState.Connected
+                detectEvents(detail)
             }
             .onFailure { e -> applyFailure(e) }
+    }
+
+    // ---- Notification event detection ----
+    // Baselines captured on first observation so connecting to an already-completed or already-
+    // errored printer doesn't fire a spurious alert. All opt-in flags are re-read from the live
+    // `printer` at emit time, so toggling a notification in settings takes effect without reconnect.
+    private var seenFirstDetail = false
+    private var prevStatusKey: String? = null
+    private var prevErrorCode: String? = null
+    private var awaitingCooldown = false
+
+    private fun detectEvents(detail: PrinterDetailResponse) {
+        val p = printer
+        val status = detail.status?.lowercase()
+        val error = detail.errorCode?.takeIf { it.isNotBlank() && it != "0" }
+
+        if (!seenFirstDetail) {
+            seenFirstDetail = true
+            prevStatusKey = status
+            prevErrorCode = error
+            return
+        }
+
+        // Bed cooled below the safe-to-remove threshold (only after a completion we witnessed).
+        if (awaitingCooldown) {
+            val bed = detail.platTemp
+            when {
+                status in ACTIVE_PRINT_STATES -> awaitingCooldown = false   // new job started; abandon
+                bed != null && bed < BED_SAFE_TEMP_C -> {
+                    awaitingCooldown = false
+                    if (p.notifyOnCooled) onEvent(p, PrinterEvent.PrintCooled)
+                }
+            }
+        }
+
+        // Print just finished.
+        if (status == "completed" && prevStatusKey != "completed") {
+            if (p.notifyOnComplete) onEvent(p, PrinterEvent.PrintCompleted)
+            awaitingCooldown = true   // always arm; cooled fires on a later poll, gated then
+        }
+
+        // A new error code appeared.
+        if (error != null && error != prevErrorCode && p.notifyOnError) {
+            onEvent(p, PrinterEvent.PrinterError(error))
+        }
+
+        prevStatusKey = status
+        prevErrorCode = error
     }
 
     /** Credential rejection (a non-zero API code) is fatal; everything else is transient. */
@@ -244,5 +309,12 @@ class ActivePrinterSession(
         pollJob = null
         backend = null
         tcpClient.disconnect()
+    }
+
+    private companion object {
+        /** Bed temp (°C) below which a finished print is considered safe to remove. */
+        const val BED_SAFE_TEMP_C = 40f
+        /** Wire statuses that mean a job is actively running (cancels a pending cooldown watch). */
+        val ACTIVE_PRINT_STATES = setOf("printing", "working", "busy", "heating")
     }
 }

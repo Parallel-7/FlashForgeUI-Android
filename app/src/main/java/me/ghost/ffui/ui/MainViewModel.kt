@@ -11,6 +11,7 @@ import me.ghost.ffui.data.PrinterEntity
 import me.ghost.ffui.data.PrinterRepository
 import me.ghost.ffui.data.SettingsDataStore
 import me.ghost.ffui.data.StartupReconnect
+import me.ghost.ffui.notifications.PrinterNotifier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +25,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     val repository = PrinterRepository(db.printerDao())
     val settingsDataStore = SettingsDataStore(application)
+    private val notifier = PrinterNotifier(application)
 
     val savedPrinters = repository.savedPrinters.stateIn(
         viewModelScope, SharingStarted.Lazily, emptyList()
@@ -118,6 +120,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             scope = viewModelScope,
             onIdentity = { pid, firmware, cameraUrl ->
                 repository.updateIdentity(printer.serialNumber, pid, firmware, cameraUrl)
+            },
+            onEvent = { p, event ->
+                notifier.notify(p.serialNumber, p.name, event)
             }
         )
         _sessions.update { it + (printer.serialNumber to session) }

@@ -91,17 +91,23 @@ me.ghost.ffui
 │                             and adaptive cadence (1.5s printing, 2.5s paused, 3s offline,
 │                             5s idle, 10s error, 15s auth-failed).
 └── ui/
-    ├── MainViewModel         AndroidViewModel; `activeSession: StateFlow<ActivePrinterSession?>`
-    ├── FlasherApp            Scaffold + bottom NavigationBar, 3 typed routes
-    │                         (DashboardRoute / PrintersRoute / SettingsRoute)
+    ├── MainViewModel         AndroidViewModel; `sessions: StateFlow<Map<String, ActivePrinterSession>>`
+    │                         + `activeSerial`; `activeSession` is the derived convenience flow.
+    ├── FlasherApp            Scaffold + bottom NavigationBar, 4 typed routes
+    │                         (DashboardRoute / ControlsRoute / PrintersRoute / SettingsRoute)
+    ├── JobState.kt           jobStateOf(status) — shared job-state machine for dashboard + controls
     ├── components/           MpvPlayer.kt — MpvController + MpvVideoSurface (libmpv; see camera note)
+    ├── controls/             ControlsScreen + JobControlRow (the Controls tab)
     ├── dashboard/ discovery/ settings/   screens
     └── theme/                Color, Theme, Type
 ```
 
-- **Single active printer (for now).** `MainViewModel.activeSession` is a `StateFlow` holding one
-  `ActivePrinterSession`; connecting a new printer stops the previous one. Concurrent multi-printer
-  (top tabs + swipe) is Phase 2 — the StateFlow shape is the seam to extend.
+- **Concurrent multi-printer is live.** `MainViewModel` holds a `sessions: StateFlow<Map<String,
+  ActivePrinterSession>>` keyed by serial plus an `activeSerial`; `activeSession` is a derived
+  convenience flow for screens that only care about the visible printer. The dashboard renders the
+  sessions in a `HorizontalPager` with a `PrinterTabBar` (tabs + swipe, two-way synced to
+  `activeSerial`). Connecting an already-open serial just switches tabs — no duplicate connection.
+  Connected-serials + active-tab are persisted eagerly (`persistSessionState`) for startup-reconnect.
 - **Model is detected by `pid`** (35=5M, 36=5M Pro, 38=AD5X) on first `/detail`, not by name.
   `PrinterBackendFactory` picks the backend; `/product` flags + per-printer `customLedEnabled`
   resolve `PrinterCapabilities`. UI controls are capability-gated (hide unsupported).
@@ -171,9 +177,12 @@ me.ghost.ffui
     `cameraFpsCounterEnabled`; auto-play toggle `cameraAutoPlayEnabled`.
   - `MainActivity` declares `configChanges` so rotating in fullscreen resizes in place.
   - **The libmpv native libs are why ABI splits are on** (see build note above).
-- Filtration *controls*, the full IFS spool card, file lists/printing, multi-printer,
-  per-printer settings screen, Spoolman, notifications, and manual motion are **not started**
-  (Phases 2–5). The dashboard currently shows filtration/IFS state read-only, capability-gated.
+- **Now built but mostly unverified against hardware:** filtration controls, the full IFS spool
+  card + slot editor, file lists/printing (`FilesScreen`), multi-printer tabs, the per-printer
+  settings screen, and manual motion/temperature (the Controls tab, over TCP G-code). These exist
+  in code and are capability-gated, but only the AD5X HTTP read paths are hardware-verified — treat
+  the control/write paths (especially anything over TCP) as suspect until tested on real hardware.
+- **Still not started:** Spoolman integration and notifications (Phase 5).
 
 ## Skills installed (`.claude/skills/`)
 

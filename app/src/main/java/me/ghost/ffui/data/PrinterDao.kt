@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface PrinterDao {
     @Query("SELECT * FROM printers")
-    fun getAllPriters(): Flow<List<PrinterEntity>>
+    fun getAllPrinters(): Flow<List<PrinterEntity>>
 
     @Query("SELECT * FROM printers WHERE serialNumber = :serialNumber LIMIT 1")
     suspend fun getPrinter(serialNumber: String): PrinterEntity?

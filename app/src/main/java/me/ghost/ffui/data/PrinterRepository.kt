@@ -22,7 +22,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class PrinterRepository(private val dao: PrinterDao) {
-    val savedPrinters: Flow<List<PrinterEntity>> = dao.getAllPriters()
+    val savedPrinters: Flow<List<PrinterEntity>> = dao.getAllPrinters()
 
     suspend fun savePrinter(printer: PrinterEntity) = dao.insert(printer)
     suspend fun updatePrinter(printer: PrinterEntity) = dao.update(printer)

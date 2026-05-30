@@ -157,10 +157,14 @@ class ActivePrinterSession(
     /** Credential rejection (a non-zero API code) is fatal; everything else is transient. */
     private fun applyFailure(e: Throwable) {
         val msg = e.message
-        _connectionState.value = if (msg?.startsWith("API Error") == true) {
-            ConnectionState.AuthFailed(msg)
+        if (msg?.startsWith("API Error") == true) {
+            // HTTP checkCode rejected: drop TCP so its keep-alive stops holding the ~M601 lock.
+            if (_connectionState.value !is ConnectionState.AuthFailed) {
+                tcpClient.disconnect()
+            }
+            _connectionState.value = ConnectionState.AuthFailed(msg)
         } else {
-            ConnectionState.Offline(msg)
+            _connectionState.value = ConnectionState.Offline(msg)
         }
     }
 

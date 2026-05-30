@@ -227,7 +227,9 @@ private fun FullscreenCamera(
 ) {
     Dialog(
         onDismissRequest = onClose,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        // decorFitsSystemWindows=false lets the video draw edge-to-edge behind the system bars
+        // instead of being letterboxed inside the insets.
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         Box(
             modifier = Modifier

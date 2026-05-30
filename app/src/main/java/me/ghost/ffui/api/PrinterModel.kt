@@ -75,7 +75,5 @@ data class PrinterCapabilities(
     val ledControl: Boolean = false,
     val ledViaHttp: Boolean = false,
     val filtrationControl: Boolean = false,
-    val hasMaterialStation: Boolean = false,
-    val hasCamera: Boolean = false,
-    val cameraStreamUrl: String? = null
+    val hasMaterialStation: Boolean = false
 )

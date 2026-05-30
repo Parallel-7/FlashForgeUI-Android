@@ -12,9 +12,18 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 
 class FlashForgeHttpApi(private val ipAddress: String) {
-    private val client = OkHttpClient.Builder().build()
+    // Printers are on the LAN; a dead/unreachable one should fail the poll fast rather than hang on
+    // OkHttp's longer defaults and stall the adaptive cadence. Camera thumbnail reads can be a touch
+    // slower, so the read timeout stays generous relative to connect.
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
+        .writeTimeout(5, TimeUnit.SECONDS)
+        .callTimeout(12, TimeUnit.SECONDS)
+        .build()
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
     private val baseUrl = "http://$ipAddress:8898"
     private val mediaType = "application/json; charset=utf-8".toMediaType()
@@ -63,124 +72,49 @@ class FlashForgeHttpApi(private val ipAddress: String) {
         }
     }
 
-    suspend fun controlLight(serialNumber: String, checkCode: String, on: Boolean): Result<Unit> = withContext(Dispatchers.IO) {
-        val req = ControlRequest(
-            serialNumber = serialNumber,
-            checkCode = checkCode,
-            payload = ControlPayload("lightControl_cmd", json.encodeToJsonElement(LightControlArgs(if (on) "open" else "close")))
-        )
-        postControl(req)
-    }
-
-    suspend fun controlTemp(serialNumber: String, checkCode: String, heaterName: String, target: Int): Result<Unit> = withContext(Dispatchers.IO) {
-        val args = when (heaterName) {
-            "Nozzle" -> TemperatureCtlArgs(rightTemp = target)
-            "Bed" -> TemperatureCtlArgs(platTemp = target)
-            else -> TemperatureCtlArgs()
-        }
-        val req = ControlRequest(
-            serialNumber = serialNumber,
-            checkCode = checkCode,
-            payload = ControlPayload("temperatureCtl_cmd", json.encodeToJsonElement(args))
-        )
-        postControl(req)
-    }
+    suspend fun controlLight(serialNumber: String, checkCode: String, on: Boolean): Result<Unit> =
+        control(serialNumber, checkCode, "lightControl_cmd", LightControlArgs(if (on) "open" else "close"))
 
     /**
      * Controls the 5M Pro air filtration via `circulateCtl_cmd`. [internal] / [external] are each
      * `"open"` or `"close"`; the caller (backend) maps a high-level mode to this pair.
      */
-    suspend fun controlFiltration(serialNumber: String, checkCode: String, internal: String, external: String): Result<Unit> = withContext(Dispatchers.IO) {
-        val req = ControlRequest(
-            serialNumber = serialNumber,
-            checkCode = checkCode,
-            payload = ControlPayload("circulateCtl_cmd", json.encodeToJsonElement(CirculateCtlArgs(internal, external)))
-        )
-        postControl(req)
-    }
+    suspend fun controlFiltration(serialNumber: String, checkCode: String, internal: String, external: String): Result<Unit> =
+        control(serialNumber, checkCode, "circulateCtl_cmd", CirculateCtlArgs(internal, external))
 
     /**
      * Configures an AD5X IFS slot's material metadata via `msConfig_cmd`. [slot] is 1-based;
      * [hexRgb] must be a 6-digit hex string WITHOUT the `#` prefix (the firmware rejects the `#`).
      */
-    suspend fun configureSlot(serialNumber: String, checkCode: String, slot: Int, materialName: String, hexRgb: String): Result<Unit> = withContext(Dispatchers.IO) {
-        val rgb = hexRgb.removePrefix("#")
-        val req = ControlRequest(
-            serialNumber = serialNumber,
-            checkCode = checkCode,
-            payload = ControlPayload("msConfig_cmd", json.encodeToJsonElement(MsConfigArgs(slot, materialName, rgb)))
-        )
-        postControl(req)
-    }
+    suspend fun configureSlot(serialNumber: String, checkCode: String, slot: Int, materialName: String, hexRgb: String): Result<Unit> =
+        control(serialNumber, checkCode, "msConfig_cmd", MsConfigArgs(slot, materialName, hexRgb.removePrefix("#")))
 
     /**
      * Drives an AD5X IFS load/unload/cancel via `ms_cmd`. [slot] is 1-based; [action] is
      * 0=load, 1=unload, 2=cancel (cancel ignores the slot — pass 0).
      */
-    suspend fun slotAction(serialNumber: String, checkCode: String, slot: Int, action: Int): Result<Unit> = withContext(Dispatchers.IO) {
-        val req = ControlRequest(
-            serialNumber = serialNumber,
-            checkCode = checkCode,
-            payload = ControlPayload("ms_cmd", json.encodeToJsonElement(MsCtlArgs(slot, action)))
-        )
-        postControl(req)
-    }
+    suspend fun slotAction(serialNumber: String, checkCode: String, slot: Int, action: Int): Result<Unit> =
+        control(serialNumber, checkCode, "ms_cmd", MsCtlArgs(slot, action))
 
     /** Renames the printer via `reName_cmd`. */
-    suspend fun renamePrinter(serialNumber: String, checkCode: String, name: String): Result<Unit> = withContext(Dispatchers.IO) {
-        val req = ControlRequest(
-            serialNumber = serialNumber,
-            checkCode = checkCode,
-            payload = ControlPayload("reName_cmd", json.encodeToJsonElement(ReNameArgs(name)))
-        )
-        postControl(req)
-    }
+    suspend fun renamePrinter(serialNumber: String, checkCode: String, name: String): Result<Unit> =
+        control(serialNumber, checkCode, "reName_cmd", ReNameArgs(name))
 
     /** Configures auto-shutdown via `delayClose_cmd`. [minutes] is the delay after a completed print. */
-    suspend fun setAutoShutdown(serialNumber: String, checkCode: String, enabled: Boolean, minutes: Int): Result<Unit> = withContext(Dispatchers.IO) {
-        val req = ControlRequest(
-            serialNumber = serialNumber,
-            checkCode = checkCode,
-            payload = ControlPayload("delayClose_cmd", json.encodeToJsonElement(DelayCloseArgs(if (enabled) "open" else "close", minutes)))
-        )
-        postControl(req)
-    }
+    suspend fun setAutoShutdown(serialNumber: String, checkCode: String, enabled: Boolean, minutes: Int): Result<Unit> =
+        control(serialNumber, checkCode, "delayClose_cmd", DelayCloseArgs(if (enabled) "open" else "close", minutes))
 
-    suspend fun clearPlatform(serialNumber: String, checkCode: String): Result<Unit> = withContext(Dispatchers.IO) {
-        val req = ControlRequest(
-            serialNumber = serialNumber,
-            checkCode = checkCode,
-            payload = ControlPayload("stateCtrl_cmd", json.encodeToJsonElement(StateCtrlArgs("setClearPlatform")))
-        )
-        postControl(req)
-    }
-    
-    suspend fun pauseJob(serialNumber: String, checkCode: String): Result<Unit> = withContext(Dispatchers.IO) {
-        val req = ControlRequest(
-            serialNumber = serialNumber,
-            checkCode = checkCode,
-            payload = ControlPayload("jobCtl_cmd", json.encodeToJsonElement(JobCtlArgs(action = "pause")))
-        )
-        postControl(req)
-    }
-    
-    suspend fun resumeJob(serialNumber: String, checkCode: String): Result<Unit> = withContext(Dispatchers.IO) {
-        val req = ControlRequest(
-            serialNumber = serialNumber,
-            checkCode = checkCode,
-            payload = ControlPayload("jobCtl_cmd", json.encodeToJsonElement(JobCtlArgs(action = "continue")))
-        )
-        postControl(req)
-    }
-    
-    suspend fun cancelJob(serialNumber: String, checkCode: String): Result<Unit> = withContext(Dispatchers.IO) {
-        val req = ControlRequest(
-            serialNumber = serialNumber,
-            checkCode = checkCode,
-            payload = ControlPayload("jobCtl_cmd", json.encodeToJsonElement(JobCtlArgs(action = "cancel")))
-        )
-        postControl(req)
-    }
+    suspend fun clearPlatform(serialNumber: String, checkCode: String): Result<Unit> =
+        control(serialNumber, checkCode, "stateCtrl_cmd", StateCtrlArgs("setClearPlatform"))
+
+    suspend fun pauseJob(serialNumber: String, checkCode: String): Result<Unit> =
+        control(serialNumber, checkCode, "jobCtl_cmd", JobCtlArgs(action = "pause"))
+
+    suspend fun resumeJob(serialNumber: String, checkCode: String): Result<Unit> =
+        control(serialNumber, checkCode, "jobCtl_cmd", JobCtlArgs(action = "continue"))
+
+    suspend fun cancelJob(serialNumber: String, checkCode: String): Result<Unit> =
+        control(serialNumber, checkCode, "jobCtl_cmd", JobCtlArgs(action = "cancel"))
 
     // ── File management (Phase 4) ──────────────────────────────────────────────
 
@@ -297,6 +231,20 @@ class FlashForgeHttpApi(private val ipAddress: String) {
             Result.failure(e)
         }
     }
+
+    /**
+     * Builds a `/control` request for [cmd] with [args] (any `@Serializable` payload) and posts it.
+     * Collapses the otherwise-identical [ControlRequest]/[ControlPayload] boilerplate every control
+     * endpoint repeats.
+     */
+    private suspend inline fun <reified T> control(
+        serialNumber: String,
+        checkCode: String,
+        cmd: String,
+        args: T
+    ): Result<Unit> = postControl(
+        ControlRequest(serialNumber, checkCode, ControlPayload(cmd, json.encodeToJsonElement(args)))
+    )
 
     private suspend fun postControl(reqObj: ControlRequest): Result<Unit> = withContext(Dispatchers.IO) {
         return@withContext try {

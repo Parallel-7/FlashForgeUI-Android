@@ -106,9 +106,6 @@ data class ControlPayload(
 data class LightControlArgs(val status: String)
 
 @Serializable
-data class TemperatureCtlArgs(val rightTemp: Int = -200, val leftTemp: Int = -200, val platTemp: Int = -200, val chamberTemp: Int = -200)
-
-@Serializable
 data class StateCtrlArgs(val action: String)
 
 /** Args for `circulateCtl_cmd` (5M Pro air filtration); values are `"open"`/`"close"`. */

@@ -35,8 +35,7 @@ class FlashForgeTcpClient(private val ipAddress: String, private val scope: Coro
 
     // Exposed parsed state from TCP telemetry
     data class TcpTelemetry(
-        val xName: String = "", 
-        val extCurrentTemp: Float = 0f, 
+        val extCurrentTemp: Float = 0f,
         val extTargetTemp: Float = 0f,
         val bedCurrentTemp: Float = 0f,
         val bedTargetTemp: Float = 0f,

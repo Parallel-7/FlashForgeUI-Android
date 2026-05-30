@@ -1,10 +1,14 @@
 package me.ghost.ffui.ui.discovery
 
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -15,8 +19,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import me.ghost.ffui.R
 import me.ghost.ffui.api.DiscoveredPrinter
+import me.ghost.ffui.api.PrinterModel
 import me.ghost.ffui.data.PrinterEntity
 import me.ghost.ffui.data.maskSerial
 import me.ghost.ffui.ui.MainViewModel
@@ -60,19 +69,23 @@ fun DiscoveryScreen(
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
             
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
                 contentPadding = PaddingValues(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 if (savedPrinters.isNotEmpty()) {
-                    item { Text("Saved Printers", style = MaterialTheme.typography.titleMedium) }
-                    items(savedPrinters) { printer ->
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text("Saved Printers", style = MaterialTheme.typography.titleMedium)
+                    }
+                    items(savedPrinters, key = { it.serialNumber }) { printer ->
                         val isConnected = sessions.containsKey(printer.serialNumber)
-                        PrinterCard(
+                        PrinterTile(
                             name = printer.name,
                             ip = printer.ipAddress,
-                            isSaved = true,
+                            imageRes = printerImageRes(printer.modelPid, printer.name),
                             isConnected = isConnected,
                             onClick = {
                                 viewModel.connectToPrinter(printer)
@@ -83,16 +96,18 @@ fun DiscoveryScreen(
                         )
                     }
                 }
-                
+
                 if (discovered.isNotEmpty()) {
                     val notSaved = discovered.filter { d -> savedPrinters.none { it.serialNumber == d.serialNumber } }
                     if (notSaved.isNotEmpty()) {
-                        item { Text("Discovered on Network", style = MaterialTheme.typography.titleMedium) }
-                        items(notSaved) { printer ->
-                            PrinterCard(
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Text("Discovered on Network", style = MaterialTheme.typography.titleMedium)
+                        }
+                        items(notSaved, key = { it.serialNumber }) { printer ->
+                            PrinterTile(
                                 name = printer.name,
                                 ip = printer.ipAddress,
-                                isSaved = false,
+                                imageRes = printerImageRes(null, printer.name),
                                 isConnected = false,
                                 onClick = { selectedToConnect = printer }
                             )
@@ -139,52 +154,93 @@ fun DiscoveryScreen(
     }
 }
 
+/**
+ * Picks the printer render for a tile. Prefers the firmware-stable [PrinterEntity.modelPid]
+ * (35=5M, 36=5M Pro, 38=AD5X); for discovered-but-unsaved printers the pid isn't known yet, so it
+ * falls back to name heuristics. Unknown models default to the 5M render (the app only targets the
+ * 5M-series anyway).
+ */
+@DrawableRes
+private fun printerImageRes(modelPid: Int?, name: String): Int = when {
+    modelPid == PrinterModel.PID_AD5X -> R.drawable.printer_ad5x
+    modelPid == PrinterModel.PID_5M_PRO -> R.drawable.printer_5m_pro
+    modelPid == PrinterModel.PID_5M -> R.drawable.printer_5m
+    name.contains("5X", ignoreCase = true) -> R.drawable.printer_ad5x
+    name.contains("Pro", ignoreCase = true) -> R.drawable.printer_5m_pro
+    name.contains("5M", ignoreCase = true) -> R.drawable.printer_5m
+    else -> R.drawable.printer_5m
+}
+
+/**
+ * Poster-style grid tile: the printer render is the hero, with the name and (for saved printers)
+ * info/settings actions below. A live session shows a small status dot over the image.
+ */
 @Composable
-fun PrinterCard(
+fun PrinterTile(
     name: String,
     ip: String,
-    isSaved: Boolean,
+    @DrawableRes imageRes: Int,
     isConnected: Boolean,
     onClick: () -> Unit,
     onInfoClick: (() -> Unit)? = null,
     onSettingsClick: (() -> Unit)? = null
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
         ) {
-            // Connection status dot for saved printers
-            if (isSaved) {
-                Box(
+            Image(
+                painter = painterResource(imageRes),
+                contentDescription = name,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize().padding(12.dp)
+            )
+            if (isConnected) {
+                Row(
                     modifier = Modifier
-                        .size(10.dp)
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
                         .background(
-                            if (isConnected) StatusConnected
-                            else MaterialTheme.colorScheme.outlineVariant,
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
                             CircleShape
                         )
-                )
-                Spacer(Modifier.width(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.size(8.dp).background(StatusConnected, CircleShape))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Connected",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = StatusConnected
+                    )
+                }
             }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 8.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(name, style = MaterialTheme.typography.titleLarge)
-                Text(ip, style = MaterialTheme.typography.bodyMedium)
-            }
-            if (isConnected) {
-                Badge(
-                    containerColor = StatusConnected.copy(alpha = 0.15f),
-                    contentColor = StatusConnected
-                ) { Text("Connected") }
-                Spacer(Modifier.width(8.dp))
-            } else if (isSaved) {
-                Badge { Text("Saved") }
-                Spacer(Modifier.width(8.dp))
+                Text(
+                    name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    ip,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             if (onInfoClick != null) {
-                IconButton(onClick = onInfoClick) {
+                IconButton(onClick = onInfoClick, modifier = Modifier.size(40.dp)) {
                     Icon(
                         Icons.Default.Info,
                         contentDescription = "Printer Info",
@@ -193,7 +249,7 @@ fun PrinterCard(
                 }
             }
             if (onSettingsClick != null) {
-                IconButton(onClick = onSettingsClick) {
+                IconButton(onClick = onSettingsClick, modifier = Modifier.size(40.dp)) {
                     Icon(
                         Icons.Default.Settings,
                         contentDescription = "Printer Settings",

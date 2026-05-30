@@ -196,7 +196,7 @@ private fun PrinterInfoBody(
             InfoRow("MAC", status?.macAddr ?: "—")
             InfoRow("IP", printer.ipAddress)
             InfoRow("Camera", cameraUrl ?: "—")
-            InfoRow("Factory LED", lightLabel(status?.lightStatus))
+            InfoRow("LED", lightLabel(status?.lightStatus))
         }
 
         InfoCard("LIFETIME STATS") {

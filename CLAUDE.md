@@ -144,6 +144,19 @@ me.ghost.ffui
 - Follow `GEMINI.md`'s rules: KDoc new API/services, no TODO-stub placeholders, idiomatic
   Kotlin (`val`, strict nullability, `@Serializable`).
 
+### UI copy conventions
+
+- **Keep user-facing strings short and scannable.** Settings subtitles should be one concise
+  sentence describing what the option does — no parentheticals, no implementation details
+  (e.g. don't mention "TCP" or "HTTP" in user-visible text). Target a ~50-character max.
+- **No instructional helper text below controls.** If the user needs guidance (e.g. "set 0
+  to turn off"), make it a button in the dialog instead of a static text label.
+- **No internal/technical jargon in user-facing screens.** The printer info screen and
+  settings should show consumer-friendly labels. Use "LED" not "Factory LED", prefer
+  "Enable LED control for printers with custom LEDs" over references to specific protocols.
+- **Toggle/option labels should be self-explanatory.** If the label alone isn't enough, add
+  a short subtitle. Avoid long-winded descriptions that restate the obvious.
+
 ## Known rough edges (verify, don't trust)
 
 - **Phase 1 is verified against a live AD5X** (firmware 3.1.0): `/detail` poll loop, `pid`

@@ -113,7 +113,7 @@ fun PrinterSettingsScreen(
             item {
                 SettingToggle(
                     label = "Custom LED control",
-                    subtitle = "Enable TCP LED commands for printers without native HTTP LED support",
+                    subtitle = "Enable LED control for printers with custom LEDs",
                     checked = currentPrinter.customLedEnabled,
                     onCheckedChange = { enabled ->
                         updatePrinter(currentPrinter.copy(customLedEnabled = enabled))
@@ -164,7 +164,7 @@ fun PrinterSettingsScreen(
             item {
                 SettingToggle(
                     label = "Show FPS counter",
-                    subtitle = "Overlay the live frame rate on the camera feed",
+                    subtitle = "Show the frame rate on the camera feed",
                     checked = currentPrinter.cameraFpsCounterEnabled,
                     onCheckedChange = { enabled ->
                         updatePrinter(currentPrinter.copy(cameraFpsCounterEnabled = enabled))

@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -183,7 +184,7 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
     }
 }
 
-/** Numeric temperature-set dialog for a heater ("Nozzle"/"Bed"); 0 turns the heater off. */
+/** Numeric temperature-set dialog for a heater ("Nozzle"/"Bed"); includes an Off button. */
 @Composable
 internal fun TemperatureDialog(heaterName: String, onSet: (Int) -> Unit, onDismiss: () -> Unit) {
     var tempStr by remember { mutableStateOf("") }
@@ -191,24 +192,19 @@ internal fun TemperatureDialog(heaterName: String, onSet: (Int) -> Unit, onDismi
         onDismissRequest = onDismiss,
         title = { Text("Set $heaterName Temperature") },
         text = {
-            Column {
-                OutlinedTextField(
-                    value = tempStr,
-                    onValueChange = { tempStr = it.filter(Char::isDigit) },
-                    label = { Text("Temperature °C") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Set 0 to turn the heater off.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            OutlinedTextField(
+                value = tempStr,
+                onValueChange = { tempStr = it.filter(Char::isDigit) },
+                label = { Text("Temperature °C") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
         },
         confirmButton = {
-            Button(onClick = { tempStr.toIntOrNull()?.let(onSet) }) { Text("Set") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onSet(0) }) { Text("Off") }
+                Button(onClick = { tempStr.toIntOrNull()?.let(onSet) }) { Text("Set") }
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

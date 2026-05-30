@@ -135,11 +135,6 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
         // ── Temperature ─────────────────────────────────────────────────────
         ControlSection("Temperature") {
             HeaterGrid(status = status, onHeaterClick = { showTempDialog = it })
-            Text(
-                "Tap a heater to set its target. Set 0 to turn it off.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
 
         // ── Motion ──────────────────────────────────────────────────────────

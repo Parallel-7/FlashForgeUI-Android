@@ -66,7 +66,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
                             .selectableGroup()
                     ) {
                         Text(
-                            "Reconnect on startup",
+                            "Auto Reconnect",
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Spacer(Modifier.height(4.dp))
@@ -88,7 +88,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
                             onClick = { scope.launch { viewModel.settingsDataStore.setStartupReconnect(StartupReconnect.LAST_ACTIVE) } }
                         )
                         ReconnectOption(
-                            label = "Off (manual connect)",
+                            label = "Off",
                             selected = reconnectMode == StartupReconnect.OFF,
                             onClick = { scope.launch { viewModel.settingsDataStore.setStartupReconnect(StartupReconnect.OFF) } }
                         )
@@ -118,7 +118,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Hide serial numbers", style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                "Mask printer serials throughout the app (for screenshots / recordings)",
+                                "Mask printer serial numbers",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

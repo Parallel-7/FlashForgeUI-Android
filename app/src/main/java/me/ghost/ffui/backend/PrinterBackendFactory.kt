@@ -16,7 +16,10 @@ object PrinterBackendFactory {
         PrinterModel.ADVENTURER_5M -> Adventurer5MBackend(printer, http, tcp)
         PrinterModel.ADVENTURER_5M_PRO -> Adventurer5MProBackend(printer, http, tcp)
         PrinterModel.AD5X -> AD5XBackend(printer, http, tcp)
-        PrinterModel.GENERIC_LEGACY -> GenericLegacyBackend(printer, http, tcp)
+        // Legacy printers (TCP-only, no HTTP REST API) all use the same backend.
+        PrinterModel.ADVENTURER_3,
+        PrinterModel.ADVENTURER_4,
+        PrinterModel.GENERIC_LEGACY -> GenericLegacyBackend(printer, http, tcp, model)
         // Default unknown machines to the modern 5M backend; the next /detail refines it.
         PrinterModel.UNKNOWN -> Adventurer5MBackend(printer, http, tcp)
     }

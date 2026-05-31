@@ -74,20 +74,24 @@ me.ghost.ffui
 │   │                         change the (empty) broadcast payload; it works on real hardware.
 │   ├── FlashForgeHttpApi     OkHttp + kotlinx.serialization; POST /detail, /product,
 │   │                         /control (light, temp, job pause/resume/cancel, clearPlatform)
-│   ├── FlashForgeTcpClient   Raw Socket on 8899; M601 lock, light ~M27 keep-alive heartbeat,
-│   │                         ledOn/ledOff (~M146), homeAxes (~G28). Control-only for modern.
-│   ├── PrinterModel          PrinterModel enum + pid-based detection; PrinterCapabilities.
+│   ├── FlashForgeTcpClient   Raw Socket on 8899; M601 lock, synchronous sendCommandWithResponse
+│   │                         (CompletableDeferred + Mutex), KeepAliveMode (MODERN/LEGACY_POLL/NONE),
+│   │                         auto-reconnect w/ exponential backoff, M661 file list, M662 thumbnail.
+│   ├── PrinterModel          PrinterModel enum + pid-based detection + M115 Machine Type fallback;
+│   │                         PrinterCapabilities.
 │   └── FlashForgeModels      @Serializable shapes; /detail carries matlStationInfo INLINE.
 ├── backend/                  Per-model strategy (mirrors FFUI-Electron backends)
 │   ├── PrinterBackend        abstract: capabilities via /product, shared job/LED control
 │   ├── DualApiBackend        modern base — polls HTTP /detail
-│   ├── Adventurer5M / 5MPro / AD5X / GenericLegacyBackend
+│   ├── Adventurer5M / 5MPro / AD5X / GenericLegacyBackend (covers A3/A4/legacy)
+│   │   GenericLegacyBackend: TCP polling via M105+M119+M27, M25/M24/M26 job control, M23+M24 start
 │   └── PrinterBackendFactory create(model, …)
 ├── data/                     Room persistence
 │   ├── AppDatabase (v4) / PrinterDao / PrinterEntity / PrinterRepository
 │   └── ActivePrinterSession  (lives INSIDE PrinterRepository.kt, not its own file)
-│                             Owns a PrinterBackend + http/tcp pair; HTTP /detail poll loop
-│                             with ConnectionState (Connecting/Connected/Offline/AuthFailed)
+│                             Owns a PrinterBackend + http/tcp pair; identify via HTTP /detail
+│                             (modern) or TCP ~M115 (legacy fallback); adaptive poll loop with
+│                             ConnectionState (Connecting/Connected/Offline/AuthFailed)
 │                             and adaptive cadence (1.5s printing, 2.5s paused, 3s offline,
 │                             5s idle, 10s error, 15s auth-failed).
 └── ui/
@@ -109,8 +113,9 @@ me.ghost.ffui
   `activeSerial`). Connecting an already-open serial just switches tabs — no duplicate connection.
   Connected-serials + active-tab are persisted eagerly (`persistSessionState`) for startup-reconnect.
 - **Model is detected by `pid`** (35=5M, 36=5M Pro, 38=AD5X) on first `/detail`, not by name.
-  `PrinterBackendFactory` picks the backend; `/product` flags + per-printer `customLedEnabled`
-  resolve `PrinterCapabilities`. UI controls are capability-gated (hide unsupported).
+  Legacy printers (Adventurer 3/4) are detected via TCP `~M115` `Machine Type:` string when
+  HTTP `/detail` fails. `PrinterBackendFactory` picks the backend; `/product` flags + per-printer
+  `customLedEnabled` resolve `PrinterCapabilities`. UI controls are capability-gated (hide unsupported).
 - **HTTP `/detail` is the single source of truth** for modern printers (status + IFS inline). TCP
   is control-only (custom LEDs `~M146`, homing `~G28`). Only `GenericLegacyBackend` polls over TCP.
 - **No DI framework.** Dependencies are constructed manually (`AppDatabase.getDatabase`,
@@ -166,9 +171,24 @@ me.ghost.ffui
   breaks all polling. (2) **firmware serializes numbers inconsistently** (decimals vs ints), so
   every numeric `/detail` field is typed `Float?` (only `pid` is `Int?`) — keep new numeric fields
   `Float?`. The 5M / 5M Pro paths are still unverified (no hardware on hand).
-- **TCP is control-only and unverified.** `FlashForgeTcpClient` writes correctly (`"$cmd\r\n"`),
-  acquires `~M601 S1`, releases `~M602`, and now runs only a light `~M27` heartbeat. `ledOn/ledOff`
-  (`~M146`) and `homeAxes` (`~G28`) exist but aren't wired to UI yet. No reconnect/backoff on drop.
+- **TCP client supports synchronous command/response.** `FlashForgeTcpClient` uses a
+  `CompletableDeferred`-based protocol: `sendCommandWithResponse(cmd)` writes the command and
+  waits for the multi-line `"ok"`-terminated response. A `Mutex` serializes command writes. The
+  `KeepAliveMode` enum controls the heartbeat: `MODERN` (light `~M27` every 5s for modern printers),
+  `LEGACY_POLL` (no heartbeat — the backend drives polling explicitly), or `NONE`. Auto-reconnect
+  with exponential backoff (1s→15s cap) runs when the read loop exits abnormally. The modern
+  keep-alive + background telemetry parsing path is verified against a live AD5X; the legacy
+  polling path (M105+M119+M27 per tick) is verified against the flashforge-emulator-v2.
+- **Legacy TCP backend is emulator-verified, not hardware-verified.** `GenericLegacyBackend`
+  polls status via M119 (machine status + LED + current file), M105 (temperatures), and M27
+  (progress) per tick. Job control uses M25/M24/M26 (pause/resume/cancel). Start print uses
+  M23+M24. Identification falls through to TCP M115 when HTTP `/detail` fails. File listing via
+  M661 works (both A4 `::`-delimited and A3 `info_list.size:` formats). File thumbnail via
+  M662 works (both A4 raw PNG and A3 `0xa2a22a2a` magic header). LED control: A4/Generic uses
+  `~M146 r255...` (RGB), A3 uses `~M146 1/0` (on/off). The emulator models real A3 firmware
+  differences (echo:/ack: prefixes, IDLE status, LEDStatus:, PrintFileName:, fire-and-forget
+  motion commands, M105 ok-prefix). All verified against flashforge-emulator-v2 headless A3.
+  Still not verified against real hardware.
 - **Temperature SET is still the old HTTP `temperatureCtl_cmd`** (`FlashForgeHttpApi.controlTemp`)
   and is suspect — the reference TS lib sets temps over TCP G-code (M104/M140) and leaves the HTTP
   path commented out as unverified. Move temp-set to TCP in Phase 3; don't trust the HTTP path.

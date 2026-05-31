@@ -4,6 +4,7 @@ import me.ghost.ffui.api.AD5XMaterialMapping
 import me.ghost.ffui.api.FFGcodeFileEntry
 import me.ghost.ffui.api.FlashForgeHttpApi
 import me.ghost.ffui.api.FlashForgeTcpClient
+import me.ghost.ffui.api.KeepAliveMode
 import me.ghost.ffui.api.MatlStationInfo
 import me.ghost.ffui.api.PrinterCapabilities
 import me.ghost.ffui.api.PrinterModel
@@ -129,14 +130,20 @@ class ActivePrinterSession(
         }
     }
 
-    /** First contact: fetch /detail, pick the backend by model, resolve capabilities. */
+    /**
+     * First contact: try HTTP `/detail` first (modern printers), then fall through to TCP `~M115`
+     * identification for legacy printers that have no HTTP API. The `forceLegacy` toggle skips
+     * HTTP entirely and goes straight to TCP.
+     */
     private suspend fun identify() {
+        if (printer.forceLegacy) {
+            identifyViaTcp()
+            return
+        }
+
         httpApi.getDetail(printer.serialNumber, printer.checkCode)
             .onSuccess { detail ->
-                val model = when {
-                    printer.forceLegacy -> PrinterModel.GENERIC_LEGACY
-                    else -> PrinterModel.fromDetail(detail)
-                }
+                val model = PrinterModel.fromDetail(detail)
                 val newBackend = PrinterBackendFactory.create(model, printer, httpApi, tcpClient)
                 // /product also validates credentials; on failure we keep baseline capabilities.
                 newBackend.initialize()
@@ -146,9 +153,6 @@ class ActivePrinterSession(
                 _matlStation.value = newBackend.materialStation(detail)
                 _connectionState.value = ConnectionState.Connected
                 detectEvents(detail)
-                // Reflect identity learned from /detail in the LIVE entity, not just the DB — otherwise
-                // the camera URL (only known after first /detail) stays blank in the running session
-                // until a reconnect, so a freshly-paired printer shows "Camera Not Available".
                 _printer.value = _printer.value.copy(
                     modelPid = detail.pid ?: _printer.value.modelPid,
                     firmwareVersion = detail.firmwareVersion ?: _printer.value.firmwareVersion,
@@ -156,7 +160,57 @@ class ActivePrinterSession(
                 )
                 onIdentity(detail.pid, detail.firmwareVersion, detail.cameraStreamUrl)
             }
-            .onFailure { e -> applyFailure(e) }
+            .onFailure { e ->
+                val msg = e.message
+                if (msg?.startsWith("API Error") == true) {
+                    // Credential rejection — fatal, no TCP fallback.
+                    applyFailure(e)
+                } else {
+                    // Connection-level error — printer may be legacy (no HTTP API). Try TCP.
+                    identifyViaTcp()
+                }
+            }
+    }
+
+    /**
+     * Identifies the printer model via TCP `~M115` probe. Used when HTTP `/detail` fails (legacy
+     * printers have no HTTP API) or when `forceLegacy` is set. Reuses the session's already-connected
+     * TCP client.
+     */
+    private suspend fun identifyViaTcp() {
+        tcpClient.sendCommandWithResponse("~M115", timeoutMs = 3_000)
+            .onSuccess { response ->
+                // Strip A3-specific ack:/echo: prefixes from each line before searching.
+                val cleanLines = response.lineSequence()
+                    .map { it.trim().removePrefix("echo: ").removePrefix("ack: ") }
+                    .toList()
+                val machineType = cleanLines
+                    .find { it.startsWith("Machine Type:") }
+                    ?.substringAfter("Machine Type:")?.trim().orEmpty()
+                val firmware = cleanLines
+                    .find { it.startsWith("Firmware:") }
+                    ?.substringAfter("Firmware:")?.trim()
+                val model = PrinterModel.fromMachineType(machineType)
+
+                // Switch TCP to legacy polling mode (no automatic keep-alive).
+                tcpClient.keepAliveMode = KeepAliveMode.LEGACY_POLL
+
+                val newBackend = PrinterBackendFactory.create(model, printer, httpApi, tcpClient)
+                newBackend.initialize()
+                backend = newBackend
+                _capabilities.value = newBackend.capabilities
+                _connectionState.value = ConnectionState.Connected
+
+                _printer.value = _printer.value.copy(
+                    firmwareVersion = firmware ?: _printer.value.firmwareVersion
+                )
+                onIdentity(null, firmware, null)
+
+                tcpClient.resetReconnectBackoff()
+            }
+            .onFailure { e ->
+                applyFailure(e)
+            }
     }
 
     private suspend fun pollOnce() {

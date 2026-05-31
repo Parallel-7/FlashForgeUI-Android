@@ -41,16 +41,22 @@ class MainActivity : ComponentActivity() {
   }
 
   /**
-   * Debug-only fast re-seed of saved printers from an adb intent extra (see [DebugPrinterSeeder]
-   * and `scripts/seed_printers.py`). No-op in release builds and when the extra is absent.
+   * Debug-only fast re-seed (or selective teardown) of saved printers from an adb intent extra
+   * (see [DebugPrinterSeeder] and `scripts/seed_printers.py` / `scripts/emulator-printers.ps1`).
+   * No-op in release builds and when neither extra is present.
    */
   private fun handleSeedIntent(intent: Intent?) {
     if (!BuildConfig.DEBUG) return
-    val b64 = intent?.getStringExtra(DebugPrinterSeeder.EXTRA_SEED_B64) ?: return
+    val seedB64 = intent?.getStringExtra(DebugPrinterSeeder.EXTRA_SEED_B64)
+    val unseedB64 = intent?.getStringExtra(DebugPrinterSeeder.EXTRA_UNSEED_B64)
+    if (seedB64 == null && unseedB64 == null) return
     lifecycleScope.launch {
-      val count = runCatching { DebugPrinterSeeder.seedFromBase64(applicationContext, b64) }
-        .getOrElse { e -> Log.e("DebugSeed", "seed failed", e); -1 }
-      val msg = if (count >= 0) "Seeded $count printer(s)" else "Seed failed (see logcat)"
+      val msg = runCatching {
+        when {
+          unseedB64 != null -> "Removed ${DebugPrinterSeeder.unseedFromBase64(applicationContext, unseedB64)} printer(s)"
+          else -> "Seeded ${DebugPrinterSeeder.seedFromBase64(applicationContext, seedB64!!)} printer(s)"
+        }
+      }.getOrElse { e -> Log.e("DebugSeed", "seed/unseed failed", e); "Seed failed (see logcat)" }
       Log.i("DebugSeed", msg)
       Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
     }

@@ -1,9 +1,10 @@
 package me.ghost.ffui.api
 
 /**
- * The FlashForge printer models this app knows how to talk to. The reliable identifier is the
- * firmware-stable [PrinterDetailResponse.pid]; the printer name is only a fallback because users
- * can rename their machines.
+ * The FlashForge printer models this app knows how to talk to. Modern printers (5M family) are
+ * identified by the firmware-stable [PrinterDetailResponse.pid] via HTTP `/detail`. Legacy printers
+ * (Adventurer 3/4) are identified by the `Machine Type:` string in the TCP `~M115` response when
+ * HTTP is unavailable. The printer name is only a fallback because users can rename their machines.
  */
 enum class PrinterModel {
     /** Adventurer 5M — modern HTTP API, no factory LED/filtration, no material station. */
@@ -15,7 +16,13 @@ enum class PrinterModel {
     /** AD5X — modern HTTP API + independent material station (IFS, 4 slots). */
     AD5X,
 
-    /** Adventurer 3 / 4 and other older machines — TCP G-code only (no modern HTTP API). */
+    /** Adventurer 3 — TCP G-code only (no HTTP REST API), factory LEDs via `~M146`. */
+    ADVENTURER_3,
+
+    /** Adventurer 4 — TCP G-code only (no HTTP REST API), factory LEDs via `~M146`. */
+    ADVENTURER_4,
+
+    /** Other older machines — TCP G-code only, generic legacy path. */
     GENERIC_LEGACY,
 
     /** Could not be determined yet (e.g. before first /detail). */
@@ -53,6 +60,19 @@ enum class PrinterModel {
                 name.contains("Pro", ignoreCase = true) -> ADVENTURER_5M_PRO
                 name.contains("5M", ignoreCase = true) -> ADVENTURER_5M
                 else -> UNKNOWN
+            }
+        }
+
+        /**
+         * Resolves the model from a TCP `~M115` response's `Machine Type:` field. Used as a
+         * fallback when HTTP `/detail` fails (legacy printers have no HTTP API).
+         */
+        fun fromMachineType(machineType: String): PrinterModel {
+            val upper = machineType.uppercase()
+            return when {
+                upper.contains("ADVENTURER 3") || upper.contains("ADVENTURER III") -> ADVENTURER_3
+                upper.contains("ADVENTURER 4") -> ADVENTURER_4
+                else -> GENERIC_LEGACY
             }
         }
     }

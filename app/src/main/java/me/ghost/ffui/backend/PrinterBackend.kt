@@ -184,11 +184,11 @@ abstract class PrinterBackend(
     open suspend fun setAutoShutdown(enabled: Boolean, minutes: Int): Result<Unit> =
         http.setAutoShutdown(printer.serialNumber, printer.checkCode, enabled, minutes)
 
-    // ---- Shared job control (HTTP) ----
-    suspend fun pause() = http.pauseJob(printer.serialNumber, printer.checkCode)
-    suspend fun resume() = http.resumeJob(printer.serialNumber, printer.checkCode)
-    suspend fun cancel() = http.cancelJob(printer.serialNumber, printer.checkCode)
-    suspend fun clearPlatform() = http.clearPlatform(printer.serialNumber, printer.checkCode)
+    // ---- Shared job control (HTTP; overridable for TCP-only legacy backends) ----
+    open suspend fun pause() = http.pauseJob(printer.serialNumber, printer.checkCode)
+    open suspend fun resume() = http.resumeJob(printer.serialNumber, printer.checkCode)
+    open suspend fun cancel() = http.cancelJob(printer.serialNumber, printer.checkCode)
+    open suspend fun clearPlatform() = http.clearPlatform(printer.serialNumber, printer.checkCode)
 
     /**
      * Turns the LED on/off, routing to HTTP `lightControl_cmd` (factory LEDs) or TCP `~M146`

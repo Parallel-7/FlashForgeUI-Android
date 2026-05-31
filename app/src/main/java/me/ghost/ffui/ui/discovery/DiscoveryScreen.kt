@@ -156,9 +156,9 @@ fun DiscoveryScreen(
 
 /**
  * Picks the printer render for a tile. Prefers the firmware-stable [PrinterEntity.modelPid]
- * (35=5M, 36=5M Pro, 38=AD5X); for discovered-but-unsaved printers the pid isn't known yet, so it
- * falls back to name heuristics. Unknown models default to the 5M render (the app only targets the
- * 5M-series anyway).
+ * (35=5M, 36=5M Pro, 38=AD5X); legacy printers (Adventurer 3/4) have no pid, and discovered-but-
+ * unsaved printers don't know it yet, so it falls back to name heuristics. Unknown models default
+ * to the 5M render.
  */
 @DrawableRes
 private fun printerImageRes(modelPid: Int?, name: String): Int = when {
@@ -168,6 +168,11 @@ private fun printerImageRes(modelPid: Int?, name: String): Int = when {
     name.contains("5X", ignoreCase = true) -> R.drawable.printer_ad5x
     name.contains("Pro", ignoreCase = true) -> R.drawable.printer_5m_pro
     name.contains("5M", ignoreCase = true) -> R.drawable.printer_5m
+    // Legacy machines, matched on the model name the printer reports (no pid over TCP).
+    name.contains("Adventurer 4", ignoreCase = true) || name.contains("Adventurer4", ignoreCase = true) ||
+        name.contains("Adventurer IV", ignoreCase = true) -> R.drawable.printer_adventurer4
+    name.contains("Adventurer 3", ignoreCase = true) || name.contains("Adventurer3", ignoreCase = true) ||
+        name.contains("Adventurer III", ignoreCase = true) -> R.drawable.printer_adventurer3
     else -> R.drawable.printer_5m
 }
 

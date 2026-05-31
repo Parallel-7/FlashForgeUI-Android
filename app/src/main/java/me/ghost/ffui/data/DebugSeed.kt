@@ -24,17 +24,21 @@ data class SeedPrinter(
  *
  * The payload is a base64-encoded JSON array of [SeedPrinter]. Inserting through Room (not raw SQL)
  * means new entity columns simply take their Kotlin defaults — the host script never has to track
- * the schema. See `scripts/seed-printers.ps1`.
+ * the schema. Real printers: `scripts/seed_printers.py`. Emulator printers: `scripts/emulator-printers.ps1`.
  */
 object DebugPrinterSeeder {
     /** Intent extra carrying the base64-encoded JSON array of printers to seed. */
     const val EXTRA_SEED_B64 = "seed_b64"
 
+    /** Intent extra carrying the base64-encoded JSON array of serial numbers to remove. */
+    const val EXTRA_UNSEED_B64 = "unseed_b64"
+
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
-     * Decodes [base64Json] (a base64 JSON array of [SeedPrinter]), upserts each into Room, and points
-     * startup-reconnect at the seeded set so the next launch brings them up live. Returns the count.
+     * Decodes [base64Json] (a base64 JSON array of [SeedPrinter]) and upserts each into Room. The
+     * seeded entries simply appear in the Printers list — seeding never arms startup-reconnect or
+     * auto-connects (the user connects manually). Returns the count.
      */
     suspend fun seedFromBase64(context: Context, base64Json: String): Int {
         val decoded = String(Base64.decode(base64Json, Base64.DEFAULT), Charsets.UTF_8)
@@ -53,12 +57,22 @@ object DebugPrinterSeeder {
             )
         }
 
-        // Arm startup-reconnect so a relaunch reconnects everything we just seeded.
-        val store = SettingsDataStore(context)
-        store.setStartupReconnect(StartupReconnect.ALL)
-        store.setLastConnectedSerials(printers.map { it.serial }.toSet())
-        store.setLastActiveSerial(printers.first().serial)
-
         return printers.size
+    }
+
+    /**
+     * Decodes [base64Json] (a base64 JSON array of serial-number strings) and deletes each from Room,
+     * leaving every other saved printer (e.g. the maintainer's real machines) untouched. Used to tear
+     * down emulator test printers between runs. Returns the number of serials processed.
+     */
+    suspend fun unseedFromBase64(context: Context, base64Json: String): Int {
+        val decoded = String(Base64.decode(base64Json, Base64.DEFAULT), Charsets.UTF_8)
+        val serials = json.decodeFromString<List<String>>(decoded)
+        if (serials.isEmpty()) return 0
+
+        val dao = AppDatabase.getDatabase(context).printerDao()
+        serials.forEach { dao.delete(it) }
+
+        return serials.size
     }
 }

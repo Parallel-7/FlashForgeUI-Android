@@ -5,6 +5,13 @@ porting roadmap, only **UDP auto-discovery** and **initial connection / status p
 actually working. Treat the feature matrix in `GEMINI.md` as aspirational, not done — verify
 against the code before assuming a feature works.
 
+## Git workflow
+
+- **Commit and push straight to `main`.** The maintainer is the sole developer on this prototype
+  and prefers it — do **not** create a feature branch or open a PR for normal work unless they
+  explicitly ask. (This overrides the usual "branch off the default branch" default.) Still only
+  commit/push when asked.
+
 ## Reminders to surface
 
 - **Going public / publishing this repo:** if the user mentions making the repo public,

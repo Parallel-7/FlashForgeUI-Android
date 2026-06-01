@@ -316,6 +316,15 @@ me.ghost.ffui
   it's app-scoped) and just show the cached list immediately instead of gating on `Loading`; if
   persistence across process death is wanted, a single DataStore/JSON blob of the last spool list
   is enough. Show stale data first, refresh silently, swap in on success.
+- **Next session — extract a standalone Kotlin FlashForge API library (1:1 port of `ff-5mp-api-ts`).**
+  Idea: build a Kotlin port of the reference `ff-5mp-api-ts` lib (in
+  `C:\Users\coper\Documents\GitHub\1flashforge_printers\`) as its own library — it covers the
+  Android platform, shrinks the app, and cleanly separates protocol concerns from UI/state. We
+  already have most of the wire code in-app to rip out and move over: `api/` (`FlashForgeHttpApi`,
+  `FlashForgeTcpClient`, `UdpDiscovery`, `PrinterModel`, `FlashForgeModels`) plus the `backend/`
+  strategy layer. Aim for a 1:1 port of the TS lib's surface, then have the app depend on it
+  instead of its own `api/`/`backend/` packages. Scope/structure (separate Gradle module in this
+  repo vs. its own repo/Maven artifact) is TBD — decide that first.
 
 ## Skills installed (`.claude/skills/`)
 

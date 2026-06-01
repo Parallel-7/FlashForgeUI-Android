@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Print
@@ -15,6 +16,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,6 +34,8 @@ import me.ghost.ffui.ui.files.FilesScreen
 import me.ghost.ffui.ui.info.PrinterInfoScreen
 import me.ghost.ffui.ui.settings.PrinterSettingsScreen
 import me.ghost.ffui.ui.settings.SettingsScreen
+import me.ghost.ffui.ui.spools.SpoolsScreen
+import me.ghost.ffui.ui.spools.SpoolEditScreen
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -45,6 +49,14 @@ object PrintersRoute
 
 @Serializable
 object SettingsRoute
+
+/** Route to the Spools tab — only visible when the Spoolman integration is enabled. */
+@Serializable
+object SpoolsRoute
+
+/** Route to the spool edit screen. */
+@Serializable
+data class SpoolEditRoute(val spoolId: Int)
 
 /** Route to the per-printer settings screen; takes the printer's serial as a nav argument. */
 @Serializable
@@ -61,6 +73,7 @@ data class PrinterInfoRoute(val serialNumber: String)
 @Composable
 fun FlasherApp(viewModel: MainViewModel = viewModel()) {
     val navController = rememberNavController()
+    val spoolmanEnabled by viewModel.settingsDataStore.spoolmanEnabled.collectAsState(initial = false)
     
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -106,6 +119,20 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                         }
                     }
                 )
+                if (spoolmanEnabled) {
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.Album, contentDescription = "Spools") },
+                        label = { Text("Spools") },
+                        selected = currentDestination?.hierarchy?.any { it.route?.contains("SpoolsRoute") == true } == true,
+                        onClick = {
+                            navController.navigate(SpoolsRoute) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    )
+                }
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
                     label = { Text("Settings") },
@@ -175,6 +202,31 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
 
             composable<SettingsRoute> {
                 SettingsScreen(viewModel = viewModel)
+            }
+
+            composable<SpoolsRoute> {
+                SpoolsScreen(
+                    viewModel = viewModel,
+                    onNavigateToEdit = { spoolId ->
+                        navController.navigate(SpoolEditRoute(spoolId))
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate(SettingsRoute) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
+            }
+
+            composable<SpoolEditRoute> { backStackEntry ->
+                val route = backStackEntry.toRoute<SpoolEditRoute>()
+                SpoolEditScreen(
+                    spoolId = route.spoolId,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
+                )
             }
 
             composable<PrinterSettingsRoute> { backStackEntry ->

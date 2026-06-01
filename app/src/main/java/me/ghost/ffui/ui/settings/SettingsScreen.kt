@@ -265,6 +265,111 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 }
             }
 
+            // ── Spoolman section ──
+            item {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Spoolman",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            item {
+                val spoolmanEnabled by viewModel.settingsDataStore.spoolmanEnabled.collectAsState(initial = false)
+                val spoolmanBaseUrl by viewModel.settingsDataStore.spoolmanBaseUrl.collectAsState(initial = "")
+
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        // Master toggle
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Enable Spoolman", style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    "Track filament spools from your Spoolman server",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Switch(
+                                checked = spoolmanEnabled,
+                                onCheckedChange = { scope.launch { viewModel.settingsDataStore.setSpoolmanEnabled(it) } }
+                            )
+                        }
+
+                        // Nested controls — only visible when enabled
+                        if (spoolmanEnabled) {
+                            Spacer(Modifier.height(8.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            Spacer(Modifier.height(8.dp))
+
+                            var serverUrl by remember(spoolmanBaseUrl) { mutableStateOf(spoolmanBaseUrl) }
+                            var testResult by remember { mutableStateOf<Result<Unit>?>(null) }
+                            var isTesting by remember { mutableStateOf(false) }
+
+                            OutlinedTextField(
+                                value = serverUrl,
+                                onValueChange = { serverUrl = it },
+                                label = { Text("Server address") },
+                                placeholder = { Text("http://192.168.1.50:7912") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(Modifier.height(12.dp))
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            isTesting = true
+                                            testResult = null
+                                            viewModel.settingsDataStore.setSpoolmanBaseUrl(serverUrl.trim())
+                                            testResult = viewModel.spoolmanRepository.testConnection(serverUrl.trim())
+                                            isTesting = false
+                                        }
+                                    },
+                                    enabled = !isTesting && serverUrl.isNotBlank()
+                                ) {
+                                    if (isTesting) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                    }
+                                    Text("Test connection")
+                                }
+
+                                testResult?.let { result ->
+                                    if (result.isSuccess) {
+                                        Text(
+                                            "✓ Connected",
+                                            color = MaterialTheme.colorScheme.primary,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    } else {
+                                        Text(
+                                            "✗ Couldn't reach server",
+                                            color = MaterialTheme.colorScheme.error,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── About section ──
             item {
                 Spacer(Modifier.height(8.dp))

@@ -45,6 +45,8 @@ class SettingsDataStore(private val context: Context) {
         val BACKGROUND_MONITORING = booleanPreferencesKey("background_monitoring")
         val BACKGROUND_THROTTLE = booleanPreferencesKey("background_throttle")
         val BACKGROUND_THROTTLE_SECONDS = intPreferencesKey("background_throttle_seconds")
+        val SPOOLMAN_ENABLED = booleanPreferencesKey("spoolman_enabled")
+        val SPOOLMAN_BASE_URL = stringPreferencesKey("spoolman_base_url")
     }
 
     /** Allowed range for the background-throttle poll interval, in seconds. */
@@ -102,6 +104,16 @@ class SettingsDataStore(private val context: Context) {
             .coerceIn(THROTTLE_MIN_SECONDS, THROTTLE_MAX_SECONDS)
     }
 
+    /** Whether the Spoolman integration is enabled (gates the Spools tab). */
+    val spoolmanEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.SPOOLMAN_ENABLED] ?: false
+    }
+
+    /** The user-configured Spoolman server base URL (e.g. `http://192.168.1.50:7912`). */
+    val spoolmanBaseUrl: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[Keys.SPOOLMAN_BASE_URL] ?: ""
+    }
+
     // ---- Writers ----
 
     suspend fun setStartupReconnect(mode: StartupReconnect) {
@@ -136,6 +148,14 @@ class SettingsDataStore(private val context: Context) {
             it[Keys.BACKGROUND_THROTTLE_SECONDS] =
                 seconds.coerceIn(THROTTLE_MIN_SECONDS, THROTTLE_MAX_SECONDS)
         }
+    }
+
+    suspend fun setSpoolmanEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.SPOOLMAN_ENABLED] = enabled }
+    }
+
+    suspend fun setSpoolmanBaseUrl(url: String) {
+        context.dataStore.edit { it[Keys.SPOOLMAN_BASE_URL] = url }
     }
 }
 

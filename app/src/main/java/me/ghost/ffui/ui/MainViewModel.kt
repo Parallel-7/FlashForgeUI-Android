@@ -9,6 +9,7 @@ import me.ghost.ffui.api.UdpDiscovery
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.PrinterEntity
 import me.ghost.ffui.data.PrinterSessionManager
+import me.ghost.ffui.data.SpoolmanRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +29,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Exposed for screens that still reach through the ViewModel (settings, info, delete).
     val repository = sessionManager.repository
     val settingsDataStore = sessionManager.settings
+    val spoolmanRepository: SpoolmanRepository =
+        (application as FfuiApplication).spoolmanRepository
 
     val savedPrinters = repository.savedPrinters.stateIn(
         viewModelScope, SharingStarted.Lazily, emptyList()

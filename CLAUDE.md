@@ -295,7 +295,27 @@ me.ghost.ffui
   background-monitoring note in Architecture). Event detection is verified against the AD5X read
   path; the background service + throttle + `START_STICKY` restart-resume + battery-exemption prompt
   are wired and build-verified but not yet soak-tested on a real long print or a real OOM kill.
-- **Still not started:** Spoolman integration (Phase 5).
+- **Spoolman integration is built (Phase 5).** A conditional 5th bottom-nav tab ("Spools", gated
+  by the global `spoolmanEnabled` toggle in Settings) browses spools from a user-run Spoolman
+  server. `api/SpoolmanApi.kt` (OkHttp + kotlinx, `Result<T>`, short LAN timeouts) + `SpoolmanModels.kt`
+  (numeric fields `Float?`, same firmware-style guard); `data/SpoolmanRepository.kt` owns the API
+  (rebuilt when the base URL changes) and exposes `spools` / `loadState` StateFlows + `refresh` and
+  `useWeight`/`patchSpool`/`setArchived` pass-throughs that refresh on success. Constructed in
+  `FfuiApplication` and re-exposed via `MainViewModel.spoolmanRepository`. UI under `ui/spools/`
+  (grid + search/sort/archived, info dialog, edit screen); `ui/components/SpoolDisc.kt` is the
+  shared disc renderer (extracted from the IFS card). Usage tracking is **manual only** — never
+  print-linked auto-deduction. Verified live against the local seeded Spoolman (20 spools) on the
+  emulator (`http://10.0.2.2:7912`). Known edge: `SpoolsScreen` can stay stuck on `NotConfigured`
+  if you enable Spoolman with a blank URL, then set the URL and return without an app restart (the
+  load `LaunchedEffect`s don't re-fire from `NotConfigured`) — unfixed, low-impact.
+- **Next session — Spoolman instant-load cache (TODO, keep it simple).** The Spools tab refetches
+  on every visit, so there's a brief (not bad) delay before cards appear. Want a lightweight
+  background cache so the grid renders instantly from last-known data while a refresh runs behind
+  it. **Do not over-engineer** — no Room table, no new sync framework. Simplest path: have
+  `SpoolmanRepository` keep its `spools` StateFlow warm across tab visits (it already survives —
+  it's app-scoped) and just show the cached list immediately instead of gating on `Loading`; if
+  persistence across process death is wanted, a single DataStore/JSON blob of the last spool list
+  is enough. Show stale data first, refresh silently, swap in on success.
 
 ## Skills installed (`.claude/skills/`)
 

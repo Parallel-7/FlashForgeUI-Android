@@ -30,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -39,12 +38,9 @@ import androidx.compose.ui.unit.dp
 import me.ghost.ffui.api.MatlSlotInfo
 import me.ghost.ffui.api.MatlStationInfo
 import me.ghost.ffui.data.ActivePrinterSession
+import me.ghost.ffui.ui.components.SpoolDisc
 
-/** Parses a `#RRGGBB` (or bare `RRGGBB`) material color string; null when unparseable. */
-internal fun parseHexColor(hex: String): Color? {
-    val s = if (hex.startsWith("#")) hex else "#$hex"
-    return try { Color(android.graphics.Color.parseColor(s)) } catch (e: Exception) { null }
-}
+// parseHexColor moved to ui/components/SpoolDisc.kt
 
 /** AD5X IFS card: a row of spool slots; tapping a slot opens the [SlotEditorSheet]. */
 @Composable
@@ -114,7 +110,6 @@ private fun SpoolSlot(
     modifier: Modifier = Modifier
 ) {
     val hasFilament = slot?.hasFilament == true
-    val spoolColor = slot?.materialColor?.let { parseHexColor(it) }
     val primary = MaterialTheme.colorScheme.primary
 
     // Pulse the active slot's ring for a subtle glow.
@@ -130,6 +125,8 @@ private fun SpoolSlot(
             label = "spool-glow-alpha"
         ).value
     } else 0f
+
+    val ringColor = if (isActive) primary.copy(alpha = glowAlpha) else null
 
     Column(
         modifier = modifier
@@ -148,32 +145,13 @@ private fun SpoolSlot(
                         .border(2.dp, primary.copy(alpha = glowAlpha), CircleShape)
                 )
             }
-            // Spool body.
-            val bodyColor = when {
-                hasFilament && spoolColor != null -> spoolColor
-                hasFilament -> MaterialTheme.colorScheme.onSurfaceVariant
-                else -> MaterialTheme.colorScheme.surfaceVariant
-            }
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .alpha(if (hasFilament) 1f else 0.6f)
-                    .background(bodyColor, CircleShape)
-                    .border(
-                        width = 3.dp,
-                        color = if (isActive) primary else MaterialTheme.colorScheme.outlineVariant,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                // Center hub.
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), CircleShape)
-                        .border(1.dp, Color.Black.copy(alpha = 0.15f), CircleShape)
-                )
-            }
+            // Spool disc — shared component.
+            SpoolDisc(
+                colorHex = slot?.materialColor,
+                size = 44.dp,
+                ringColor = ringColor,
+                dimmed = !hasFilament
+            )
         }
 
         // Material tag chip or "Empty" label.

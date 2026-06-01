@@ -13,6 +13,11 @@
          OEM power managers don't freeze/kill the monitor service. Sideload-only (Play-restricted). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- NFC tag scan/write for Spoolman spools. Optional feature: the app is a printer monitor
+         first, so don't block install on devices without NFC. -->
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
+
     <application
         android:name=".FfuiApplication"
         android:allowBackup="true"

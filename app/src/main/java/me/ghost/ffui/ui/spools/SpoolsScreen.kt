@@ -5,24 +5,32 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Contactless
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,6 +39,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -45,11 +56,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import me.ghost.ffui.api.SpoolmanSpool
 import me.ghost.ffui.data.SpoolmanLoadState
+import me.ghost.ffui.nfc.NfcMode
+import me.ghost.ffui.nfc.NfcReadResult
+import me.ghost.ffui.nfc.NfcWriteResult
 import me.ghost.ffui.ui.MainViewModel
 
 /** Sort options available in the Spools screen dropdown. */
@@ -58,6 +75,15 @@ enum class SpoolSortOption(val label: String, val sortKey: String?) {
     Material("Material", "filament.material:asc"),
     Vendor("Vendor", "filament.vendor.name:asc"),
     RecentlyUsed("Recently used", "last_used:desc")
+}
+
+/** Filter spools by their local NFC-tagged state. Only shown when NFC is enabled. */
+enum class NfcFilter(val label: String) {
+    All("All"),
+    Tagged("Tagged"),
+    Untagged("Untagged");
+
+    fun next(): NfcFilter = entries[(ordinal + 1) % entries.size]
 }
 
 /**
@@ -80,11 +106,25 @@ fun SpoolsScreen(
     val loadState by repo.loadState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
+    // NFC: scan/write state + local tagged map. The icons & filter only appear when NFC is enabled.
+    val nfc = viewModel.nfcManager
+    val nfcEnabled by viewModel.settingsDataStore.nfcEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val taggedSpools by viewModel.settingsDataStore.nfcTaggedSpools.collectAsStateWithLifecycle(initialValue = emptyMap())
+    val nfcMode by nfc.mode.collectAsStateWithLifecycle()
+    val readResult by nfc.readResult.collectAsStateWithLifecycle()
+    val writeResult by nfc.writeResult.collectAsStateWithLifecycle()
+
+    val gridState = rememberLazyGridState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
     var query by remember { mutableStateOf("") }
     var sortOption by remember { mutableStateOf(SpoolSortOption.Remaining) }
     var showArchived by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
     var infoSpool by remember { mutableStateOf<SpoolmanSpool?>(null) }
+    var nfcFilter by remember { mutableStateOf(NfcFilter.All) }
+    var highlightedSpoolId by remember { mutableStateOf<Int?>(null) }
+    var writeDialogSpoolId by remember { mutableStateOf<Int?>(null) }
 
     // Initial load when the screen is first composed and the repo is configured
     LaunchedEffect(loadState) {
@@ -100,15 +140,55 @@ fun SpoolsScreen(
         }
     }
 
-    // Client-side search filter
-    val filteredSpools = remember(spools, query) {
-        if (query.isBlank()) spools
-        else spools.filter { spool ->
-            val q = query.lowercase()
-            spool.displayName.lowercase().contains(q) ||
-                spool.filament.material?.lowercase()?.contains(q) == true ||
-                spool.filament.vendor?.name?.lowercase()?.contains(q) == true ||
-                spool.location?.lowercase()?.contains(q) == true
+    // Client-side search + NFC-tagged filter
+    val filteredSpools = remember(spools, query, nfcFilter, taggedSpools) {
+        spools.filter { spool ->
+            val matchesQuery = query.isBlank() || run {
+                val q = query.lowercase()
+                spool.displayName.lowercase().contains(q) ||
+                    spool.filament.material?.lowercase()?.contains(q) == true ||
+                    spool.filament.vendor?.name?.lowercase()?.contains(q) == true ||
+                    spool.location?.lowercase()?.contains(q) == true
+            }
+            val matchesNfc = when (nfcFilter) {
+                NfcFilter.All -> true
+                NfcFilter.Tagged -> taggedSpools.containsKey(spool.id)
+                NfcFilter.Untagged -> !taggedSpools.containsKey(spool.id)
+            }
+            matchesQuery && matchesNfc
+        }
+    }
+
+    // Resolve a completed scan: scroll to + flash the matching card, or report why we can't.
+    LaunchedEffect(readResult) {
+        val result = readResult ?: return@LaunchedEffect
+        nfc.consumeReadResult()
+        when (result) {
+            is NfcReadResult.Found -> {
+                val index = filteredSpools.indexOfFirst { it.id == result.spoolId }
+                if (index >= 0) {
+                    highlightedSpoolId = result.spoolId
+                    scope.launch { gridState.animateScrollToItem(index) }
+                } else {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Spool #${result.spoolId} isn't shown — check search/filters")
+                    }
+                }
+            }
+            is NfcReadResult.Unknown -> scope.launch {
+                snackbarHostState.showSnackbar("Tag has no spool data")
+            }
+            is NfcReadResult.Error -> scope.launch {
+                snackbarHostState.showSnackbar(result.message)
+            }
+        }
+    }
+
+    // Clear the card highlight a moment after a successful scan.
+    LaunchedEffect(highlightedSpoolId) {
+        if (highlightedSpoolId != null) {
+            delay(2500)
+            highlightedSpoolId = null
         }
     }
 
@@ -117,6 +197,12 @@ fun SpoolsScreen(
             TopAppBar(
                 title = { Text("Spools") },
                 actions = {
+                    // Scan a tag → jump to its spool (NFC only)
+                    if (nfcEnabled) {
+                        IconButton(onClick = { nfc.beginRead() }) {
+                            Icon(Icons.Default.Nfc, contentDescription = "Scan tag")
+                        }
+                    }
                     // Refresh
                     IconButton(onClick = {
                         scope.launch { repo.refresh(allowArchived = showArchived, sort = sortOption.sortKey) }
@@ -125,7 +211,8 @@ fun SpoolsScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -204,6 +291,21 @@ fun SpoolsScreen(
                             style = MaterialTheme.typography.labelMedium
                         )
                     }
+
+                    // NFC-tagged filter — cycles All → Tagged → Untagged
+                    if (nfcEnabled) {
+                        TextButton(onClick = { nfcFilter = nfcFilter.next() }) {
+                            Icon(
+                                Icons.Default.Nfc,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                "Tags: ${nfcFilter.label}",
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    }
                 }
             }
 
@@ -239,6 +341,7 @@ fun SpoolsScreen(
                         )
                     } else {
                         LazyVerticalGrid(
+                            state = gridState,
                             columns = GridCells.Fixed(2),
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
@@ -249,7 +352,14 @@ fun SpoolsScreen(
                                 SpoolCard(
                                     spool = spool,
                                     onInfoClick = { infoSpool = spool },
-                                    onEditClick = { onNavigateToEdit(spool.id) }
+                                    onEditClick = { onNavigateToEdit(spool.id) },
+                                    nfcEnabled = nfcEnabled,
+                                    tagged = taggedSpools.containsKey(spool.id),
+                                    highlighted = highlightedSpoolId == spool.id,
+                                    onWriteClick = {
+                                        nfc.beginWrite(spool.id)
+                                        writeDialogSpoolId = spool.id
+                                    }
                                 )
                             }
                         }
@@ -267,8 +377,164 @@ fun SpoolsScreen(
         SpoolInfoDialog(
             spool = spool,
             onDismiss = { infoSpool = null },
-            onEditClick = { onNavigateToEdit(spool.id) }
+            onEditClick = { onNavigateToEdit(spool.id) },
+            taggedAt = taggedSpools[spool.id]
         )
+    }
+
+    // NFC scan ("approach a tag") dialog — visible while in read mode.
+    if (nfcMode is NfcMode.Reading) {
+        NfcPromptDialog(
+            icon = Icons.Default.Nfc,
+            title = "Scan a tag",
+            message = "Hold your phone to the spool's NFC tag.",
+            onDismiss = { nfc.cancel() }
+        )
+    }
+
+    // NFC write dialog — shows the prompt, then the write result.
+    writeDialogSpoolId?.let { spoolId ->
+        val spoolName = spools.firstOrNull { it.id == spoolId }?.displayName ?: "spool #$spoolId"
+        NfcWriteDialog(
+            spoolName = spoolName,
+            result = writeResult,
+            onRetry = { nfc.beginWrite(spoolId) },
+            onDismiss = {
+                nfc.cancel()
+                nfc.consumeWriteResult()
+                writeDialogSpoolId = null
+            }
+        )
+    }
+}
+
+/**
+ * Generic "hold your phone to a tag" prompt with a pulsing-style spinner. Used for the read flow
+ * and as the waiting state of the write flow.
+ */
+@Composable
+private fun NfcPromptDialog(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    message: String,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 6.dp) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(96.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                    )
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                    Text("Cancel")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The NFC write flow dialog. While [result] is null it shows the "approach a tag" prompt; on
+ * [NfcWriteResult.Success] it shows a confirmation and auto-dismisses; on [NfcWriteResult.Error]
+ * it shows the error with Retry/Close.
+ */
+@Composable
+private fun NfcWriteDialog(
+    spoolName: String,
+    result: NfcWriteResult?,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    when (result) {
+        null -> NfcPromptDialog(
+            icon = Icons.Default.Contactless,
+            title = "Write to a tag",
+            message = "Hold your phone to a tag to program it for $spoolName.",
+            onDismiss = onDismiss
+        )
+        is NfcWriteResult.Success -> {
+            // Auto-dismiss shortly after a successful write.
+            LaunchedEffect(Unit) {
+                delay(1400)
+                onDismiss()
+            }
+            Dialog(onDismissRequest = onDismiss) {
+                Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 6.dp) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(56.dp)
+                        )
+                        Text(
+                            "Tag written for $spoolName",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+        is NfcWriteResult.Error -> {
+            Dialog(onDismissRequest = onDismiss) {
+                Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 6.dp) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.ErrorOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(56.dp)
+                        )
+                        Text("Couldn't write tag", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            result.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = onDismiss) { Text("Close") }
+                            Spacer(Modifier.size(8.dp))
+                            Button(onClick = onRetry) { Text("Retry") }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

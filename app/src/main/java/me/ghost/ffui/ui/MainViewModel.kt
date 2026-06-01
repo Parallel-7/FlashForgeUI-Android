@@ -10,6 +10,7 @@ import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.PrinterEntity
 import me.ghost.ffui.data.PrinterSessionManager
 import me.ghost.ffui.data.SpoolmanRepository
+import me.ghost.ffui.nfc.NfcManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +32,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val settingsDataStore = sessionManager.settings
     val spoolmanRepository: SpoolmanRepository =
         (application as FfuiApplication).spoolmanRepository
+    val nfcManager: NfcManager =
+        (application as FfuiApplication).nfcManager
 
     val savedPrinters = repository.savedPrinters.stateIn(
         viewModelScope, SharingStarted.Lazily, emptyList()

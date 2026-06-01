@@ -308,6 +308,28 @@ me.ghost.ffui
   emulator (`http://10.0.2.2:7912`). Known edge: `SpoolsScreen` can stay stuck on `NotConfigured`
   if you enable Spoolman with a blank URL, then set the URL and return without an app restart (the
   load `LaunchedEffect`s don't re-fire from `NotConfigured`) — unfixed, low-impact.
+- **NFC spool tags (built, UI-verified on emulator, NOT hardware-tested).** Tap an NTAG215 (or any
+  NDEF tag) to read/write a Spoolman spool. Global **NFC tags** Settings section: `nfcEnabled`
+  toggle (greyed out when `NfcAdapter.getDefaultAdapter()` is null) + off-by-default `nfcWriteUrl`
+  sub-toggle. `nfc/NfcManager.kt` is the app-scoped owner (built in `FfuiApplication`, re-exposed via
+  `MainViewModel.nfcManager`): holds scan/write `mode` + `readResult`/`writeResult` StateFlows, builds
+  & parses the NDEF payload, and does the tag I/O (handles `Ndef` + `NdefFormatable` for blank tags).
+  `MainActivity` does NFC **foreground dispatch** (`enableForegroundDispatch` in `onResume` /
+  disable in `onPause`) and routes the `Tag` to `NfcManager.handleTag`. **Payload:** one NDEF text
+  record `SPOOL:<id>` (canonical — always read back); an optional URI record
+  `<spoolman-url>/spool/show/<id>` is appended **only** when `nfcWriteUrl` is on and is never read
+  back, so a changed server address can't break scanning. Spools tab: top-bar **scan** icon → read →
+  scroll-to + flash the matching card (snackbar if not in the current list); per-card **write** icon
+  (action row is now `(i)(cog)(write)`) → write dialog (prompt → success/error, names the spool);
+  `Tags: All/Tagged/Untagged` filter + per-card "Tagged" badge. **Tagged state is tracked
+  device-locally** in DataStore (`nfcTaggedSpools`: spoolId→ISO timestamp) — deliberately **not**
+  written to Spoolman (no server mutation, no extra-field registration); the timestamp also shows in
+  the spool info dialog. Only the UI states are verified (the emulator has no NFC adapter — to see
+  the Spools NFC UI there, the `nfcEnabled` flag must already be set since the Settings toggle is
+  greyed); the actual NDEF read/write round-trip is **unverified against hardware** (NTAG215s
+  arriving ~2026-06-02). Reference clones left in `C:\Users\coper\Documents\Prototyping\`:
+  `SpoolCompanion` (Kotlin/Compose+Spoolman NFC app — the model we followed) and `OpenSpool`
+  (ESP32/PN532 firmware + a published `application/json` tag standard we chose not to adopt).
 - **Next session — Spoolman instant-load cache (TODO, keep it simple).** The Spools tab refetches
   on every visit, so there's a brief (not bad) delay before cards appear. Want a lightweight
   background cache so the grid renders instantly from last-known data while a refresh runs behind

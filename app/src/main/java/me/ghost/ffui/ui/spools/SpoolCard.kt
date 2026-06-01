@@ -14,8 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Contactless
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -25,6 +28,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -44,23 +48,38 @@ import kotlin.math.roundToInt
  * @param onInfoClick Callback for the (i) info button.
  * @param onEditClick Callback for the cog/edit button.
  * @param modifier Outer modifier.
+ * @param nfcEnabled When true, show the NFC write button and the "tagged" badge.
+ * @param tagged Whether this spool has been written to a tag from this device.
+ * @param highlighted Briefly true after a scan resolves to this spool — flashes the card border.
+ * @param onWriteClick Callback for the NFC write button.
  */
 @Composable
 fun SpoolCard(
     spool: SpoolmanSpool,
     onInfoClick: () -> Unit,
     onEditClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    nfcEnabled: Boolean = false,
+    tagged: Boolean = false,
+    highlighted: Boolean = false,
+    onWriteClick: () -> Unit = {}
 ) {
     val filamentColor = spool.filament.color_hex?.let { parseHexColor(it) }
     val progress = spool.progress
+
+    // Flash the border to the primary accent when a scan resolves to this card.
+    val borderColor by animateColorAsState(
+        targetValue = if (highlighted) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.outlineVariant,
+        label = "spoolCardBorder"
+    )
 
     Card(
         modifier = modifier
             .fillMaxWidth()
             .height(272.dp),
         shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = BorderStroke(if (highlighted) 2.dp else 1.dp, borderColor),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
@@ -204,6 +223,16 @@ fun SpoolCard(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // "Tagged" badge — left-aligned so the buttons stay on the right.
+                if (nfcEnabled && tagged) {
+                    Icon(
+                        Icons.Default.Nfc,
+                        contentDescription = "Tagged",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(Modifier.weight(1f))
                 IconButton(onClick = onInfoClick, modifier = Modifier.size(36.dp)) {
                     Icon(
                         Icons.Default.Info,
@@ -217,6 +246,15 @@ fun SpoolCard(
                         contentDescription = "Edit spool",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+                if (nfcEnabled) {
+                    IconButton(onClick = onWriteClick, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Default.Contactless,
+                            contentDescription = "Write tag",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

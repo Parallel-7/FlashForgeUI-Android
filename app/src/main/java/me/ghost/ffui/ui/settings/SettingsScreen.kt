@@ -1,6 +1,7 @@
 package me.ghost.ffui.ui.settings
 
 import android.content.Intent
+import android.nfc.NfcAdapter
 import androidx.core.net.toUri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -364,6 +365,76 @@ fun SettingsScreen(viewModel: MainViewModel) {
                                         )
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── NFC section ──
+            item {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "NFC tags",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            item {
+                // NFC hardware presence decides whether the toggle is interactive at all.
+                val nfcAvailable = remember { NfcAdapter.getDefaultAdapter(context) != null }
+                val nfcEnabled by viewModel.settingsDataStore.nfcEnabled.collectAsState(initial = false)
+                val nfcWriteUrl by viewModel.settingsDataStore.nfcWriteUrl.collectAsState(initial = false)
+
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        // Master toggle — greyed out on devices with no NFC hardware.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Scan & write spool tags",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = if (nfcAvailable) MaterialTheme.colorScheme.onSurface
+                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                )
+                                Text(
+                                    if (nfcAvailable) "Read and program filament tags on the Spools tab"
+                                    else "This device has no NFC hardware",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Switch(
+                                checked = nfcEnabled && nfcAvailable,
+                                enabled = nfcAvailable,
+                                onCheckedChange = { scope.launch { viewModel.settingsDataStore.setNfcEnabled(it) } }
+                            )
+                        }
+
+                        // Sub-toggle — only relevant once NFC is on.
+                        if (nfcAvailable && nfcEnabled) {
+                            Spacer(Modifier.height(8.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Also write web link", style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        "Add a Spoolman link so any phone can open the spool",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Switch(
+                                    checked = nfcWriteUrl,
+                                    onCheckedChange = { scope.launch { viewModel.settingsDataStore.setNfcWriteUrl(it) } }
+                                )
                             }
                         }
                     }

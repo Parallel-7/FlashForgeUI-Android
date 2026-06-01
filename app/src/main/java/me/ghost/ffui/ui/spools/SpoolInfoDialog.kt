@@ -39,12 +39,15 @@ import kotlin.math.roundToInt
  * @param spool The spool to display.
  * @param onDismiss Closes the dialog.
  * @param onEditClick Opens the edit screen for this spool.
+ * @param taggedAt ISO-8601 timestamp of when this spool was last written to an NFC tag from this
+ *   device, or null if it hasn't been tagged. Shown as a "Tagged" row when present.
  */
 @Composable
 fun SpoolInfoDialog(
     spool: SpoolmanSpool,
     onDismiss: () -> Unit,
-    onEditClick: () -> Unit
+    onEditClick: () -> Unit,
+    taggedAt: String? = null
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -97,6 +100,7 @@ fun SpoolInfoDialog(
                 InfoRow("Lot", spool.lot_nr)
                 InfoRow("Comment", spool.comment)
                 InfoRow("Price", spool.price?.let { "$it" })
+                InfoRow("Tagged", taggedAt?.let { formatTaggedAt(it) })
 
                 if (spool.archived) {
                     Text(
@@ -127,6 +131,15 @@ fun SpoolInfoDialog(
             }
         }
     }
+}
+
+/** Render an ISO-8601 instant as a short local date/time, falling back to the raw string. */
+private fun formatTaggedAt(iso: String): String = try {
+    java.time.Instant.parse(iso)
+        .atZone(java.time.ZoneId.systemDefault())
+        .format(java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy · h:mm a"))
+} catch (_: Exception) {
+    iso
 }
 
 @Composable

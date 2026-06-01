@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
 
 /** Extension property that creates a single DataStore instance scoped to the app. */
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -47,6 +48,9 @@ class SettingsDataStore(private val context: Context) {
         val BACKGROUND_THROTTLE_SECONDS = intPreferencesKey("background_throttle_seconds")
         val SPOOLMAN_ENABLED = booleanPreferencesKey("spoolman_enabled")
         val SPOOLMAN_BASE_URL = stringPreferencesKey("spoolman_base_url")
+        val NFC_ENABLED = booleanPreferencesKey("nfc_enabled")
+        val NFC_WRITE_URL = booleanPreferencesKey("nfc_write_url")
+        val NFC_TAGGED_SPOOLS = stringPreferencesKey("nfc_tagged_spools")
     }
 
     /** Allowed range for the background-throttle poll interval, in seconds. */
@@ -114,6 +118,30 @@ class SettingsDataStore(private val context: Context) {
         prefs[Keys.SPOOLMAN_BASE_URL] ?: ""
     }
 
+    /** Whether the NFC tag scan/write feature is enabled (gates the Spools NFC icons). */
+    val nfcEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.NFC_ENABLED] ?: false
+    }
+
+    /**
+     * When true, a tag write also stores a Spoolman web-link URI record (`<url>/spool/show/<id>`)
+     * alongside the canonical `SPOOL:<id>` record. Off by default — the URL is a snapshot of the
+     * current server address and is never read back by the app, so a changed address can't break
+     * scanning. It only lets a generic phone open the spool's web page.
+     */
+    val nfcWriteUrl: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.NFC_WRITE_URL] ?: false
+    }
+
+    /**
+     * Locally-tracked map of `spoolId → ISO-8601 timestamp` recording which spools have had an NFC
+     * tag written from this device, and when. Device-local only (not synced to Spoolman); the
+     * physical tag remains the real source of truth. Drives the "Tagged" card badge and filter.
+     */
+    val nfcTaggedSpools: Flow<Map<Int, String>> = context.dataStore.data.map { prefs ->
+        decodeTaggedSpools(prefs[Keys.NFC_TAGGED_SPOOLS])
+    }
+
     // ---- Writers ----
 
     suspend fun setStartupReconnect(mode: StartupReconnect) {
@@ -157,7 +185,50 @@ class SettingsDataStore(private val context: Context) {
     suspend fun setSpoolmanBaseUrl(url: String) {
         context.dataStore.edit { it[Keys.SPOOLMAN_BASE_URL] = url }
     }
+
+    suspend fun setNfcEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.NFC_ENABLED] = enabled }
+    }
+
+    suspend fun setNfcWriteUrl(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.NFC_WRITE_URL] = enabled }
+    }
+
+    /** Records that [spoolId] was tagged at [timestamp] (defaults to now, ISO-8601). */
+    suspend fun markSpoolTagged(spoolId: Int, timestamp: String) {
+        context.dataStore.edit { prefs ->
+            val current = decodeTaggedSpools(prefs[Keys.NFC_TAGGED_SPOOLS]).toMutableMap()
+            current[spoolId] = timestamp
+            prefs[Keys.NFC_TAGGED_SPOOLS] = encodeTaggedSpools(current)
+        }
+    }
+
+    /** Forgets the local "tagged" record for [spoolId] (does not affect the physical tag). */
+    suspend fun unmarkSpoolTagged(spoolId: Int) {
+        context.dataStore.edit { prefs ->
+            val current = decodeTaggedSpools(prefs[Keys.NFC_TAGGED_SPOOLS]).toMutableMap()
+            current.remove(spoolId)
+            prefs[Keys.NFC_TAGGED_SPOOLS] = encodeTaggedSpools(current)
+        }
+    }
 }
+
+/** JSON for the tagged-spools map; keys are stringified ints (DataStore stores a single string). */
+private val taggedSpoolsJson = Json { ignoreUnknownKeys = true }
+
+private fun decodeTaggedSpools(raw: String?): Map<Int, String> {
+    if (raw.isNullOrBlank()) return emptyMap()
+    return try {
+        taggedSpoolsJson.decodeFromString<Map<String, String>>(raw)
+            .mapNotNull { (k, v) -> k.toIntOrNull()?.let { it to v } }
+            .toMap()
+    } catch (_: Exception) {
+        emptyMap()
+    }
+}
+
+private fun encodeTaggedSpools(map: Map<Int, String>): String =
+    taggedSpoolsJson.encodeToString(map.mapKeys { it.key.toString() })
 
 /** Mask for a serial number when [hide] is set; fixed length so it doesn't leak the real one. */
 fun maskSerial(serial: String, hide: Boolean): String = if (hide) "•••••••••" else serial

@@ -72,6 +72,35 @@ Gradle is rejected). Runs on **JDK 25** (Temurin). Windows shell is PowerShell �
 - For device/emulator/SDK orchestration, logcat, and screenshots, use the **`android-cli`**
   skill (in `.claude/skills/`).
 
+### Driving the app on a device/emulator (do it the fast way)
+
+When you need to read the UI, find a control's coordinates, or verify state on a running
+device, the order of preference is:
+
+1. **`android layout --device=<serial>` first, always.** It's Compose-aware and returns a flat
+   JSON of every node with `text`, `interactions` (`clickable`/`checkable`/`scrollable`/…), and
+   a pixel **`center`** you can feed straight into `adb shell input tap <x> <y>`. This is how you
+   locate switches, buttons, sliders, and confirm on/off (`state:["checked"]`) or whether a row
+   is present at all — no pixel-guessing. Add `-d`/`--diff` to get only what changed since the
+   last dump (great for "did my tap do anything?"). Grep it for the node you want, e.g.
+   `android layout --device=emulator-5554 | tr '}' '\n' | grep -i 'keep monitoring'`.
+2. **Screenshots only for genuine visual verification** — colors, theming, layout/spacing,
+   rendered images (camera feed, thumbnails), or anything `layout` can't express. `adb exec-out
+   screencap -p > <file>.png` then Read it. Don't screenshot just to find a button or check a
+   toggle — `layout` already told you. Save under `.build-outputs/` (gitignored), not `/tmp`
+   (the Read tool can't reach `/tmp` on Windows).
+3. **`uiautomator dump` only as a last resort** — i.e. for a non-Compose surface (a *system*
+   dialog, the launcher) that `layout` can't see, AND only if `android layout` didn't already
+   return it. (In practice `layout` *does* pick up system permission dialogs — the battery-
+   optimization "Allow/Deny" buttons showed up with their `center`s — so try it there too before
+   reaching for uiautomator.) On this Windows setup `uiautomator dump` redirects its output path
+   weirdly and is slow/flaky; avoid unless you truly have no other option.
+
+Install for manual testing: emulator is x86_64, so
+`adb install -r app/build/outputs/apk/debug/app-x86_64-debug.apk` (confirm with
+`adb shell getprop ro.product.cpu.abi`). After launching, scan for startup crashes with
+`adb logcat -d -t 200 | grep -iE "FATAL|AndroidRuntime|ffui"` before assuming it's healthy.
+
 ## Architecture (as actually built)
 
 ```
@@ -93,17 +122,34 @@ me.ghost.ffui
 │   ├── Adventurer5M / 5MPro / AD5X / GenericLegacyBackend (covers A3/A4/legacy)
 │   │   GenericLegacyBackend: TCP polling via M105+M119+M27, M25/M24/M26 job control, M23+M24 start
 │   └── PrinterBackendFactory create(model, …)
-├── data/                     Room persistence
+├── data/                     Room persistence + session ownership
 │   ├── AppDatabase (v4) / PrinterDao / PrinterEntity / PrinterRepository
-│   └── ActivePrinterSession  (lives INSIDE PrinterRepository.kt, not its own file)
-│                             Owns a PrinterBackend + http/tcp pair; identify via HTTP /detail
-│                             (modern) or TCP ~M115 (legacy fallback); adaptive poll loop with
-│                             ConnectionState (Connecting/Connected/Offline/AuthFailed)
-│                             and adaptive cadence (1.5s printing, 2.5s paused, 3s offline,
-│                             5s idle, 10s error, 15s auth-failed).
+│   ├── ActivePrinterSession  (lives INSIDE PrinterRepository.kt, not its own file)
+│   │                         Owns a PrinterBackend + http/tcp pair; identify via HTTP /detail
+│   │                         (modern) or TCP ~M115 (legacy fallback); adaptive poll loop with
+│   │                         ConnectionState (Connecting/Connected/Offline/AuthFailed)
+│   │                         and adaptive cadence (1.5s printing, 2.5s paused, 3s offline,
+│   │                         5s idle, 10s error, 15s auth-failed). `pollFloorMs` lets the
+│   │                         manager throttle the cadence in the background.
+│   ├── PrinterSessionManager process-lifetime owner of the sessions map + activeSerial + the
+│   │                         PrinterNotifier wiring + startup-reconnect. Drives the foreground
+│   │                         service and the background throttle off ProcessLifecycleOwner.
+│   └── SettingsDataStore     global prefs (startup-reconnect, hide-serials, background-monitoring
+│                             toggle + throttle toggle/interval).
+├── service/
+│   ├── PrinterMonitorService specialUse foreground service — keep-alive shell that holds the
+│   │                         process open so the manager keeps polling while the app is closed.
+│   │                         Owns NO monitoring logic; just the ongoing notification. START_STICKY;
+│   │                         a null-intent (system) restart calls resumeMonitoringAfterRestart().
+│   └── BatteryOptimization   isIgnored() / requestIntent() for the Doze exemption the Background
+│                             settings nudge users to grant.
+├── notifications/
+│   └── PrinterNotifier       posts per-printer complete/cooled/error alerts (events detected in
+│                             ActivePrinterSession.detectEvents, gated by per-printer opt-in flags).
 └── ui/
-    ├── MainViewModel         AndroidViewModel; `sessions: StateFlow<Map<String, ActivePrinterSession>>`
-    │                         + `activeSerial`; `activeSession` is the derived convenience flow.
+    ├── MainViewModel         thin AndroidViewModel facade over PrinterSessionManager; exposes its
+    │                         `sessions` / `activeSerial` / `activeSession` and delegates control.
+    │                         Owns only discovery + the foreground-only teardown in onCleared.
     ├── FlasherApp            Scaffold + bottom NavigationBar, 4 typed routes
     │                         (DashboardRoute / ControlsRoute / PrintersRoute / SettingsRoute)
     ├── JobState.kt           jobStateOf(status) — shared job-state machine for dashboard + controls
@@ -113,20 +159,42 @@ me.ghost.ffui
     └── theme/                Color, Theme, Type
 ```
 
-- **Concurrent multi-printer is live.** `MainViewModel` holds a `sessions: StateFlow<Map<String,
-  ActivePrinterSession>>` keyed by serial plus an `activeSerial`; `activeSession` is a derived
-  convenience flow for screens that only care about the visible printer. The dashboard renders the
-  sessions in a `HorizontalPager` with a `PrinterTabBar` (tabs + swipe, two-way synced to
-  `activeSerial`). Connecting an already-open serial just switches tabs — no duplicate connection.
-  Connected-serials + active-tab are persisted eagerly (`persistSessionState`) for startup-reconnect.
+- **Concurrent multi-printer is live.** The `sessions: StateFlow<Map<String, ActivePrinterSession>>`
+  (keyed by serial) plus `activeSerial` live in the process-singleton `PrinterSessionManager`;
+  `MainViewModel` is a thin facade that re-exposes them (`activeSession` is the derived convenience
+  flow for screens that only care about the visible printer). The dashboard renders the sessions in
+  a `HorizontalPager` with a `PrinterTabBar` (tabs + swipe, two-way synced to `activeSerial`).
+  Connecting an already-open serial just switches tabs — no duplicate connection. Connected-serials +
+  active-tab are persisted eagerly (`persistSessionState`) for startup-reconnect.
+- **Sessions outlive the UI (background monitoring).** `PrinterSessionManager` is created once in
+  `FfuiApplication` and owns the sessions on a process-lifetime scope, so they survive Activity/
+  ViewModel teardown. The global **Keep monitoring in background** toggle (Settings) gates this: when
+  ON, `PrinterMonitorService` (a `specialUse` foreground service) is kept running while ≥1 printer is
+  connected, so completion/cooled/error notifications keep firing after the app is closed; when OFF,
+  `MainViewModel.onCleared` tears the sessions down with the app (legacy behaviour). A second toggle
+  +10–60s slider throttles the poll cadence (`ActivePrinterSession.pollFloorMs`) while backgrounded.
+  Startup-reconnect runs from `MainViewModel.init` (UI open), not process start — idempotent via the
+  manager's serial-dedup. Notifications themselves are detected in `ActivePrinterSession.detectEvents`
+  and rendered by `PrinterNotifier`; both predate this change and are unchanged.
+- **Surviving a process kill.** The service is `START_STICKY`, so after an out-of-memory kill the OS
+  recreates it with a null intent; `PrinterMonitorService.onStartCommand` then calls
+  `PrinterSessionManager.resumeMonitoringAfterRestart()`, which reconnects the persisted
+  last-connected serials *regardless of the startup-reconnect mode* (they were being monitored, so
+  they come back). This is headless — no Activity — so `appInForeground` starts **false** (throttle
+  applies) until an Activity raises it. Sticky restart does **not** happen after a user force-stop
+  (intentional). Because OEM power managers can freeze/kill the service anyway, the Background
+  settings section prompts for the battery-optimization exemption when monitoring is enabled and
+  keeps a persistent "Allow background activity" affordance until it's granted
+  (`BatteryOptimization`, re-checked on `ON_RESUME`).
 - **Model is detected by `pid`** (35=5M, 36=5M Pro, 38=AD5X) on first `/detail`, not by name.
   Legacy printers (Adventurer 3/4) are detected via TCP `~M115` `Machine Type:` string when
   HTTP `/detail` fails. `PrinterBackendFactory` picks the backend; `/product` flags + per-printer
   `customLedEnabled` resolve `PrinterCapabilities`. UI controls are capability-gated (hide unsupported).
 - **HTTP `/detail` is the single source of truth** for modern printers (status + IFS inline). TCP
   is control-only (custom LEDs `~M146`, homing `~G28`). Only `GenericLegacyBackend` polls over TCP.
-- **No DI framework.** Dependencies are constructed manually (`AppDatabase.getDatabase`,
-  `PrinterRepository(dao)`, clients `new`'d in the session). Keep it that way unless asked.
+- **No DI framework.** Dependencies are constructed manually — `FfuiApplication` builds the one
+  `PrinterSessionManager` (`AppDatabase.getDatabase`, `PrinterRepository(dao)`, `SettingsDataStore`);
+  clients are `new`'d inside each session. Keep it that way unless asked.
 
 ## Conventions
 
@@ -222,7 +290,12 @@ me.ghost.ffui
   settings screen, and manual motion/temperature (the Controls tab, over TCP G-code). These exist
   in code and are capability-gated, but only the AD5X HTTP read paths are hardware-verified — treat
   the control/write paths (especially anything over TCP) as suspect until tested on real hardware.
-- **Still not started:** Spoolman integration and notifications (Phase 5).
+- **Notifications are built (Phase 5, partial).** Per-printer complete/cooled/error alerts work in
+  the foreground, and an opt-in foreground service keeps them firing in the background (see the
+  background-monitoring note in Architecture). Event detection is verified against the AD5X read
+  path; the background service + throttle + `START_STICKY` restart-resume + battery-exemption prompt
+  are wired and build-verified but not yet soak-tested on a real long print or a real OOM kill.
+- **Still not started:** Spoolman integration (Phase 5).
 
 ## Skills installed (`.claude/skills/`)
 

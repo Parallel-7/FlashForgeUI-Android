@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -41,6 +42,16 @@ class SettingsDataStore(private val context: Context) {
         val LAST_CONNECTED_SERIALS = stringSetPreferencesKey("last_connected_serials")
         val LAST_ACTIVE_SERIAL = stringPreferencesKey("last_active_serial")
         val HIDE_SERIALS = booleanPreferencesKey("hide_serials")
+        val BACKGROUND_MONITORING = booleanPreferencesKey("background_monitoring")
+        val BACKGROUND_THROTTLE = booleanPreferencesKey("background_throttle")
+        val BACKGROUND_THROTTLE_SECONDS = intPreferencesKey("background_throttle_seconds")
+    }
+
+    /** Allowed range for the background-throttle poll interval, in seconds. */
+    companion object {
+        const val THROTTLE_MIN_SECONDS = 10
+        const val THROTTLE_MAX_SECONDS = 60
+        const val THROTTLE_DEFAULT_SECONDS = 30
     }
 
     // ---- Readers ----
@@ -67,6 +78,30 @@ class SettingsDataStore(private val context: Context) {
         prefs[Keys.HIDE_SERIALS] ?: false
     }
 
+    /**
+     * When true, connected printers keep being monitored (and can raise completion/cooled/error
+     * alerts) via a foreground service even after the app is closed. When false, monitoring stops
+     * with the app — the legacy behaviour.
+     */
+    val backgroundMonitoringEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.BACKGROUND_MONITORING] ?: false
+    }
+
+    /**
+     * When true (and [backgroundMonitoringEnabled] is on), the poll loop slows to
+     * [backgroundThrottleSeconds] while the app is in the background, trading alert latency for
+     * battery. Only meaningful while background monitoring is enabled.
+     */
+    val backgroundThrottleEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[Keys.BACKGROUND_THROTTLE] ?: false
+    }
+
+    /** Background poll interval (seconds) used when throttling is active. Clamped to 10..60. */
+    val backgroundThrottleSeconds: Flow<Int> = context.dataStore.data.map { prefs ->
+        (prefs[Keys.BACKGROUND_THROTTLE_SECONDS] ?: THROTTLE_DEFAULT_SECONDS)
+            .coerceIn(THROTTLE_MIN_SECONDS, THROTTLE_MAX_SECONDS)
+    }
+
     // ---- Writers ----
 
     suspend fun setStartupReconnect(mode: StartupReconnect) {
@@ -86,6 +121,21 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setHideSerials(hidden: Boolean) {
         context.dataStore.edit { it[Keys.HIDE_SERIALS] = hidden }
+    }
+
+    suspend fun setBackgroundMonitoringEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.BACKGROUND_MONITORING] = enabled }
+    }
+
+    suspend fun setBackgroundThrottleEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.BACKGROUND_THROTTLE] = enabled }
+    }
+
+    suspend fun setBackgroundThrottleSeconds(seconds: Int) {
+        context.dataStore.edit {
+            it[Keys.BACKGROUND_THROTTLE_SECONDS] =
+                seconds.coerceIn(THROTTLE_MIN_SECONDS, THROTTLE_MAX_SECONDS)
+        }
     }
 }
 

@@ -101,9 +101,9 @@ fun FilesScreen(
     /** Decide print path: AD5X multi-color → matching; everything else → print directly. */
     fun requestPrint(file: SelectedFile, leveling: Boolean) {
         val entry = file.entry
-        val isAd5xMulti = capabilities.hasMaterialStation && entry?.isMultiColor == true
         selected = null
-        if (isAd5xMulti && entry != null) {
+        // `entry?.isMultiColor == true` smart-casts entry to non-null inside the block.
+        if (capabilities.hasMaterialStation && entry?.isMultiColor == true) {
             val tools = entry.gcodeToolDatas.orEmpty()
             val slots = matlStation?.slotInfos.orEmpty()
             val auto = if (session.printer.autoMatchMaterials) autoMatchMappings(tools, slots) else null

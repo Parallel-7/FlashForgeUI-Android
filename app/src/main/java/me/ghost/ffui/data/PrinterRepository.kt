@@ -90,6 +90,15 @@ class ActivePrinterSession(
     /** Applies edited settings to the live session without reconnecting. */
     fun updatePrinterSettings(updated: PrinterEntity) { _printer.value = updated }
 
+    /**
+     * Minimum poll interval (ms) the loop is allowed to use. 0 means "no floor" (the adaptive
+     * cadence runs unrestricted). The session manager raises this to the background-throttle
+     * interval while the app is backgrounded so polling slows to save battery, and drops it back to
+     * 0 in the foreground. Read live in [nextDelayMs]; takes effect on the next loop tick.
+     */
+    @Volatile
+    var pollFloorMs: Long = 0L
+
     val httpApi = FlashForgeHttpApi(printer.ipAddress)
     val tcpClient = FlashForgeTcpClient(printer.ipAddress, scope)
 
@@ -299,6 +308,13 @@ class ActivePrinterSession(
      * [GenericLegacyBackend] before they reach this point.
      */
     private fun nextDelayMs(): Long {
+        val base = baseDelayMs()
+        // The background-throttle floor never speeds polling up, only slows it down.
+        return maxOf(base, pollFloorMs)
+    }
+
+    /** The adaptive cadence before any background-throttle floor is applied. */
+    private fun baseDelayMs(): Long {
         when (_connectionState.value) {
             is ConnectionState.AuthFailed -> return 15_000L
             is ConnectionState.Offline -> return 3_000L

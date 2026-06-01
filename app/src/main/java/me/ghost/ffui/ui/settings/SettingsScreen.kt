@@ -25,17 +25,33 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import me.ghost.ffui.BuildConfig
+import me.ghost.ffui.data.SettingsDataStore
 import me.ghost.ffui.data.StartupReconnect
+import me.ghost.ffui.service.BatteryOptimization
 import me.ghost.ffui.ui.MainViewModel
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: MainViewModel) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val reconnectMode by viewModel.settingsDataStore.startupReconnect.collectAsState(initial = StartupReconnect.OFF)
     val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsState(initial = false)
+    val backgroundEnabled by viewModel.settingsDataStore.backgroundMonitoringEnabled.collectAsState(initial = false)
+    val throttleEnabled by viewModel.settingsDataStore.backgroundThrottleEnabled.collectAsState(initial = false)
+    val throttleSeconds by viewModel.settingsDataStore.backgroundThrottleSeconds.collectAsState(
+        initial = SettingsDataStore.THROTTLE_DEFAULT_SECONDS
+    )
+
+    // Battery-optimization exemption status, refreshed each time the screen resumes (the system
+    // grant dialog is a separate activity, so we re-check on return rather than reacting to a flow).
+    var batteryIgnored by remember { mutableStateOf(BatteryOptimization.isIgnored(context)) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { batteryIgnored = BatteryOptimization.isIgnored(context) }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Settings") }) }
@@ -92,6 +108,123 @@ fun SettingsScreen(viewModel: MainViewModel) {
                             selected = reconnectMode == StartupReconnect.OFF,
                             onClick = { scope.launch { viewModel.settingsDataStore.setStartupReconnect(StartupReconnect.OFF) } }
                         )
+                    }
+                }
+            }
+
+            // ── Background section ──
+            item {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Background",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        // Master toggle: keep monitoring (and alerts) running after the app closes.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Keep monitoring in background", style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    "Stay connected for alerts even when the app is closed",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Switch(
+                                checked = backgroundEnabled,
+                                onCheckedChange = { enabled ->
+                                    scope.launch { viewModel.settingsDataStore.setBackgroundMonitoringEnabled(enabled) }
+                                    // Opting into background is the moment to ask for the exemption.
+                                    if (enabled && !batteryIgnored) {
+                                        context.startActivity(BatteryOptimization.requestIntent(context))
+                                    }
+                                }
+                            )
+                        }
+
+                        // Nested controls — only relevant while background monitoring is on.
+                        if (backgroundEnabled) {
+                            // Persistent nudge if the OS can still freeze us (user declined / revoked).
+                            if (!batteryIgnored) {
+                                Spacer(Modifier.height(8.dp))
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                Spacer(Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Allow background activity", style = MaterialTheme.typography.bodyLarge)
+                                        Text(
+                                            "Recommended — without it the system may pause monitoring",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    TextButton(onClick = { context.startActivity(BatteryOptimization.requestIntent(context)) }) {
+                                        Text("Allow")
+                                    }
+                                }
+                            }
+
+                            Spacer(Modifier.height(8.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            Spacer(Modifier.height(8.dp))
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Slow updates in background", style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        "Check less often to save battery",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Switch(
+                                    checked = throttleEnabled,
+                                    onCheckedChange = {
+                                        scope.launch { viewModel.settingsDataStore.setBackgroundThrottleEnabled(it) }
+                                    }
+                                )
+                            }
+
+                            if (throttleEnabled) {
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "Update interval",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text("${throttleSeconds}s", style = MaterialTheme.typography.bodyMedium)
+                                }
+                                // Live-drag local value; persist on release so DataStore isn't spammed.
+                                var sliderValue by remember(throttleSeconds) { mutableFloatStateOf(throttleSeconds.toFloat()) }
+                                Slider(
+                                    value = sliderValue,
+                                    onValueChange = { sliderValue = it },
+                                    onValueChangeFinished = {
+                                        scope.launch {
+                                            viewModel.settingsDataStore.setBackgroundThrottleSeconds(sliderValue.roundToInt())
+                                        }
+                                    },
+                                    valueRange = SettingsDataStore.THROTTLE_MIN_SECONDS.toFloat()..
+                                        SettingsDataStore.THROTTLE_MAX_SECONDS.toFloat(),
+                                    steps = SettingsDataStore.THROTTLE_MAX_SECONDS - SettingsDataStore.THROTTLE_MIN_SECONDS - 1
+                                )
+                            }
+                        }
                     }
                 }
             }

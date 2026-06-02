@@ -31,6 +31,17 @@ enum class StartupReconnect {
 }
 
 /**
+ * Which single usage metric a spool card shows on its stat line. Picking one (instead of showing
+ * both percentage and weight) keeps the card compact.
+ */
+enum class SpoolStatStyle {
+    /** "27% left · 73% used". */
+    PERCENT,
+    /** "135 g left · 365 g used". */
+    WEIGHT
+}
+
+/**
  * Thin wrapper around Jetpack [DataStore] for global (non–per-printer) application preferences.
  *
  * All writers are `suspend`; all readers are cold [Flow]s collected by the UI.
@@ -48,6 +59,7 @@ class SettingsDataStore(private val context: Context) {
         val BACKGROUND_THROTTLE_SECONDS = intPreferencesKey("background_throttle_seconds")
         val SPOOLMAN_ENABLED = booleanPreferencesKey("spoolman_enabled")
         val SPOOLMAN_BASE_URL = stringPreferencesKey("spoolman_base_url")
+        val SPOOL_STAT_STYLE = stringPreferencesKey("spool_stat_style")
         val NFC_ENABLED = booleanPreferencesKey("nfc_enabled")
         val NFC_WRITE_URL = booleanPreferencesKey("nfc_write_url")
         val NFC_TAGGED_SPOOLS = stringPreferencesKey("nfc_tagged_spools")
@@ -118,6 +130,13 @@ class SettingsDataStore(private val context: Context) {
         prefs[Keys.SPOOLMAN_BASE_URL] ?: ""
     }
 
+    /** Which usage metric the spool cards show (defaults to [SpoolStatStyle.PERCENT]). */
+    val spoolStatStyle: Flow<SpoolStatStyle> = context.dataStore.data.map { prefs ->
+        prefs[Keys.SPOOL_STAT_STYLE]?.let { name ->
+            try { SpoolStatStyle.valueOf(name) } catch (_: Exception) { SpoolStatStyle.PERCENT }
+        } ?: SpoolStatStyle.PERCENT
+    }
+
     /** Whether the NFC tag scan/write feature is enabled (gates the Spools NFC icons). */
     val nfcEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[Keys.NFC_ENABLED] ?: false
@@ -184,6 +203,10 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setSpoolmanBaseUrl(url: String) {
         context.dataStore.edit { it[Keys.SPOOLMAN_BASE_URL] = url }
+    }
+
+    suspend fun setSpoolStatStyle(style: SpoolStatStyle) {
+        context.dataStore.edit { it[Keys.SPOOL_STAT_STYLE] = style.name }
     }
 
     suspend fun setNfcEnabled(enabled: Boolean) {

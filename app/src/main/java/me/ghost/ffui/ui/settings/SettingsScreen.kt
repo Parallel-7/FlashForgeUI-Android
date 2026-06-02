@@ -30,6 +30,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import me.ghost.ffui.BuildConfig
 import me.ghost.ffui.data.SettingsDataStore
+import me.ghost.ffui.data.SpoolStatStyle
 import me.ghost.ffui.data.StartupReconnect
 import me.ghost.ffui.service.BatteryOptimization
 import me.ghost.ffui.ui.MainViewModel
@@ -365,6 +366,41 @@ fun SettingsScreen(viewModel: MainViewModel) {
                                         )
                                     }
                                 }
+                            }
+
+                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            Spacer(Modifier.height(12.dp))
+
+                            // Which stat the spool cards display.
+                            val statStyle by viewModel.settingsDataStore.spoolStatStyle
+                                .collectAsState(initial = SpoolStatStyle.PERCENT)
+                            Text("Card stat", style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                "Show percentage or weight on spool cards",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(
+                                    selected = statStyle == SpoolStatStyle.PERCENT,
+                                    onClick = {
+                                        scope.launch {
+                                            viewModel.settingsDataStore.setSpoolStatStyle(SpoolStatStyle.PERCENT)
+                                        }
+                                    },
+                                    label = { Text("Percentage") }
+                                )
+                                FilterChip(
+                                    selected = statStyle == SpoolStatStyle.WEIGHT,
+                                    onClick = {
+                                        scope.launch {
+                                            viewModel.settingsDataStore.setSpoolStatStyle(SpoolStatStyle.WEIGHT)
+                                        }
+                                    },
+                                    label = { Text("Weight") }
+                                )
                             }
                         }
                     }

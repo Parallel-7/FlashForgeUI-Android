@@ -1,8 +1,17 @@
 package me.ghost.ffui.ui.spools
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,12 +34,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contactless
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,6 +61,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -63,6 +71,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import me.ghost.ffui.api.SpoolmanSpool
+import me.ghost.ffui.data.SpoolStatStyle
 import me.ghost.ffui.data.SpoolmanLoadState
 import me.ghost.ffui.nfc.NfcMode
 import me.ghost.ffui.nfc.NfcReadResult
@@ -94,7 +103,7 @@ enum class NfcFilter(val label: String) {
  * @param onNavigateToEdit Navigate to the spool edit screen with the given spool ID.
  * @param onNavigateToSettings Navigate to the Settings screen (from the NotConfigured empty state).
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SpoolsScreen(
     viewModel: MainViewModel,
@@ -110,6 +119,7 @@ fun SpoolsScreen(
     val nfc = viewModel.nfcManager
     val nfcEnabled by viewModel.settingsDataStore.nfcEnabled.collectAsStateWithLifecycle(initialValue = false)
     val taggedSpools by viewModel.settingsDataStore.nfcTaggedSpools.collectAsStateWithLifecycle(initialValue = emptyMap())
+    val statStyle by viewModel.settingsDataStore.spoolStatStyle.collectAsStateWithLifecycle(initialValue = SpoolStatStyle.PERCENT)
     val nfcMode by nfc.mode.collectAsStateWithLifecycle()
     val readResult by nfc.readResult.collectAsStateWithLifecycle()
     val writeResult by nfc.writeResult.collectAsStateWithLifecycle()
@@ -200,7 +210,7 @@ fun SpoolsScreen(
                     // Scan a tag → jump to its spool (NFC only)
                     if (nfcEnabled) {
                         IconButton(onClick = { nfc.beginRead() }) {
-                            Icon(Icons.Default.Nfc, contentDescription = "Scan tag")
+                            Icon(Icons.Default.Contactless, contentDescription = "Scan tag")
                         }
                     }
                     // Refresh
@@ -247,11 +257,13 @@ fun SpoolsScreen(
                     keyboardActions = KeyboardActions(onSearch = { /* client-side, no action needed */ })
                 )
 
-                // Sort + archive row
-                Row(
+                // Sort + archive + tag filter row. FlowRow lets the chips wrap to a second line on
+                // narrow screens instead of overflowing and inflating the row height, and keeps them
+                // on a single line where there's room — no hardcoded widths.
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     // Sort dropdown trigger
                     Box {
@@ -296,7 +308,7 @@ fun SpoolsScreen(
                     if (nfcEnabled) {
                         TextButton(onClick = { nfcFilter = nfcFilter.next() }) {
                             Icon(
-                                Icons.Default.Nfc,
+                                Icons.Default.Contactless,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -342,7 +354,9 @@ fun SpoolsScreen(
                     } else {
                         LazyVerticalGrid(
                             state = gridState,
-                            columns = GridCells.Fixed(2),
+                            // Adaptive instead of a fixed count: 2 columns on a phone, more on wider
+                            // screens, derived from a min card width rather than a hardcoded number.
+                            columns = GridCells.Adaptive(minSize = 150.dp),
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -353,6 +367,7 @@ fun SpoolsScreen(
                                     spool = spool,
                                     onInfoClick = { infoSpool = spool },
                                     onEditClick = { onNavigateToEdit(spool.id) },
+                                    statStyle = statStyle,
                                     nfcEnabled = nfcEnabled,
                                     tagged = taggedSpools.containsKey(spool.id),
                                     highlighted = highlightedSpoolId == spool.id,
@@ -385,7 +400,7 @@ fun SpoolsScreen(
     // NFC scan ("approach a tag") dialog — visible while in read mode.
     if (nfcMode is NfcMode.Reading) {
         NfcPromptDialog(
-            icon = Icons.Default.Nfc,
+            expanding = true,
             title = "Scan a tag",
             message = "Hold your phone to the spool's NFC tag.",
             onDismiss = { nfc.cancel() }
@@ -409,12 +424,62 @@ fun SpoolsScreen(
 }
 
 /**
- * Generic "hold your phone to a tag" prompt with a pulsing-style spinner. Used for the read flow
- * and as the waiting state of the write flow.
+ * The round [Icons.Default.Contactless] glyph wrapped in animated concentric rings. The rings
+ * ripple **outward** when [expanding] is true (the read/scan flow — sensing an approaching tag) or
+ * contract **inward** when false (the write flow — pushing data into the tag), so the two flows are
+ * distinguishable at a glance while sharing the same icon. Sized in dp so it scales with density.
+ */
+@Composable
+private fun NfcRippleIndicator(expanding: Boolean, modifier: Modifier = Modifier) {
+    val color = MaterialTheme.colorScheme.primary
+    val transition = rememberInfiniteTransition(label = "nfcRipple")
+    val ringCount = 3
+    val periodMs = 1800
+    // Stagger the rings so one is always mid-flight.
+    val phases = (0 until ringCount).map { i ->
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(periodMs, easing = LinearEasing),
+                initialStartOffset = StartOffset(periodMs / ringCount * i)
+            ),
+            label = "nfcRing$i"
+        )
+    }
+    Box(contentAlignment = Alignment.Center, modifier = modifier.size(96.dp)) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val maxR = size.minDimension / 2f
+            val minR = maxR * 0.30f
+            val strokePx = 2.dp.toPx()
+            phases.forEach { phase ->
+                val t = phase.value
+                val radius = if (expanding) minR + (maxR - minR) * t else maxR - (maxR - minR) * t
+                drawCircle(
+                    color = color,
+                    radius = radius,
+                    alpha = (1f - t) * 0.6f,
+                    style = Stroke(width = strokePx)
+                )
+            }
+        }
+        Icon(
+            Icons.Default.Contactless,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(44.dp)
+        )
+    }
+}
+
+/**
+ * Generic "hold your phone to a tag" prompt. Shows the animated NFC indicator — rings ripple
+ * outward when [expanding] (reading) or contract inward when writing — above the title/message.
+ * Used for the read flow and as the waiting state of the write flow.
  */
 @Composable
 private fun NfcPromptDialog(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    expanding: Boolean,
     title: String,
     message: String,
     onDismiss: () -> Unit
@@ -426,19 +491,7 @@ private fun NfcPromptDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(96.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                    )
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(48.dp)
-                    )
-                }
+                NfcRippleIndicator(expanding = expanding)
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
                     message,
@@ -468,7 +521,7 @@ private fun NfcWriteDialog(
 ) {
     when (result) {
         null -> NfcPromptDialog(
-            icon = Icons.Default.Contactless,
+            expanding = false,
             title = "Write to a tag",
             message = "Hold your phone to a tag to program it for $spoolName.",
             onDismiss = onDismiss

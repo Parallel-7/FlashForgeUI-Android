@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,17 +19,22 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Contactless
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Nfc
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -36,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.ghost.ffui.api.SpoolmanSpool
+import me.ghost.ffui.data.SpoolStatStyle
 import me.ghost.ffui.ui.components.SpoolDisc
 import me.ghost.ffui.ui.components.parseHexColor
 import kotlin.math.roundToInt
@@ -45,13 +52,14 @@ import kotlin.math.roundToInt
  * pattern as the printer and IFS cards.
  *
  * @param spool The spool to display.
- * @param onInfoClick Callback for the (i) info button.
- * @param onEditClick Callback for the cog/edit button.
+ * @param onInfoClick Callback for the "Details" action.
+ * @param onEditClick Callback for the "Edit" action.
  * @param modifier Outer modifier.
- * @param nfcEnabled When true, show the NFC write button and the "tagged" badge.
+ * @param statStyle Which usage metric to show on the card's stat line.
+ * @param nfcEnabled When true, show the "Write to tag" action and the "tagged" badge.
  * @param tagged Whether this spool has been written to a tag from this device.
  * @param highlighted Briefly true after a scan resolves to this spool — flashes the card border.
- * @param onWriteClick Callback for the NFC write button.
+ * @param onWriteClick Callback for the "Write to tag" action.
  */
 @Composable
 fun SpoolCard(
@@ -59,6 +67,7 @@ fun SpoolCard(
     onInfoClick: () -> Unit,
     onEditClick: () -> Unit,
     modifier: Modifier = Modifier,
+    statStyle: SpoolStatStyle = SpoolStatStyle.PERCENT,
     nfcEnabled: Boolean = false,
     tagged: Boolean = false,
     highlighted: Boolean = false,
@@ -137,6 +146,18 @@ fun SpoolCard(
                         )
                     }
                 }
+
+                // "Tagged" indicator — kept up here so the action row below stays free for the
+                // (i)/cog/write buttons.
+                if (nfcEnabled && tagged) {
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        Icons.Default.Contactless,
+                        contentDescription = "Tagged",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
 
             // 2. Spool disc
@@ -180,36 +201,38 @@ fun SpoolCard(
                 }
             )
 
-            // 5. Used/remaining percentages (prominent) + grams breakdown
-            if (progress != null) {
-                val remainingPct = (progress * 100).roundToInt()
-                // Prefer the real used_weight/initial_weight ratio; fall back to 100 − remaining.
-                val usedPct = run {
-                    val used = spool.used_weight
-                    val init = spool.initial_weight
-                    if (used != null && init != null && init > 0f) {
-                        (used / init * 100f).roundToInt().coerceIn(0, 100)
-                    } else {
-                        100 - remainingPct
+            // 5. A single prominent stat line — percentage or weight, per the Spoolman setting.
+            val statText = when (statStyle) {
+                SpoolStatStyle.PERCENT -> progress?.let { p ->
+                    val remainingPct = (p * 100).roundToInt()
+                    // Prefer the real used_weight/initial_weight ratio; fall back to 100 − remaining.
+                    val usedPct = run {
+                        val used = spool.used_weight
+                        val init = spool.initial_weight
+                        if (used != null && init != null && init > 0f) {
+                            (used / init * 100f).roundToInt().coerceIn(0, 100)
+                        } else {
+                            100 - remainingPct
+                        }
                     }
+                    "$remainingPct% left · $usedPct% used"
                 }
+                SpoolStatStyle.WEIGHT -> {
+                    val rem = spool.remaining_weight?.let { "${it.roundToInt()} g left" }
+                    val used = spool.used_weight?.let { "${it.roundToInt()} g used" }
+                    listOfNotNull(rem, used).joinToString(" · ").ifEmpty { null }
+                }
+            }
+            if (statText != null) {
                 Text(
-                    text = "$remainingPct% left · $usedPct% used",
+                    text = statText,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            // Grams: remaining and used, whichever are known.
-            val rem = spool.remaining_weight?.let { "${it.roundToInt()} g left" }
-            val used = spool.used_weight?.let { "${it.roundToInt()} g used" }
-            val gramsText = listOfNotNull(rem, used).joinToString(" · ")
-            if (gramsText.isNotEmpty()) {
-                Text(
-                    text = gramsText,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (spool.archived) {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
                 )
             }
 
@@ -217,42 +240,48 @@ fun SpoolCard(
             // regardless of name length or which optional rows are present.
             Spacer(Modifier.weight(1f))
 
-            // 6. Action row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // "Tagged" badge — left-aligned so the buttons stay on the right.
-                if (nfcEnabled && tagged) {
+            // 6. A single full-width action button. Tapping it opens a menu of the card's actions
+            // (details / edit / write tag) — far more tappable than cramming icons onto a narrow card.
+            var menuOpen by remember { mutableStateOf(false) }
+            Box(modifier = Modifier.fillMaxWidth()) {
+                FilledTonalButton(
+                    onClick = { menuOpen = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) {
                     Icon(
-                        Icons.Default.Nfc,
-                        contentDescription = "Tagged",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
+                        Icons.Default.MoreHoriz,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
                     )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Options")
                 }
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = onInfoClick, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        Icons.Default.Info,
-                        contentDescription = "Spool details",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Details") },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onInfoClick()
+                        }
                     )
-                }
-                IconButton(onClick = onEditClick, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = "Edit spool",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    DropdownMenuItem(
+                        text = { Text("Edit") },
+                        leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onEditClick()
+                        }
                     )
-                }
-                if (nfcEnabled) {
-                    IconButton(onClick = onWriteClick, modifier = Modifier.size(36.dp)) {
-                        Icon(
-                            Icons.Default.Contactless,
-                            contentDescription = "Write tag",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    if (nfcEnabled) {
+                        DropdownMenuItem(
+                            text = { Text("Write to tag") },
+                            leadingIcon = { Icon(Icons.Default.Contactless, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onWriteClick()
+                            }
                         )
                     }
                 }

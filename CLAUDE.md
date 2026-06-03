@@ -29,15 +29,34 @@ Native Android (Kotlin + Jetpack Compose) port of the desktop FlashForgeUI Elect
 LAN monitoring & control of FlashForge Adventurer 5M / 5M Pro / AD5X printers. Single Gradle
 module (`:app`), package `me.ghost.ffui` (both `namespace` and `applicationId`).
 
+## Protocol code lives in `ff-5mp-api-kt` — do NOT re-implement it here
+
+The FlashForge **wire protocol** (HTTP REST on **8898**, TCP G-code on **8899**, per-request
+`serialNumber` + `checkCode` auth, model detection, the per-model backend strategy, all
+`@Serializable` wire shapes) is **owned by a separate library** and the app depends on it:
+
+- **Repo:** `C:\Users\coper\Documents\GitHub\1flashforge_printers\ff-5mp-api-kt`, package
+  `me.ghost.ffapi`, GitHub `GhostTypes/ff-5mp-api-kt` (private). It's a `com.android.library`
+  AAR; a 1:1 port of the reference `ff-5mp-api-ts`. Read its `CLAUDE.md` + `docs/parity.md`.
+- **Coordinates:** `me.ghost:ff-5mp-api-kt:0.1.0`, consumed via **`mavenLocal()`** (see Build).
+- **No package collision:** app is `me.ghost.ffui`, library is `me.ghost.ffapi`.
+
+**The rule:** when a task needs HTTP/TCP transport, a new `/detail` field, a new G-code command,
+model/capability detection, or a backend behavior change, **make that change in `ff-5mp-api-kt`,
+`publishToMavenLocal`, and bump the version here.** Do **not** add a new `FlashForge*`/protocol
+class, wire model, or backend back into `me.ghost.ffui`. The app keeps only: UI/state, Room
+persistence, the session orchestration in `ActivePrinterSession`, the (Spoolman) integration, and
+the hardware-proven `UdpDiscovery`. If you're tempted to write socket/HTTP/serialization code in
+`app/`, stop — it belongs in the library.
+
 ## Source-of-truth docs
 
 - **`GEMINI.md`** — original assistant guide + porting roadmap. Useful for intent/roadmap;
   its "Implemented" column overstates current reality.
-
-For the wire protocol itself (HTTP REST on **8898**, TCP G-code on **8899**, MJPEG camera on
-**8080**, UDP discovery, per-request `serialNumber` + `checkCode` auth), the reference repos in
-`C:\Users\coper\Documents\GitHub\1flashforge_printers\` (`ff-5mp-api-ts`, `FlashForgeUI-Electron`)
-are the ground truth — read the matching code there.
+- **`ff-5mp-api-kt`** (above) — the protocol implementation the app runs on. For protocol
+  *intent*, the original reference repos in `C:\Users\coper\Documents\GitHub\1flashforge_printers\`
+  (`ff-5mp-api-ts`, `FlashForgeUI-Electron`) remain the upstream ground truth the library was
+  ported from — read the matching code there when extending the library.
 
 ## Build, test, run
 
@@ -60,6 +79,14 @@ Gradle is rejected). Runs on **JDK 25** (Temurin). Windows shell is PowerShell �
 
 - `minSdk 26`, `targetSdk 36`, `compileSdk 36` (uses `android-36.1`). App code is Java 11
   source/target; the Gradle/AGP toolchain itself runs on JDK 25.
+- **Depends on `ff-5mp-api-kt` via `mavenLocal()`** (see the protocol-library section above).
+  `settings.gradle.kts` adds `mavenLocal()`; `app/build.gradle.kts` has
+  `implementation("me.ghost:ff-5mp-api-kt:0.1.0")`. The artifact must be present in the local
+  Maven repo or the app won't resolve — if a fresh checkout / clean machine fails to build, run
+  `./gradlew :ffapi:publishToMavenLocal` **in the library repo** first. After changing the
+  library, re-publish there and (if the version changed) bump the coordinate here. The library
+  pulls kotlinx-serialization/-coroutines + OkHttp transitively, but the app also uses them
+  directly, so keep its own declarations.
 - **Per-machine setup (untracked, must exist locally — both are gitignored):**
   - `local.properties` with `sdk.dir=<Android SDK path>` (e.g.
     `C:\Users\...\AppData\Local\Android\Sdk`).
@@ -103,34 +130,32 @@ Install for manual testing: emulator is x86_64, so
 
 ## Architecture (as actually built)
 
+Protocol transport (`FlashForgeHttpApi`, `FlashForgeClient`/`FlashForgeTcpClient`, `PrinterModel`,
+`PrinterCapabilities`, the per-model `backend/` strategy, and all wire `@Serializable` models) now
+lives in **`ff-5mp-api-kt`** (`me.ghost.ffapi.*`) — see the protocol-library section above. What
+remains in the app:
+
 ```
 me.ghost.ffui
-├── api/                      Networking & protocol
+├── api/                      App-side networking only (protocol moved to ff-5mp-api-kt)
 │   ├── UdpDiscovery          UDP broadcast scan (WifiManager.MulticastLock). WORKS — do NOT
 │   │                         change the (empty) broadcast payload; it works on real hardware.
-│   ├── FlashForgeHttpApi     OkHttp + kotlinx.serialization; POST /detail, /product,
-│   │                         /control (light, temp, job pause/resume/cancel, clearPlatform)
-│   ├── FlashForgeTcpClient   Raw Socket on 8899; M601 lock, synchronous sendCommandWithResponse
-│   │                         (CompletableDeferred + Mutex), KeepAliveMode (MODERN/LEGACY_POLL/NONE),
-│   │                         auto-reconnect w/ exponential backoff, M661 file list, M662 thumbnail.
-│   ├── PrinterModel          PrinterModel enum + pid-based detection + M115 Machine Type fallback;
-│   │                         PrinterCapabilities.
-│   └── FlashForgeModels      @Serializable shapes; /detail carries matlStationInfo INLINE.
-├── backend/                  Per-model strategy (mirrors FFUI-Electron backends)
-│   ├── PrinterBackend        abstract: capabilities via /product, shared job/LED control
-│   ├── DualApiBackend        modern base — polls HTTP /detail
-│   ├── Adventurer5M / 5MPro / AD5X / GenericLegacyBackend (covers A3/A4/legacy)
-│   │   GenericLegacyBackend: TCP polling via M105+M119+M27, M25/M24/M26 job control, M23+M24 start
-│   └── PrinterBackendFactory create(model, …)
+│   │                         (Kept in-app deliberately; the library also has PrinterDiscovery,
+│   │                         but this hardware-proven path is what ships.)
+│   └── SpoolmanApi /         Spoolman-server REST client + @Serializable models — NOT FlashForge
+│       SpoolmanModels        protocol, so it stays here (see Spoolman note below).
 ├── data/                     Room persistence + session ownership
 │   ├── AppDatabase (v4) / PrinterDao / PrinterEntity / PrinterRepository
+│   │                         PrinterEntity.toConfig() maps the Room row -> library PrinterConfig.
 │   ├── ActivePrinterSession  (lives INSIDE PrinterRepository.kt, not its own file)
-│   │                         Owns a PrinterBackend + http/tcp pair; identify via HTTP /detail
-│   │                         (modern) or TCP ~M115 (legacy fallback); adaptive poll loop with
-│   │                         ConnectionState (Connecting/Connected/Offline/AuthFailed)
-│   │                         and adaptive cadence (1.5s printing, 2.5s paused, 3s offline,
-│   │                         5s idle, 10s error, 15s auth-failed). `pollFloorMs` lets the
-│   │                         manager throttle the cadence in the background.
+│   │                         Owns a library `PrinterBackend` + `FlashForgeHttpApi`/`FlashForgeClient`
+│   │                         pair (all from me.ghost.ffapi.*); identify via HTTP /detail (modern)
+│   │                         or TCP ~M115 (legacy fallback); adaptive poll loop with
+│   │                         ConnectionState (Connecting/Connected/Offline/AuthFailed). Auth is
+│   │                         detected via the library's typed `AuthException` (not string-match).
+│   │                         Adaptive cadence (1.5s printing, 2.5s paused, 3s offline, 5s idle,
+│   │                         10s error, 15s auth-failed). `pollFloorMs` lets the manager throttle
+│   │                         the cadence in the background.
 │   ├── PrinterSessionManager process-lifetime owner of the sessions map + activeSerial + the
 │   │                         PrinterNotifier wiring + startup-reconnect. Drives the foreground
 │   │                         service and the background throttle off ProcessLifecycleOwner.
@@ -188,13 +213,17 @@ me.ghost.ffui
   (`BatteryOptimization`, re-checked on `ON_RESUME`).
 - **Model is detected by `pid`** (35=5M, 36=5M Pro, 38=AD5X) on first `/detail`, not by name.
   Legacy printers (Adventurer 3/4) are detected via TCP `~M115` `Machine Type:` string when
-  HTTP `/detail` fails. `PrinterBackendFactory` picks the backend; `/product` flags + per-printer
-  `customLedEnabled` resolve `PrinterCapabilities`. UI controls are capability-gated (hide unsupported).
+  HTTP `/detail` fails. The library's `PrinterModel.fromDetail`/`fromMachineType` +
+  `PrinterBackendFactory` pick the backend; `/product` flags + per-printer `customLedEnabled`
+  resolve `PrinterCapabilities`. UI controls are capability-gated off that (hide unsupported). All
+  of this lives in the library — `ActivePrinterSession` just orchestrates the calls.
 - **HTTP `/detail` is the single source of truth** for modern printers (status + IFS inline). TCP
-  is control-only (custom LEDs `~M146`, homing `~G28`). Only `GenericLegacyBackend` polls over TCP.
+  is control-only (custom LEDs `~M146`, homing `~G28`, temps M104/M140). Only the library's
+  `GenericLegacyBackend` polls over TCP.
 - **No DI framework.** Dependencies are constructed manually — `FfuiApplication` builds the one
   `PrinterSessionManager` (`AppDatabase.getDatabase`, `PrinterRepository(dao)`, `SettingsDataStore`);
-  clients are `new`'d inside each session. Keep it that way unless asked.
+  each session `new`s the library's `FlashForgeHttpApi` + `FlashForgeClient` and hands them to
+  `PrinterBackendFactory.create(model, printer.toConfig(), …)`. Keep it that way unless asked.
 
 ## Conventions
 
@@ -244,29 +273,29 @@ me.ghost.ffui
   fixed in the process: (1) **cleartext HTTP must be permitted** — see
   `res/xml/network_security_config.xml` (printers are plain HTTP/TCP, no TLS); removing it silently
   breaks all polling. (2) **firmware serializes numbers inconsistently** (decimals vs ints), so
-  every numeric `/detail` field is typed `Float?` (only `pid` is `Int?`) — keep new numeric fields
-  `Float?`. The 5M / 5M Pro paths are still unverified (no hardware on hand).
-- **TCP client supports synchronous command/response.** `FlashForgeTcpClient` uses a
-  `CompletableDeferred`-based protocol: `sendCommandWithResponse(cmd)` writes the command and
-  waits for the multi-line `"ok"`-terminated response. A `Mutex` serializes command writes. The
-  `KeepAliveMode` enum controls the heartbeat: `MODERN` (light `~M27` every 5s for modern printers),
-  `LEGACY_POLL` (no heartbeat — the backend drives polling explicitly), or `NONE`. Auto-reconnect
-  with exponential backoff (1s→15s cap) runs when the read loop exits abnormally. The modern
-  keep-alive + background telemetry parsing path is verified against a live AD5X; the legacy
-  polling path (M105+M119+M27 per tick) is verified against the flashforge-emulator-v2.
-- **Legacy TCP backend is emulator-verified, not hardware-verified.** `GenericLegacyBackend`
-  polls status via M119 (machine status + LED + current file), M105 (temperatures), and M27
-  (progress) per tick. Job control uses M25/M24/M26 (pause/resume/cancel). Start print uses
-  M23+M24. Identification falls through to TCP M115 when HTTP `/detail` fails. File listing via
-  M661 works (both A4 `::`-delimited and A3 `info_list.size:` formats). File thumbnail via
-  M662 works (both A4 raw PNG and A3 `0xa2a22a2a` magic header). LED control: A4/Generic uses
-  `~M146 r255...` (RGB), A3 uses `~M146 1/0` (on/off). The emulator models real A3 firmware
-  differences (echo:/ack: prefixes, IDLE status, LEDStatus:, PrintFileName:, fire-and-forget
-  motion commands, M105 ok-prefix). All verified against flashforge-emulator-v2 headless A3.
-  Still not verified against real hardware.
-- **Temperature SET is still the old HTTP `temperatureCtl_cmd`** (`FlashForgeHttpApi.controlTemp`)
-  and is suspect — the reference TS lib sets temps over TCP G-code (M104/M140) and leaves the HTTP
-  path commented out as unverified. Move temp-set to TCP in Phase 3; don't trust the HTTP path.
+  every numeric protocol field must tolerate a decimal literal. In the **library** (`FFPrinterDetail`
+  etc.) these are typed **`Double?`** (only `pid` is `Int?`); the app's own **Spoolman** models
+  still use `Float?`. When you read a library numeric field in Compose, it's `Double?` — convert at
+  the boundary (`.toFloat()` for `LinearProgressIndicator`, etc.). The modern read path is now
+  hardware-verified on a real **AD5X + 5M Pro**.
+- **The TCP client lives in the library now.** The app talks to the high-level
+  `me.ghost.ffapi.tcpapi.FlashForgeClient` (wrapping the low-level `FlashForgeTcpClient`):
+  `sendRawCommand(cmd, timeoutMs)` -> `Result<String>` (was the app's `sendCommandWithResponse`),
+  `sendCmdOk` -> `Result<Unit>`, plus typed helpers (`getPrinterInfo`/M115, `setExtruderTemp`,
+  `homeAxes`, `ledOn/Off`, `getFileList`, `getThumbnail`, …). `KeepAliveMode`
+  (`MODERN`/`LEGACY_POLL`/`NONE`) and auto-reconnect (1s→15s backoff) are unchanged in behavior —
+  just ported. Don't reach for the low-level client; use `FlashForgeClient`.
+- **Legacy TCP backend is emulator-verified, not hardware-verified** (and now lives in the
+  library as `GenericLegacyBackend`). Polls M119 (machine status + LED + current file), M105
+  (temps), M27 (progress) per tick; job control M25/M24/M26; start M23+M24; identify via TCP M115
+  when HTTP `/detail` fails; M661 file list (A4 `::` + A3 `info_list.size:`); M662 thumbnail (A4 raw
+  PNG + A3 `0xa2a22a2a` magic); LED A4/Generic `~M146 r255...` (RGB) vs A3 `~M146 1/0`. Verified
+  against flashforge-emulator-v2 headless A3; still not verified against real hardware. No legacy
+  hardware on hand, so its status is unchanged by the library migration.
+- **Temperature SET now goes over TCP G-code (M104/M140)** via the library's
+  `FlashForgeClient.setExtruderTemp`/`setBedTemp` (the backend's `setNozzleTemp`/`setBedTemp`) —
+  the old suspect HTTP `temperatureCtl_cmd` path is gone. Still untested against real hardware
+  (it's a TCP write path; see the control-write caveat below).
 - **Camera + fullscreen + FPS work (verified live on AD5X).** The dashboard `CameraCard`
   (`ui/dashboard/CameraCard.kt`) plays the MJPEG feed via libmpv (`dev.jdtech.mpv:libmpv`,
   replacing the earlier libVLC player). The player is split into `ui/components/MpvPlayer.kt`:
@@ -338,15 +367,18 @@ me.ghost.ffui
   it's app-scoped) and just show the cached list immediately instead of gating on `Loading`; if
   persistence across process death is wanted, a single DataStore/JSON blob of the last spool list
   is enough. Show stale data first, refresh silently, swap in on success.
-- **Next session — extract a standalone Kotlin FlashForge API library (1:1 port of `ff-5mp-api-ts`).**
-  Idea: build a Kotlin port of the reference `ff-5mp-api-ts` lib (in
-  `C:\Users\coper\Documents\GitHub\1flashforge_printers\`) as its own library — it covers the
-  Android platform, shrinks the app, and cleanly separates protocol concerns from UI/state. We
-  already have most of the wire code in-app to rip out and move over: `api/` (`FlashForgeHttpApi`,
-  `FlashForgeTcpClient`, `UdpDiscovery`, `PrinterModel`, `FlashForgeModels`) plus the `backend/`
-  strategy layer. Aim for a 1:1 port of the TS lib's surface, then have the app depend on it
-  instead of its own `api/`/`backend/` packages. Scope/structure (separate Gradle module in this
-  repo vs. its own repo/Maven artifact) is TBD — decide that first.
+- **Protocol library extraction — DONE (2026-06-02).** The standalone `ff-5mp-api-kt` library is
+  built and the app depends on it; the in-tree `api/{FlashForgeHttpApi,FlashForgeTcpClient,
+  PrinterModel,FlashForgeModels}` + the whole `backend/` package were deleted (see the
+  protocol-library section at the top). Live-verified connect/poll/controls against a real AD5X +
+  5M Pro. Known library-side gaps (documented in the library's `docs/parity.md`; none block the
+  app today): no HTTP/TCP **file upload** (M28/M29 / `/uploadGcode`), no one-call `FiveMClient`
+  bootstrap (the app assembles `FlashForgeHttpApi` + `FlashForgeClient` + factory itself), no
+  camera-stream probe. If any of those are wanted, do them in the **library**, not the app.
+- **Possible follow-up — migrate discovery into the library too.** The app still ships its own
+  `api/UdpDiscovery` (hardware-proven empty-payload broadcast); the library has an equivalent
+  `PrinterDiscovery`. Switching is optional and low-priority — if done, **do not change the empty
+  broadcast payload**.
 
 ## Skills installed (`.claude/skills/`)
 
@@ -355,3 +387,5 @@ me.ghost.ffui
 - `edge-to-edge` — insets, system-bar legibility, IME handling for Compose.
 - `compose-styles` — Jetpack Compose Styles API for the custom design system.
 - `navigation-3` — Navigation 3 patterns (relevant as more screens/tabs get ported).
+- `adaptive` — adaptive UI for varied window sizes (phone/tablet/foldable/desktop): Compose
+  MediaQuery, Grid/FlexBox, multi-pane Navigation 3 scenes.

@@ -1,18 +1,19 @@
 package me.ghost.ffui.data
 
-import me.ghost.ffui.api.AD5XMaterialMapping
-import me.ghost.ffui.api.FFGcodeFileEntry
-import me.ghost.ffui.api.FlashForgeHttpApi
-import me.ghost.ffui.api.FlashForgeTcpClient
-import me.ghost.ffui.api.KeepAliveMode
-import me.ghost.ffui.api.MatlStationInfo
-import me.ghost.ffui.api.PrinterCapabilities
-import me.ghost.ffui.api.PrinterModel
-import me.ghost.ffui.api.PrinterDetailResponse
-import me.ghost.ffui.backend.FiltrationMode
-import me.ghost.ffui.backend.SlotAction
-import me.ghost.ffui.backend.PrinterBackend
-import me.ghost.ffui.backend.PrinterBackendFactory
+import me.ghost.ffapi.PrinterCapabilities
+import me.ghost.ffapi.PrinterModel
+import me.ghost.ffapi.api.FlashForgeHttpApi
+import me.ghost.ffapi.backend.FiltrationMode
+import me.ghost.ffapi.backend.PrinterBackend
+import me.ghost.ffapi.backend.PrinterBackendFactory
+import me.ghost.ffapi.backend.SlotAction
+import me.ghost.ffapi.error.AuthException
+import me.ghost.ffapi.models.AD5XMaterialMapping
+import me.ghost.ffapi.models.FFGcodeFileEntry
+import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
+import me.ghost.ffapi.models.MatlStationInfo
+import me.ghost.ffapi.tcpapi.FlashForgeClient
+import me.ghost.ffapi.tcpapi.KeepAliveMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -100,7 +101,7 @@ class ActivePrinterSession(
     var pollFloorMs: Long = 0L
 
     val httpApi = FlashForgeHttpApi(printer.ipAddress)
-    val tcpClient = FlashForgeTcpClient(printer.ipAddress, scope)
+    val tcpClient = FlashForgeClient(printer.ipAddress, scope)
 
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Connecting)
     val connectionState: StateFlow<ConnectionState> = _connectionState
@@ -153,7 +154,7 @@ class ActivePrinterSession(
         httpApi.getDetail(printer.serialNumber, printer.checkCode)
             .onSuccess { detail ->
                 val model = PrinterModel.fromDetail(detail)
-                val newBackend = PrinterBackendFactory.create(model, printer, httpApi, tcpClient)
+                val newBackend = PrinterBackendFactory.create(model, printer.toConfig(), httpApi, tcpClient)
                 // /product also validates credentials; on failure we keep baseline capabilities.
                 newBackend.initialize()
                 backend = newBackend
@@ -170,8 +171,7 @@ class ActivePrinterSession(
                 onIdentity(detail.pid, detail.firmwareVersion, detail.cameraStreamUrl)
             }
             .onFailure { e ->
-                val msg = e.message
-                if (msg?.startsWith("API Error") == true) {
+                if (e is AuthException) {
                     // Credential rejection — fatal, no TCP fallback.
                     applyFailure(e)
                 } else {
@@ -187,7 +187,7 @@ class ActivePrinterSession(
      * TCP client.
      */
     private suspend fun identifyViaTcp() {
-        tcpClient.sendCommandWithResponse("~M115", timeoutMs = 3_000)
+        tcpClient.sendRawCommand("~M115", timeoutMs = 3_000)
             .onSuccess { response ->
                 // Strip A3-specific ack:/echo: prefixes from each line before searching.
                 val cleanLines = response.lineSequence()
@@ -204,7 +204,7 @@ class ActivePrinterSession(
                 // Switch TCP to legacy polling mode (no automatic keep-alive).
                 tcpClient.keepAliveMode = KeepAliveMode.LEGACY_POLL
 
-                val newBackend = PrinterBackendFactory.create(model, printer, httpApi, tcpClient)
+                val newBackend = PrinterBackendFactory.create(model, printer.toConfig(), httpApi, tcpClient)
                 newBackend.initialize()
                 backend = newBackend
                 _capabilities.value = newBackend.capabilities
@@ -282,17 +282,16 @@ class ActivePrinterSession(
         prevErrorCode = error
     }
 
-    /** Credential rejection (a non-zero API code) is fatal; everything else is transient. */
+    /** Credential rejection ([AuthException]) is fatal; everything else is transient. */
     private fun applyFailure(e: Throwable) {
-        val msg = e.message
-        if (msg?.startsWith("API Error") == true) {
+        if (e is AuthException) {
             // HTTP checkCode rejected: drop TCP so its keep-alive stops holding the ~M601 lock.
             if (_connectionState.value !is ConnectionState.AuthFailed) {
                 tcpClient.disconnect()
             }
-            _connectionState.value = ConnectionState.AuthFailed(msg)
+            _connectionState.value = ConnectionState.AuthFailed(e.message)
         } else {
-            _connectionState.value = ConnectionState.Offline(msg)
+            _connectionState.value = ConnectionState.Offline(e.message)
         }
     }
 
@@ -305,7 +304,7 @@ class ActivePrinterSession(
      * Adaptive poll cadence keyed off the connection state, then the wire-level `status` (see the
      * HTTP REST "Machine States"). The `status` set here is purely the modern HTTP state machine —
      * legacy-only strings like `building_from_sd` are normalized to modern equivalents by
-     * [GenericLegacyBackend] before they reach this point.
+     * the library's `GenericLegacyBackend` before they reach this point.
      */
     private fun nextDelayMs(): Long {
         val base = baseDelayMs()

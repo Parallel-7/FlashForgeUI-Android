@@ -11,7 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import me.ghost.ffui.api.PrinterModel
+import me.ghost.ffapi.PrinterModel
 import me.ghost.ffui.data.PrinterEntity
 import me.ghost.ffui.data.maskSerial
 import me.ghost.ffui.ui.MainViewModel

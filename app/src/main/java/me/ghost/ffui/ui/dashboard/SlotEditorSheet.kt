@@ -41,7 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import me.ghost.ffui.api.MatlSlotInfo
+import me.ghost.ffapi.models.SlotInfo as MatlSlotInfo
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.ui.components.IfsPalette
 import kotlinx.coroutines.launch

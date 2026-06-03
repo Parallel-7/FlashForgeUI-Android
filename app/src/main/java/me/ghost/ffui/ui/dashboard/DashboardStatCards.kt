@@ -37,7 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import me.ghost.ffui.api.PrinterDetailResponse
+import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
 import me.ghost.ffui.ui.theme.GeometricBlueContainer
 import me.ghost.ffui.ui.theme.GeometricBluePrimary
 import me.ghost.ffui.ui.theme.GeometricOrangeContainer
@@ -86,10 +86,10 @@ internal fun JobProgressHeader(fileName: String?, progress: Int, stateLabel: Str
  */
 @Composable
 internal fun HeaterGrid(status: PrinterDetailResponse?, onHeaterClick: (String) -> Unit) {
-    val nozzleCurrent = status?.rightTemp ?: 0f
-    val nozzleTarget = status?.rightTargetTemp ?: 0f
-    val bedCurrent = status?.platTemp ?: 0f
-    val bedTarget = status?.platTargetTemp ?: 0f
+    val nozzleCurrent = status?.rightTemp?.toFloat() ?: 0f
+    val nozzleTarget = status?.rightTargetTemp?.toFloat() ?: 0f
+    val bedCurrent = status?.platTemp?.toFloat() ?: 0f
+    val bedTarget = status?.platTargetTemp?.toFloat() ?: 0f
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         HeaterCard(

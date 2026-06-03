@@ -1,6 +1,6 @@
 package me.ghost.ffui.ui
 
-import me.ghost.ffui.api.PrinterDetailResponse
+import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
 
 /**
  * Normalized view of the printer's current job, derived from the raw `/detail` `status` string.
@@ -9,7 +9,7 @@ import me.ghost.ffui.api.PrinterDetailResponse
  * hand-rolled identical `state in listOf(...)` checks).
  *
  * The raw strings are the modern HTTP "Machine States"; legacy-only tokens are already normalized to
- * these by [me.ghost.ffui.backend.GenericLegacyBackend] before they reach the UI.
+ * these by the library's `GenericLegacyBackend` before they reach the UI.
  */
 data class JobState(
     val isPrinting: Boolean,

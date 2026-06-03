@@ -23,15 +23,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
-import me.ghost.ffui.api.AD5XMaterialMapping
-import me.ghost.ffui.api.FFGcodeFileEntry
+import me.ghost.ffapi.models.AD5XMaterialMapping
+import me.ghost.ffapi.models.FFGcodeFileEntry
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.ThumbnailCache
 import me.ghost.ffui.ui.MainViewModel
 import kotlinx.coroutines.launch
 
 /** Formats a print duration (seconds) as `Hh Mm` / `Mm`, or empty when unknown. */
-private fun formatPrintTime(seconds: Float?): String {
+private fun formatPrintTime(seconds: Double?): String {
     val s = seconds?.toInt() ?: return ""
     if (s <= 0) return ""
     val mins = s / 60

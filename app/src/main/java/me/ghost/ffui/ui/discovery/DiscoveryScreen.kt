@@ -25,7 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.ghost.ffui.R
 import me.ghost.ffui.api.DiscoveredPrinter
-import me.ghost.ffui.api.PrinterModel
+import me.ghost.ffapi.PrinterModel
 import me.ghost.ffui.data.PrinterEntity
 import me.ghost.ffui.data.maskSerial
 import me.ghost.ffui.ui.MainViewModel

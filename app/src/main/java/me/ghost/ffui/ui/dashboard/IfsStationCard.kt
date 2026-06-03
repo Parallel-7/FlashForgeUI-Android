@@ -35,8 +35,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import me.ghost.ffui.api.MatlSlotInfo
-import me.ghost.ffui.api.MatlStationInfo
+import me.ghost.ffapi.models.SlotInfo as MatlSlotInfo
+import me.ghost.ffapi.models.MatlStationInfo
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.ui.components.SpoolDisc
 

@@ -13,7 +13,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
-import me.ghost.ffui.api.PrinterDetailResponse
+import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
 import me.ghost.ffui.ui.dashboard.HeaterGrid
 import me.ghost.ffui.ui.dashboard.JobProgressHeader
 import me.ghost.ffui.ui.dashboard.JobStatsRow
@@ -45,14 +45,14 @@ class DashboardCardsScreenshotTest {
         val status = PrinterDetailResponse(
             status = "printing",
             printFileName = "benchy.gcode",
-            printProgress = 0.42f,
-            estimatedTime = 5_400f,   // 90 min remaining
-            printLayer = 84f,
-            targetPrintLayer = 200f,
-            rightTemp = 210f,
-            rightTargetTemp = 220f,
-            platTemp = 58f,
-            platTargetTemp = 60f
+            printProgress = 0.42,
+            estimatedTime = 5_400.0,   // 90 min remaining
+            printLayer = 84.0,
+            targetPrintLayer = 200.0,
+            rightTemp = 210.0,
+            rightTargetTemp = 220.0,
+            platTemp = 58.0,
+            platTargetTemp = 60.0
         )
 
         composeTestRule.setContent {

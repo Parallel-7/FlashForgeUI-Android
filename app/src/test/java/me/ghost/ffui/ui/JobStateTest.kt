@@ -1,6 +1,6 @@
 package me.ghost.ffui.ui
 
-import me.ghost.ffui.api.PrinterDetailResponse
+import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test

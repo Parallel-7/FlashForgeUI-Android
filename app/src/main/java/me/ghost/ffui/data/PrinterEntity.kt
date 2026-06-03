@@ -2,6 +2,7 @@ package me.ghost.ffui.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import me.ghost.ffapi.PrinterConfig
 
 /**
  * A saved printer plus its per-printer settings. Identity/capability fields (`modelPid`,
@@ -41,4 +42,18 @@ data class PrinterEntity(
     val notifyOnCooled: Boolean = false,
     /** Push a notification when /detail reports a new printer error code. */
     val notifyOnError: Boolean = false
+)
+
+/**
+ * Projects this Room row onto the transport-agnostic [PrinterConfig] the `ff-5mp-api-kt` library's
+ * HTTP/TCP clients and backends consume. The library deliberately knows nothing about Room — the app
+ * owns persistence and hands the library a plain value.
+ */
+fun PrinterEntity.toConfig(): PrinterConfig = PrinterConfig(
+    ipAddress = ipAddress,
+    serialNumber = serialNumber,
+    checkCode = checkCode,
+    name = name,
+    firmwareVersion = firmwareVersion,
+    customLedEnabled = customLedEnabled,
 )

@@ -23,7 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import me.ghost.ffui.backend.FiltrationMode
+import me.ghost.ffapi.backend.FiltrationMode
 import me.ghost.ffui.ui.theme.GeometricGreenPrimary
 import me.ghost.ffui.ui.theme.GeometricOrangePrimary
 
@@ -33,7 +33,7 @@ import me.ghost.ffui.ui.theme.GeometricOrangePrimary
 internal fun FiltrationCard(
     internalFanOn: Boolean,
     externalFanOn: Boolean,
-    tvoc: Float?,
+    tvoc: Double?,
     controlsEnabled: Boolean,
     onSelect: (FiltrationMode) -> Unit
 ) {

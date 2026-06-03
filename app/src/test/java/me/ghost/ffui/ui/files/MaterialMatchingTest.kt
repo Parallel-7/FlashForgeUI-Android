@@ -1,7 +1,7 @@
 package me.ghost.ffui.ui.files
 
-import me.ghost.ffui.api.FFGcodeToolData
-import me.ghost.ffui.api.MatlSlotInfo
+import me.ghost.ffapi.models.FFGcodeToolData
+import me.ghost.ffapi.models.SlotInfo as MatlSlotInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

@@ -16,9 +16,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import me.ghost.ffui.api.AD5XMaterialMapping
-import me.ghost.ffui.api.FFGcodeToolData
-import me.ghost.ffui.api.MatlSlotInfo
+import me.ghost.ffapi.models.AD5XMaterialMapping
+import me.ghost.ffapi.models.FFGcodeToolData
+import me.ghost.ffapi.models.SlotInfo as MatlSlotInfo
 
 // ── Matching helpers (ported from FlashForgeUI-Electron material-matching) ────
 

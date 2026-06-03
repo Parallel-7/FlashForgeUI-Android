@@ -19,6 +19,8 @@ dependencyResolutionManagement {
   repositories {
     google()
     mavenCentral()
+    // Local prototype dependency on the ff-5mp-api-kt protocol library (publishToMavenLocal).
+    mavenLocal()
   }
 }
 

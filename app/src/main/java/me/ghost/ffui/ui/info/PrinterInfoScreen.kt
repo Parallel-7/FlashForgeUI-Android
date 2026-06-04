@@ -325,13 +325,13 @@ private fun lightLabel(status: String?): String = when (status) {
 }
 
 /** Cumulative filament is in meters; show km past 1 km. */
-private fun formatFilament(meters: Double?): String {
+private fun formatFilament(meters: Float?): String {
     val m = meters ?: return "—"
     return if (m >= 1000f) "%.2f km".format(m / 1000f) else "%.1f m".format(m)
 }
 
 /** Cumulative print time is in minutes. */
-private fun formatPrintMinutes(minutes: Double?): String {
+private fun formatPrintMinutes(minutes: Float?): String {
     val total = minutes?.toInt() ?: return "—"
     val h = total / 60
     val m = total % 60
@@ -339,7 +339,7 @@ private fun formatPrintMinutes(minutes: Double?): String {
 }
 
 /** remainingDiskSpace is GB free (a fractional value on the wire); show MB under 1 GB. */
-private fun formatDiskGb(gb: Double?): String {
+private fun formatDiskGb(gb: Float?): String {
     val g = gb ?: return "—"
     return if (g >= 1f) "%.2f GB".format(g) else "%.0f MB".format(g * 1024f)
 }

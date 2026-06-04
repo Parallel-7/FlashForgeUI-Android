@@ -45,14 +45,14 @@ class DashboardCardsScreenshotTest {
         val status = PrinterDetailResponse(
             status = "printing",
             printFileName = "benchy.gcode",
-            printProgress = 0.42,
-            estimatedTime = 5_400.0,   // 90 min remaining
-            printLayer = 84.0,
-            targetPrintLayer = 200.0,
-            rightTemp = 210.0,
-            rightTargetTemp = 220.0,
-            platTemp = 58.0,
-            platTargetTemp = 60.0
+            printProgress = 0.42f,
+            estimatedTime = 5_400f,   // 90 min remaining
+            printLayer = 84f,
+            targetPrintLayer = 200f,
+            rightTemp = 210f,
+            rightTargetTemp = 220f,
+            platTemp = 58f,
+            platTargetTemp = 60f
         )
 
         composeTestRule.setContent {

@@ -274,10 +274,12 @@ me.ghost.ffui
   `res/xml/network_security_config.xml` (printers are plain HTTP/TCP, no TLS); removing it silently
   breaks all polling. (2) **firmware serializes numbers inconsistently** (decimals vs ints), so
   every numeric protocol field must tolerate a decimal literal. In the **library** (`FFPrinterDetail`
-  etc.) these are typed **`Double?`** (only `pid` is `Int?`); the app's own **Spoolman** models
-  still use `Float?`. When you read a library numeric field in Compose, it's `Double?` — convert at
-  the boundary (`.toFloat()` for `LinearProgressIndicator`, etc.). The modern read path is now
-  hardware-verified on a real **AD5X + 5M Pro**.
+  etc.) these are typed **`Float?`** (only `pid` is `Int?`), matching the app's **Spoolman** models
+  and Compose's `Float`-native UI — so a library numeric field reads straight into Compose with **no
+  `.toFloat()`/`.toDouble()` conversion at the boundary** (the old `Double?`→`Float` churn was killed
+  2026-06-03; `ff-5mp-api-kt` 0.1.1). Conceptually-integer fields (`printLayer`, `nozzleCnt`, …) stay
+  `Float?` too — the firmware has been seen appending `.0` to whole values, so `Int?` would risk a
+  parse crash. The modern read path is now hardware-verified on a real **AD5X + 5M Pro**.
 - **The TCP client lives in the library now.** The app talks to the high-level
   `me.ghost.ffapi.tcpapi.FlashForgeClient` (wrapping the low-level `FlashForgeTcpClient`):
   `sendRawCommand(cmd, timeoutMs)` -> `Result<String>` (was the app's `sendCommandWithResponse`),

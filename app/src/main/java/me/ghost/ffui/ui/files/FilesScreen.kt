@@ -31,7 +31,7 @@ import me.ghost.ffui.ui.MainViewModel
 import kotlinx.coroutines.launch
 
 /** Formats a print duration (seconds) as `Hh Mm` / `Mm`, or empty when unknown. */
-private fun formatPrintTime(seconds: Double?): String {
+private fun formatPrintTime(seconds: Float?): String {
     val s = seconds?.toInt() ?: return ""
     if (s <= 0) return ""
     val mins = s / 60

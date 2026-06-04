@@ -33,7 +33,7 @@ import me.ghost.ffui.ui.theme.GeometricOrangePrimary
 internal fun FiltrationCard(
     internalFanOn: Boolean,
     externalFanOn: Boolean,
-    tvoc: Double?,
+    tvoc: Float?,
     controlsEnabled: Boolean,
     onSelect: (FiltrationMode) -> Unit
 ) {

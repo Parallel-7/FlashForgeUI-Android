@@ -86,10 +86,10 @@ internal fun JobProgressHeader(fileName: String?, progress: Int, stateLabel: Str
  */
 @Composable
 internal fun HeaterGrid(status: PrinterDetailResponse?, onHeaterClick: (String) -> Unit) {
-    val nozzleCurrent = status?.rightTemp?.toFloat() ?: 0f
-    val nozzleTarget = status?.rightTargetTemp?.toFloat() ?: 0f
-    val bedCurrent = status?.platTemp?.toFloat() ?: 0f
-    val bedTarget = status?.platTargetTemp?.toFloat() ?: 0f
+    val nozzleCurrent = status?.rightTemp ?: 0f
+    val nozzleTarget = status?.rightTargetTemp ?: 0f
+    val bedCurrent = status?.platTemp ?: 0f
+    val bedTarget = status?.platTargetTemp ?: 0f
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         HeaterCard(

@@ -165,7 +165,7 @@ fun DashboardScreen(
                 modifier = Modifier.fillMaxSize(),
                 key = { sessionEntries[it].key }
             ) { page ->
-                DashboardContent(session = sessionEntries[page].value)
+                DashboardContent(session = sessionEntries[page].value, viewModel = viewModel)
             }
         }
     }
@@ -174,7 +174,7 @@ fun DashboardScreen(
 // ── DashboardContent (per-session page contents) ────────────────────────────
 
 @Composable
-private fun DashboardContent(session: ActivePrinterSession) {
+private fun DashboardContent(session: ActivePrinterSession, viewModel: MainViewModel) {
     val status by session.status.collectAsState()
     val connectionState by session.connectionState.collectAsState()
     val capabilities by session.capabilities.collectAsState()
@@ -253,7 +253,7 @@ private fun DashboardContent(session: ActivePrinterSession) {
 
         // Material station (AD5X IFS) — full spool card; tap a slot to edit material / load-unload.
         if (capabilities.hasMaterialStation) {
-            matlStation?.let { IfsStationCard(it, session) }
+            matlStation?.let { IfsStationCard(it, session, viewModel) }
         }
 
         if (job.isCompleted) {

@@ -357,10 +357,28 @@ me.ghost.ffui
   written to Spoolman (no server mutation, no extra-field registration); the timestamp also shows in
   the spool info dialog. Only the UI states are verified (the emulator has no NFC adapter — to see
   the Spools NFC UI there, the `nfcEnabled` flag must already be set since the Settings toggle is
-  greyed); the actual NDEF read/write round-trip is **unverified against hardware** (NTAG215s
-  arriving ~2026-06-02). Reference clones left in `C:\Users\coper\Documents\Prototyping\`:
-  `SpoolCompanion` (Kotlin/Compose+Spoolman NFC app — the model we followed) and `OpenSpool`
-  (ESP32/PN532 firmware + a published `application/json` tag standard we chose not to adopt).
+  greyed). The NDEF **read** round-trip is now **hardware-confirmed** (a real NTAG215 scan drives the
+  scan-to-slot flow below on a live AD5X); the **write** path is still untested on hardware. Reference
+  clones left in `C:\Users\coper\Documents\Prototyping\`: `SpoolCompanion` (Kotlin/Compose+Spoolman
+  NFC app — the model we followed) and `OpenSpool` (ESP32/PN532 firmware + a published
+  `application/json` tag standard we chose not to adopt).
+- **Scan roll → IFS slot (built, hardware-verified on a real AD5X + NTAG215).** First feature to
+  combine the NFC + Spoolman integrations. In the AD5X `SlotEditorSheet`, when **both** `nfcEnabled`
+  and `spoolmanEnabled` are on, a **Scan roll** button scans a tagged spool, fetches it from Spoolman
+  (`SpoolmanRepository.getSpool(id)` — a robust single-spool lookup, since the dashboard may never
+  load the full list), snaps its material + color to the printer's fixed lists, and **auto-applies**
+  `msConfig_cmd` (brief success card → the sheet auto-dismisses; errors get Retry/Close). Deps are
+  threaded `DashboardScreen → IfsStationCard → SlotEditorSheet` off `MainViewModel`. **Nearest-match
+  lives in `IfsPalette`:** `nearestColor` uses **CIEDE2000** over the 24 swatches (plain ΔE76 wrongly
+  mapped saturated blue→Violet and burgundy→Coral on the live Spoolman library; CIEDE2000 gives
+  `#0000FF`→Dark Blue, `#951e23`→Red — hex is parsed by hand, no `android.graphics`, so it stays
+  pure-JVM unit-tested in `IfsPaletteMatchingTest`). `nearestMaterial` is exact-then-leading-token
+  (deliberately **not** longest-prefix, which mis-snapped `PCTG`→PC / `PA6`→PA; unmatched names fall
+  through to `null` so the caller keeps the current material). The 24 colors + 14 materials in
+  `IfsPalette` are an exact match to the API docs' `AD5X-IFS-Material-Station.md` (only the material
+  dropdown *order* differs — cosmetic). Matching is ~microseconds (benchmarked); any post-scan lag is
+  the two network round-trips (Spoolman fetch + printer write), not the math. Intended to be
+  **pioneered here, then backported to FlashForgeUI-Electron + the standalone Web UI.**
 - **Next session — Spoolman instant-load cache (TODO, keep it simple).** The Spools tab refetches
   on every visit, so there's a brief (not bad) delay before cards appear. Want a lightweight
   background cache so the grid renders instantly from last-known data while a refresh runs behind

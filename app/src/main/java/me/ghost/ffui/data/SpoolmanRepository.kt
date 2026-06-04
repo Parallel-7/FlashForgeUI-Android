@@ -94,6 +94,18 @@ class SpoolmanRepository(private val settings: SettingsDataStore) {
     }
 
     /**
+     * Fetches a single spool by id. A read-only lookup (no list refresh) — used by the dashboard
+     * scan-to-set-slot flow where the spool list may never have been loaded.
+     *
+     * @param spoolId The spool ID.
+     * @return The spool, or an error.
+     */
+    suspend fun getSpool(spoolId: Int): Result<SpoolmanSpool> {
+        val currentApi = api ?: return Result.failure(IllegalStateException("Spoolman not configured"))
+        return currentApi.getSpool(spoolId)
+    }
+
+    /**
      * Deducts filament weight from a spool. Refreshes the spool list on success.
      *
      * @param spoolId The spool ID.

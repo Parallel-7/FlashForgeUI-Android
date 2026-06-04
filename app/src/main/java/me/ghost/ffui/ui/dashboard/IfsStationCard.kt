@@ -35,16 +35,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffapi.models.SlotInfo as MatlSlotInfo
 import me.ghost.ffapi.models.MatlStationInfo
 import me.ghost.ffui.data.ActivePrinterSession
+import me.ghost.ffui.ui.MainViewModel
 import me.ghost.ffui.ui.components.SpoolDisc
 
 // parseHexColor moved to ui/components/SpoolDisc.kt
 
-/** AD5X IFS card: a row of spool slots; tapping a slot opens the [SlotEditorSheet]. */
+/**
+ * AD5X IFS card: a row of spool slots; tapping a slot opens the [SlotEditorSheet]. When NFC and
+ * Spoolman are both enabled, the editor gains a "Scan roll" affordance ([viewModel] supplies the
+ * NFC + Spoolman dependencies for that flow).
+ */
 @Composable
-internal fun IfsStationCard(station: MatlStationInfo, session: ActivePrinterSession) {
+internal fun IfsStationCard(station: MatlStationInfo, session: ActivePrinterSession, viewModel: MainViewModel) {
+    val nfcEnabled by viewModel.settingsDataStore.nfcEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val spoolmanEnabled by viewModel.settingsDataStore.spoolmanEnabled.collectAsStateWithLifecycle(initialValue = false)
     val activeSlot = station.currentSlot.takeIf { it > 0 }
         ?: station.currentLoadSlot.takeIf { it > 0 }
         ?: 0
@@ -96,7 +104,11 @@ internal fun IfsStationCard(station: MatlStationInfo, session: ActivePrinterSess
             slotId = slotId,
             slot = station.slotInfos.find { it.slotId == slotId },
             session = session,
-            onDismiss = { editingSlot = null }
+            onDismiss = { editingSlot = null },
+            nfc = viewModel.nfcManager,
+            spoolmanRepository = viewModel.spoolmanRepository,
+            nfcEnabled = nfcEnabled,
+            spoolmanEnabled = spoolmanEnabled
         )
     }
 }

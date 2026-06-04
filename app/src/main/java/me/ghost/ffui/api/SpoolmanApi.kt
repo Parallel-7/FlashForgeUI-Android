@@ -117,6 +117,34 @@ class SpoolmanApi(baseUrl: String) {
         }
 
     /**
+     * Fetches a single spool by id via GET `/api/v1/spool/{id}`. Used by the dashboard's
+     * scan-to-set-slot flow, where the full spool list may never have been loaded.
+     *
+     * @param spoolId The spool ID.
+     * @return The spool, or an error (e.g. HTTP 404 when no such spool exists).
+     */
+    suspend fun getSpool(spoolId: Int): Result<SpoolmanSpool> =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("$baseUrl/api/v1/spool/$spoolId")
+                    .get()
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(Exception("HTTP ${response.code}"))
+                    }
+                    val bodyStr = response.body?.string()
+                        ?: return@withContext Result.failure(Exception("Empty body"))
+                    Result.success(json.decodeFromString<SpoolmanSpool>(bodyStr))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    /**
      * Deducts filament weight from a spool via PUT `/api/v1/spool/{id}/use`.
      *
      * @param spoolId The spool ID.

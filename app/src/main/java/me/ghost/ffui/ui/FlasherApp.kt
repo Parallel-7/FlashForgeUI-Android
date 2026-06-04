@@ -84,8 +84,8 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                 val currentDestination = navBackStackEntry?.destination
 
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Dashboard, contentDescription = "Dashboard") },
-                    label = { Text("Dashboard") },
+                    icon = { Icon(Icons.Default.Dashboard, contentDescription = "Home") },
+                    label = { Text("Home") },
                     selected = currentDestination?.hierarchy?.any { it.route?.contains("DashboardRoute") == true } == true,
                     onClick = {
                         navController.navigate(DashboardRoute) {

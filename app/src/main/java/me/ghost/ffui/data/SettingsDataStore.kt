@@ -63,6 +63,7 @@ class SettingsDataStore(private val context: Context) {
         val NFC_ENABLED = booleanPreferencesKey("nfc_enabled")
         val NFC_WRITE_URL = booleanPreferencesKey("nfc_write_url")
         val NFC_TAGGED_SPOOLS = stringPreferencesKey("nfc_tagged_spools")
+        val NFC_TAGGED_BOXES = stringPreferencesKey("nfc_tagged_boxes")
     }
 
     /** Allowed range for the background-throttle poll interval, in seconds. */
@@ -161,6 +162,14 @@ class SettingsDataStore(private val context: Context) {
         decodeTaggedSpools(prefs[Keys.NFC_TAGGED_SPOOLS])
     }
 
+    /**
+     * Locally-tracked map of `location → ISO-8601 timestamp` recording which boxes have had an
+     * NFC tag written from this device. Mirrors [nfcTaggedSpools] but keyed by location string.
+     */
+    val nfcTaggedBoxes: Flow<Map<String, String>> = context.dataStore.data.map { prefs ->
+        decodeTaggedBoxes(prefs[Keys.NFC_TAGGED_BOXES])
+    }
+
     // ---- Writers ----
 
     suspend fun setStartupReconnect(mode: StartupReconnect) {
@@ -234,6 +243,24 @@ class SettingsDataStore(private val context: Context) {
             prefs[Keys.NFC_TAGGED_SPOOLS] = encodeTaggedSpools(current)
         }
     }
+
+    /** Records that [location] was tagged at [timestamp] (defaults to now, ISO-8601). */
+    suspend fun markBoxTagged(location: String, timestamp: String) {
+        context.dataStore.edit { prefs ->
+            val current = decodeTaggedBoxes(prefs[Keys.NFC_TAGGED_BOXES]).toMutableMap()
+            current[location] = timestamp
+            prefs[Keys.NFC_TAGGED_BOXES] = encodeTaggedBoxes(current)
+        }
+    }
+
+    /** Forgets the local "tagged" record for [location] (does not affect the physical tag). */
+    suspend fun unmarkBoxTagged(location: String) {
+        context.dataStore.edit { prefs ->
+            val current = decodeTaggedBoxes(prefs[Keys.NFC_TAGGED_BOXES]).toMutableMap()
+            current.remove(location)
+            prefs[Keys.NFC_TAGGED_BOXES] = encodeTaggedBoxes(current)
+        }
+    }
 }
 
 /** JSON for the tagged-spools map; keys are stringified ints (DataStore stores a single string). */
@@ -252,6 +279,18 @@ private fun decodeTaggedSpools(raw: String?): Map<Int, String> {
 
 private fun encodeTaggedSpools(map: Map<Int, String>): String =
     taggedSpoolsJson.encodeToString(map.mapKeys { it.key.toString() })
+
+private fun decodeTaggedBoxes(raw: String?): Map<String, String> {
+    if (raw.isNullOrBlank()) return emptyMap()
+    return try {
+        taggedSpoolsJson.decodeFromString<Map<String, String>>(raw)
+    } catch (_: Exception) {
+        emptyMap()
+    }
+}
+
+private fun encodeTaggedBoxes(map: Map<String, String>): String =
+    taggedSpoolsJson.encodeToString(map)
 
 /** Mask for a serial number when [hide] is set; fixed length so it doesn't leak the real one. */
 fun maskSerial(serial: String, hide: Boolean): String = if (hide) "•••••••••" else serial

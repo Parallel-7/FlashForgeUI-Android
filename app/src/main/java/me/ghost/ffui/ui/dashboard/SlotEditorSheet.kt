@@ -161,6 +161,7 @@ fun SlotEditorSheet(
             }
             is NfcReadResult.Unknown -> scanUi = ScanUi.Error("That tag has no spool data.")
             is NfcReadResult.Error -> scanUi = ScanUi.Error(result.message)
+            is NfcReadResult.BoxFound -> scanUi = ScanUi.Error("That tag is a box, not a spool.")
         }
     }
 

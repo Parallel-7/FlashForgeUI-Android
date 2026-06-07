@@ -21,17 +21,21 @@ import java.time.Instant
 sealed interface NfcMode {
     /** Not waiting for a tag — taps are ignored. */
     data object Idle : NfcMode
-    /** Waiting to read a tag and resolve it to a spool. */
+    /** Waiting to read a tag and resolve it to a spool or box. */
     data object Reading : NfcMode
     /** Waiting to write [spoolId] to a tag. */
     data class Writing(val spoolId: Int) : NfcMode
+    /** Waiting to write a box (location) to a tag. */
+    data class WritingBox(val location: String) : NfcMode
 }
 
 /** Result of a read attempt, surfaced to the UI once and then consumed. */
 sealed interface NfcReadResult {
     /** Tag carried a `SPOOL:<id>` record. The UI resolves [spoolId] against the loaded list. */
     data class Found(val spoolId: Int) : NfcReadResult
-    /** Tag was readable but had no recognisable spool payload. */
+    /** Tag carried a `BOX:<location>` record. The UI resolves [location] against derived boxes. */
+    data class BoxFound(val location: String) : NfcReadResult
+    /** Tag was readable but had no recognisable spool or box payload. */
     data class Unknown(val rawText: String?) : NfcReadResult
     /** The tag could not be read. */
     data class Error(val message: String) : NfcReadResult
@@ -40,6 +44,7 @@ sealed interface NfcReadResult {
 /** Result of a write attempt, surfaced to the UI once and then consumed. */
 sealed interface NfcWriteResult {
     data class Success(val spoolId: Int) : NfcWriteResult
+    data class BoxSuccess(val location: String) : NfcWriteResult
     data class Error(val message: String) : NfcWriteResult
 }
 
@@ -50,11 +55,13 @@ sealed interface NfcWriteResult {
  *
  * The [MainActivity][me.ghost.ffui.MainActivity] routes foreground-dispatched tag intents here via
  * [handleTag]; Compose screens drive [mode] and observe [readResult] / [writeResult]. The canonical
- * tag payload is a single NDEF text record `SPOOL:<id>`; an optional second URI record
- * (`<spoolman-url>/spool/show/<id>`) is appended when [SettingsDataStore.nfcWriteUrl] is on, but is
- * never read back — scanning always relies on the `SPOOL:<id>` record.
+ * tag payloads are:
+ * - **Spool:** a single NDEF text record `SPOOL:<id>`; an optional URI record
+ *   (`<spoolman-url>/spool/show/<id>`) is appended when [SettingsDataStore.nfcWriteUrl] is on,
+ *   but is never read back.
+ * - **Box:** a single NDEF text record `BOX:<location>`. No URI record.
  *
- * @property settings Source of the write-URL flag, the Spoolman base URL, and the local tagged map.
+ * @property settings Source of the write-URL flag, the Spoolman base URL, and the local tagged maps.
  * @property scope Process-lifetime scope used for the deferred settings writes (mark-as-tagged).
  */
 class NfcManager(
@@ -91,6 +98,12 @@ class NfcManager(
         _mode.value = NfcMode.Writing(spoolId)
     }
 
+    /** Enter write mode for a box at [location] (clears any stale result). */
+    fun beginWriteBox(location: String) {
+        _writeResult.value = null
+        _mode.value = NfcMode.WritingBox(location)
+    }
+
     /** Leave read/write mode (dialog dismissed or cancelled). */
     fun cancel() {
         _mode.value = NfcMode.Idle
@@ -116,18 +129,22 @@ class NfcManager(
             is NfcMode.Idle -> Unit
             is NfcMode.Reading -> {
                 _mode.value = NfcMode.Idle
-                _readResult.value = readSpool(tag)
+                _readResult.value = readTag(tag)
             }
             is NfcMode.Writing -> {
                 _mode.value = NfcMode.Idle
                 _writeResult.value = writeSpool(tag, current.spoolId)
+            }
+            is NfcMode.WritingBox -> {
+                _mode.value = NfcMode.Idle
+                _writeResult.value = writeBox(tag, current.location)
             }
         }
     }
 
     // ---- Read ----
 
-    private fun readSpool(tag: Tag): NfcReadResult {
+    private fun readTag(tag: Tag): NfcReadResult {
         val ndef = Ndef.get(tag) ?: return NfcReadResult.Unknown(null)
         val text = try {
             ndef.use {
@@ -138,14 +155,18 @@ class NfcManager(
             Log.e(TAG, "Read failed", e)
             return NfcReadResult.Error(e.message ?: "Failed to read tag")
         }
+        // Try spool first, then box
         val spoolId = parseSpoolId(text)
-        return if (spoolId != null) NfcReadResult.Found(spoolId) else NfcReadResult.Unknown(text)
+        if (spoolId != null) return NfcReadResult.Found(spoolId)
+        val boxLocation = parseBoxLocation(text)
+        if (boxLocation != null) return NfcReadResult.BoxFound(boxLocation)
+        return NfcReadResult.Unknown(text)
     }
 
-    // ---- Write ----
+    // ---- Write: Spool ----
 
     private fun writeSpool(tag: Tag, spoolId: Int): NfcWriteResult {
-        val message = buildMessage(spoolId)
+        val message = buildSpoolMessage(spoolId)
         return try {
             val ndef = Ndef.get(tag)
             if (ndef != null) {
@@ -176,7 +197,7 @@ class NfcManager(
         }
     }
 
-    private fun buildMessage(spoolId: Int): NdefMessage {
+    private fun buildSpoolMessage(spoolId: Int): NdefMessage {
         val records = mutableListOf(NdefRecord.createTextRecord(null, "$SPOOL_PREFIX$spoolId"))
         val url = spoolmanBaseUrl.trim().trimEnd('/')
         if (writeUrlEnabled && url.isNotBlank()) {
@@ -193,9 +214,51 @@ class NfcManager(
         scope.launch { settings.markSpoolTagged(spoolId, Instant.now().toString()) }
     }
 
+    // ---- Write: Box ----
+
+    private fun writeBox(tag: Tag, location: String): NfcWriteResult {
+        val message = buildBoxMessage(location)
+        return try {
+            val ndef = Ndef.get(tag)
+            if (ndef != null) {
+                ndef.use {
+                    it.connect()
+                    if (!it.isWritable) {
+                        return NfcWriteResult.Error("This tag is read-only.")
+                    }
+                    if (it.maxSize < message.byteArrayLength) {
+                        return NfcWriteResult.Error("Tag is too small for this data.")
+                    }
+                    it.writeNdefMessage(message)
+                }
+            } else {
+                val formatable = NdefFormatable.get(tag)
+                    ?: return NfcWriteResult.Error("This tag doesn't support NDEF.")
+                formatable.use {
+                    it.connect()
+                    it.format(message)
+                }
+            }
+            markBoxTaggedLocally(location)
+            NfcWriteResult.BoxSuccess(location)
+        } catch (e: Exception) {
+            Log.e(TAG, "Box write failed", e)
+            NfcWriteResult.Error(e.message ?: "Failed to write tag")
+        }
+    }
+
+    private fun buildBoxMessage(location: String): NdefMessage {
+        return NdefMessage(arrayOf(NdefRecord.createTextRecord(null, "$BOX_PREFIX$location")))
+    }
+
+    private fun markBoxTaggedLocally(location: String) {
+        scope.launch { settings.markBoxTagged(location, Instant.now().toString()) }
+    }
+
     companion object {
         private const val TAG = "NfcManager"
         private const val SPOOL_PREFIX = "SPOOL:"
+        private const val BOX_PREFIX = "BOX:"
 
         /** Parse a `SPOOL:<id>` payload (first matching line) into a spool ID, or null. */
         fun parseSpoolId(payload: String?): Int? {
@@ -206,6 +269,17 @@ class NfcManager(
                 ?.substringAfter(':')
                 ?.trim()
                 ?.toIntOrNull()
+        }
+
+        /** Parse a `BOX:<location>` payload (first matching line) into a location string, or null. */
+        fun parseBoxLocation(payload: String?): String? {
+            if (payload.isNullOrBlank()) return null
+            return payload.lineSequence()
+                .map { it.trim() }
+                .firstOrNull { it.startsWith(BOX_PREFIX, ignoreCase = true) }
+                ?.substringAfter(':')
+                ?.trim()
+                ?.ifBlank { null }
         }
 
         /** Decode a well-known RTD_TEXT record into its UTF-8 string, or null if not a text record. */

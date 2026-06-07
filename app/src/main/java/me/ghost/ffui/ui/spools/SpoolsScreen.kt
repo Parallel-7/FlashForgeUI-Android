@@ -1,5 +1,6 @@
 package me.ghost.ffui.ui.spools
 
+import android.nfc.NfcAdapter
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateFloat
@@ -12,17 +13,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -46,6 +42,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -62,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -95,9 +95,17 @@ enum class NfcFilter(val label: String) {
     fun next(): NfcFilter = entries[(ordinal + 1) % entries.size]
 }
 
+/** Toggle between the Spools grid and the Boxes grid. */
+enum class SpoolsViewMode { Spools, Boxes }
+
 /**
- * The Spools tab — a 2-column grid of [SpoolCard]s backed by the user's Spoolman server.
- * Handles search, sort, show-archived, and the NotConfigured/Error/Empty states.
+ * The Spools tab — hosts both the "Spools" grid view and the "Boxes" grid view behind a
+ * segmented toggle ([SpoolsViewMode]). Handles search, sort, show-archived, NFC scan/write,
+ * and the NotConfigured/Error/Empty states.
+ *
+ * The scan handler lives at this level for smart routing: a scanned spool tag flips to the
+ * Spools view, a scanned box tag flips to the Boxes view. Pending targets are passed down
+ * to each view for consumption.
  *
  * @param viewModel The app's [MainViewModel].
  * @param onNavigateToEdit Navigate to the spool edit screen with the given spool ID.
@@ -117,7 +125,14 @@ fun SpoolsScreen(
 
     // NFC: scan/write state + local tagged map. The icons & filter only appear when NFC is enabled.
     val nfc = viewModel.nfcManager
-    val nfcEnabled by viewModel.settingsDataStore.nfcEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val context = LocalContext.current
+    // NFC affordances require BOTH the user setting AND real NFC hardware. Mirror the Settings
+    // screen's effective state (nfcEnabled && nfcAvailable) so we never show scan/write buttons on a
+    // device (e.g. the emulator) that can't do NFC — even if the stored flag persisted from another
+    // device where it was turned on.
+    val nfcAvailable = remember { NfcAdapter.getDefaultAdapter(context) != null }
+    val nfcEnabledSetting by viewModel.settingsDataStore.nfcEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val nfcEnabled = nfcEnabledSetting && nfcAvailable
     val taggedSpools by viewModel.settingsDataStore.nfcTaggedSpools.collectAsStateWithLifecycle(initialValue = emptyMap())
     val statStyle by viewModel.settingsDataStore.spoolStatStyle.collectAsStateWithLifecycle(initialValue = SpoolStatStyle.PERCENT)
     val nfcMode by nfc.mode.collectAsStateWithLifecycle()
@@ -133,8 +148,12 @@ fun SpoolsScreen(
     var sortExpanded by remember { mutableStateOf(false) }
     var infoSpool by remember { mutableStateOf<SpoolmanSpool?>(null) }
     var nfcFilter by remember { mutableStateOf(NfcFilter.All) }
-    var highlightedSpoolId by remember { mutableStateOf<Int?>(null) }
     var writeDialogSpoolId by remember { mutableStateOf<Int?>(null) }
+
+    // View mode + pending scan targets
+    var viewMode by remember { mutableStateOf(SpoolsViewMode.Spools) }
+    var pendingScrollSpoolId by remember { mutableStateOf<Int?>(null) }
+    var pendingOpenBox by remember { mutableStateOf<String?>(null) }
 
     // Initial load when the screen is first composed and the repo is configured
     LaunchedEffect(loadState) {
@@ -169,21 +188,18 @@ fun SpoolsScreen(
         }
     }
 
-    // Resolve a completed scan: scroll to + flash the matching card, or report why we can't.
+    // Smart scan routing: handle readResult at this level, flip view mode, set pending targets.
     LaunchedEffect(readResult) {
         val result = readResult ?: return@LaunchedEffect
         nfc.consumeReadResult()
         when (result) {
             is NfcReadResult.Found -> {
-                val index = filteredSpools.indexOfFirst { it.id == result.spoolId }
-                if (index >= 0) {
-                    highlightedSpoolId = result.spoolId
-                    scope.launch { gridState.animateScrollToItem(index) }
-                } else {
-                    scope.launch {
-                        snackbarHostState.showSnackbar("Spool #${result.spoolId} isn't shown — check search/filters")
-                    }
-                }
+                viewMode = SpoolsViewMode.Spools
+                pendingScrollSpoolId = result.spoolId
+            }
+            is NfcReadResult.BoxFound -> {
+                viewMode = SpoolsViewMode.Boxes
+                pendingOpenBox = result.location
             }
             is NfcReadResult.Unknown -> scope.launch {
                 snackbarHostState.showSnackbar("Tag has no spool data")
@@ -194,20 +210,12 @@ fun SpoolsScreen(
         }
     }
 
-    // Clear the card highlight a moment after a successful scan.
-    LaunchedEffect(highlightedSpoolId) {
-        if (highlightedSpoolId != null) {
-            delay(2500)
-            highlightedSpoolId = null
-        }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Spools") },
+                title = { Text(if (viewMode == SpoolsViewMode.Boxes) "Boxes" else "Spools") },
                 actions = {
-                    // Scan a tag → jump to its spool (NFC only)
+                    // Scan a tag → smart-routes to spool or box
                     if (nfcEnabled) {
                         IconButton(onClick = { nfc.beginRead() }) {
                             Icon(Icons.Default.Contactless, contentDescription = "Scan tag")
@@ -229,93 +237,115 @@ fun SpoolsScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Search + sort + archive toggle row
-            Column(
+            // Segmented toggle: Spools | Boxes
+            SingleChoiceSegmentedButtonRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
-                    .padding(top = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Search field
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Search spools…") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (query.isNotEmpty()) {
-                            IconButton(onClick = { query = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear search")
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { /* client-side, no action needed */ })
-                )
-
-                // Sort + archive + tag filter row. FlowRow lets the chips wrap to a second line on
-                // narrow screens instead of overflowing and inflating the row height, and keeps them
-                // on a single line where there's room — no hardcoded widths.
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                SegmentedButton(
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    onClick = { viewMode = SpoolsViewMode.Spools },
+                    selected = viewMode == SpoolsViewMode.Spools
                 ) {
-                    // Sort dropdown trigger
-                    Box {
-                        TextButton(onClick = { sortExpanded = true }) {
-                            Text(
-                                "Sort: ${sortOption.label}",
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                            Icon(
-                                Icons.Default.ArrowDropDown,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
-                            SpoolSortOption.entries.forEach { option ->
-                                DropdownMenuItem(
-                                    text = { Text(option.label) },
-                                    onClick = {
-                                        sortOption = option
-                                        sortExpanded = false
-                                    }
+                    Text("Spools")
+                }
+                SegmentedButton(
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    onClick = { viewMode = SpoolsViewMode.Boxes },
+                    selected = viewMode == SpoolsViewMode.Boxes
+                ) {
+                    Text("Boxes")
+                }
+            }
+
+            // Search + sort + archive toggle row (shared context for spools view)
+            if (viewMode == SpoolsViewMode.Spools) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Search field
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search spools…") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (query.isNotEmpty()) {
+                                IconButton(onClick = { query = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear search")
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { /* client-side, no action needed */ })
+                    )
+
+                    // Sort + archive + tag filter row
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        // Sort dropdown trigger
+                        Box {
+                            TextButton(onClick = { sortExpanded = true }) {
+                                Text(
+                                    "Sort: ${sortOption.label}",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                                Icon(
+                                    Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
+                            DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
+                                SpoolSortOption.entries.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option.label) },
+                                        onClick = {
+                                            sortOption = option
+                                            sortExpanded = false
+                                        }
+                                    )
+                                }
+                            }
                         }
-                    }
 
-                    // Show archived toggle
-                    TextButton(onClick = { showArchived = !showArchived }) {
-                        Icon(
-                            if (showArchived) Icons.Default.Inventory2 else Icons.Outlined.Inventory2,
-                            contentDescription = if (showArchived) "Hide archived" else "Show archived",
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            if (showArchived) "Hide archived" else "Show archived",
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    }
-
-                    // NFC-tagged filter — cycles All → Tagged → Untagged
-                    if (nfcEnabled) {
-                        TextButton(onClick = { nfcFilter = nfcFilter.next() }) {
+                        // Show archived toggle
+                        TextButton(onClick = { showArchived = !showArchived }) {
                             Icon(
-                                Icons.Default.Contactless,
-                                contentDescription = null,
+                                if (showArchived) Icons.Default.Inventory2 else Icons.Outlined.Inventory2,
+                                contentDescription = if (showArchived) "Hide archived" else "Show archived",
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
-                                "Tags: ${nfcFilter.label}",
+                                if (showArchived) "Hide archived" else "Show archived",
                                 style = MaterialTheme.typography.labelMedium
                             )
+                        }
+
+                        // NFC-tagged filter — cycles All → Tagged → Untagged
+                        if (nfcEnabled) {
+                            TextButton(onClick = { nfcFilter = nfcFilter.next() }) {
+                                Icon(
+                                    Icons.Default.Contactless,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    "Tags: ${nfcFilter.label}",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
                         }
                     }
                 }
@@ -345,38 +375,42 @@ fun SpoolsScreen(
                     )
                 }
                 is SpoolmanLoadState.Loaded -> {
-                    if (filteredSpools.isEmpty()) {
-                        EmptyState(
-                            message = if (spools.isEmpty()) "No spools found." else "No spools match your search.",
-                            onAction = null,
-                            actionLabel = null
-                        )
-                    } else {
-                        LazyVerticalGrid(
-                            state = gridState,
-                            // Adaptive instead of a fixed count: 2 columns on a phone, more on wider
-                            // screens, derived from a min card width rather than a hardcoded number.
-                            columns = GridCells.Adaptive(minSize = 150.dp),
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(filteredSpools, key = { it.id }) { spool ->
-                                SpoolCard(
-                                    spool = spool,
-                                    onInfoClick = { infoSpool = spool },
-                                    onEditClick = { onNavigateToEdit(spool.id) },
-                                    statStyle = statStyle,
-                                    nfcEnabled = nfcEnabled,
-                                    tagged = taggedSpools.containsKey(spool.id),
-                                    highlighted = highlightedSpoolId == spool.id,
-                                    onWriteClick = {
-                                        nfc.beginWrite(spool.id)
-                                        writeDialogSpoolId = spool.id
-                                    }
-                                )
-                            }
+                    when (viewMode) {
+                        SpoolsViewMode.Spools -> {
+                            SpoolListView(
+                                filteredSpools = filteredSpools,
+                                spools = spools,
+                                gridState = gridState,
+                                statStyle = statStyle,
+                                nfcEnabled = nfcEnabled,
+                                taggedSpools = taggedSpools,
+                                pendingScrollSpoolId = pendingScrollSpoolId,
+                                onPendingScrollConsumed = { pendingScrollSpoolId = null },
+                                onSnackbar = { scope.launch { snackbarHostState.showSnackbar(it) } },
+                                nfc = nfc,
+                                onInfoClick = { infoSpool = it },
+                                onEditClick = onNavigateToEdit,
+                                writeDialogSpoolId = writeDialogSpoolId,
+                                onWriteDialogSpoolIdChanged = { writeDialogSpoolId = it }
+                            )
+                        }
+                        SpoolsViewMode.Boxes -> {
+                            BoxGridView(
+                                spools = spools,
+                                loadState = loadState,
+                                repo = repo,
+                                settings = viewModel.settingsDataStore,
+                                nfc = nfc,
+                                nfcEnabled = nfcEnabled,
+                                pendingOpenBox = pendingOpenBox,
+                                onPendingOpenBoxConsumed = { pendingOpenBox = null },
+                                onSnackbar = { scope.launch { snackbarHostState.showSnackbar(it) } },
+                                onSpoolInfo = { spoolId ->
+                                    val spool = spools.firstOrNull { it.id == spoolId }
+                                    if (spool != null) infoSpool = spool
+                                },
+                                statStyle = statStyle
+                            )
                         }
                     }
                 }
@@ -402,12 +436,12 @@ fun SpoolsScreen(
         NfcPromptDialog(
             expanding = true,
             title = "Scan a tag",
-            message = "Hold your phone to the spool's NFC tag.",
+            message = "Hold your phone to a spool or box tag.",
             onDismiss = { nfc.cancel() }
         )
     }
 
-    // NFC write dialog — shows the prompt, then the write result.
+    // NFC write dialog for spools — shows the prompt, then the write result.
     writeDialogSpoolId?.let { spoolId ->
         val spoolName = spools.firstOrNull { it.id == spoolId }?.displayName ?: "spool #$spoolId"
         NfcWriteDialog(
@@ -428,9 +462,11 @@ fun SpoolsScreen(
  * ripple **outward** when [expanding] is true (the read/scan flow — sensing an approaching tag) or
  * contract **inward** when false (the write flow — pushing data into the tag), so the two flows are
  * distinguishable at a glance while sharing the same icon. Sized in dp so it scales with density.
+ *
+ * Package-visible so [BoxGridView] can reuse it for box write dialogs.
  */
 @Composable
-private fun NfcRippleIndicator(expanding: Boolean, modifier: Modifier = Modifier) {
+internal fun NfcRippleIndicator(expanding: Boolean, modifier: Modifier = Modifier) {
     val color = MaterialTheme.colorScheme.primary
     val transition = rememberInfiniteTransition(label = "nfcRipple")
     val ringCount = 3
@@ -476,9 +512,11 @@ private fun NfcRippleIndicator(expanding: Boolean, modifier: Modifier = Modifier
  * Generic "hold your phone to a tag" prompt. Shows the animated NFC indicator — rings ripple
  * outward when [expanding] (reading) or contract inward when writing — above the title/message.
  * Used for the read flow and as the waiting state of the write flow.
+ *
+ * Package-visible so [BoxGridView] can reuse it for box write dialogs.
  */
 @Composable
-private fun NfcPromptDialog(
+internal fun NfcPromptDialog(
     expanding: Boolean,
     title: String,
     message: String,
@@ -554,6 +592,10 @@ private fun NfcWriteDialog(
                     }
                 }
             }
+        }
+        is NfcWriteResult.BoxSuccess -> {
+            // A box success arriving while writing a spool — dismiss it
+            LaunchedEffect(Unit) { onDismiss() }
         }
         is NfcWriteResult.Error -> {
             Dialog(onDismissRequest = onDismiss) {

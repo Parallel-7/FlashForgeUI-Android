@@ -53,6 +53,8 @@ import me.ghost.ffui.ui.components.SpoolDisc
 internal fun IfsStationCard(station: MatlStationInfo, session: ActivePrinterSession, viewModel: MainViewModel) {
     val nfcEnabled by viewModel.settingsDataStore.nfcEnabled.collectAsStateWithLifecycle(initialValue = false)
     val spoolmanEnabled by viewModel.settingsDataStore.spoolmanEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val capabilities by session.capabilities.collectAsStateWithLifecycle()
+    val isCreator5 = capabilities.model.isCreator5
     val activeSlot = station.currentSlot.takeIf { it > 0 }
         ?: station.currentLoadSlot.takeIf { it > 0 }
         ?: 0
@@ -108,7 +110,8 @@ internal fun IfsStationCard(station: MatlStationInfo, session: ActivePrinterSess
             nfc = viewModel.nfcManager,
             spoolmanRepository = viewModel.spoolmanRepository,
             nfcEnabled = nfcEnabled,
-            spoolmanEnabled = spoolmanEnabled
+            spoolmanEnabled = spoolmanEnabled,
+            isCreator5 = isCreator5
         )
     }
 }

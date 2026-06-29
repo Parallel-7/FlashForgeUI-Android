@@ -1,6 +1,7 @@
 package me.ghost.ffui.ui.components
 
 import androidx.compose.ui.graphics.Color
+import me.ghost.ffapi.api.controls.creator5.Creator5Palette
 
 /**
  * Canonical AD5X IFS materials and colors, shared between the dashboard slot editor and the future
@@ -97,6 +98,58 @@ object IfsPalette {
         val firstToken = normalizeMaterial(trimmed.substringBefore(' '))
         if (firstToken.isEmpty()) return null
         return MATERIALS.firstOrNull { normalizeMaterial(it) == firstToken }
+    }
+
+    // ── Creator 5 (model-aware overlay) ────────────────────────────
+    //
+    // Everything above is the AD5X palette and stays the default. The Creator 5 firmware only
+    // renders a color icon when the slot's rgb field is an EXACT, case-sensitive #RRGGBB match
+    // against its own 24-color palette (Blue is #4CAAF8 here vs #45A8F9 on the AD5X), so the slot
+    // editor must render the right swatches per model. The 24 colors are pulled straight from the
+    // library's Creator5Palette (single source of truth — never re-declare the hexes here, they'd
+    // drift); materials are freeform on the wire so they live here.
+
+    /**
+     * The 21 materials the Creator 5 UI renders (firmware order, sourced from the FFUI Electron
+     * reference `creator5-palette.ts`). The library exposes colors only; materials are freeform on
+     * the wire so they live here.
+     */
+    val CREATOR5_MATERIALS: List<String> = listOf(
+        "PLA", "PETG", "PLA-CF", "PETG-CF", "ABS", "ASA", "SILK", "PET-CF",
+        "PAHT-CF", "S-PAHT", "S-Multi", "PA-CF", "HIPS", "PVA", "TPU-90A",
+        "TPU-95A", "TPU-64D", "PC", "PA", "PC-ABS", "PPS-CF"
+    )
+
+    /**
+     * The Creator 5 24-color palette as [PaletteColor]s, sourced from the library's
+     * [Creator5Palette] (the exact firmware hexes, uppercase `#RRGGBB`). [PaletteColor.color]
+     * parses `#RRGGBB` via `android.graphics.Color`, so it renders these too.
+     */
+    val CREATOR5_COLORS: List<PaletteColor> =
+        Creator5Palette.CREATOR5_PALETTE.map { PaletteColor(it.name, it.hex) }
+
+    /** The material list the slot editor should offer for [isCreator5] vs the AD5X default. */
+    fun materialsFor(isCreator5: Boolean): List<String> =
+        if (isCreator5) CREATOR5_MATERIALS else MATERIALS
+
+    /** The color palette the slot editor should render for [isCreator5] vs the AD5X default. */
+    fun colorsFor(isCreator5: Boolean): List<PaletteColor> =
+        if (isCreator5) CREATOR5_COLORS else COLORS
+
+    /**
+     * The palette color the printer will actually store for [hex] (`#RRGGBB`, with or without `#`),
+     * snapped through the right palette for the model. AD5X uses the existing CIEDE2000 path (null
+     * if [hex] is null/unparseable); Creator 5 delegates to the library's exact-match snap, which
+     * never returns null (unparseable -> White, the firmware's own fallback) — but a null [hex]
+     * still yields null so callers can report "no color set".
+     */
+    fun nearestColorFor(isCreator5: Boolean, hex: String?): PaletteColor? {
+        if (hex == null) return null
+        return if (isCreator5) {
+            Creator5Palette.snapToCreator5Palette(hex).let { PaletteColor(it.name, it.hex) }
+        } else {
+            nearestColor(hex)
+        }
     }
 
     /** Uppercase, alphanumerics only — so "PETG-CF" and "petg cf" both become "PETGCF". */

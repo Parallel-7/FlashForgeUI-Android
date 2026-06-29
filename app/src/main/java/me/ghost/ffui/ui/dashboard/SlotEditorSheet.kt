@@ -83,9 +83,11 @@ private sealed interface ScanUi {
 }
 
 /**
- * Bottom-sheet editor for one AD5X IFS slot. Lets the user set the slot's material + color
- * (`msConfig_cmd`). Material and color are restricted to the printer-recognized
- * [IfsPalette.MATERIALS] / [IfsPalette.COLORS] so we never push a value the printer UI can't render.
+ * Bottom-sheet editor for one material-station slot (AD5X or Creator 5). Lets the user set the
+ * slot's material + color (`msConfig_cmd`). Material and color are restricted to the
+ * printer-recognized palette for the current model — [IfsPalette.materialsFor] / [IfsPalette.colorsFor]
+ * via [isCreator5] — so we never push a value the printer UI can't render (the Creator 5 firmware
+ * needs an exact palette match, so it gets its own swatches).
  * Submitting fires the command and dismisses; the next `/detail` poll reflects the change.
  *
  * When [nfcEnabled] and [spoolmanEnabled] are both on, a **Scan roll** button appears: tapping it
@@ -106,14 +108,15 @@ fun SlotEditorSheet(
     nfc: NfcManager? = null,
     spoolmanRepository: SpoolmanRepository? = null,
     nfcEnabled: Boolean = false,
-    spoolmanEnabled: Boolean = false
+    spoolmanEnabled: Boolean = false,
+    isCreator5: Boolean = false
 ) {
     val scope = rememberCoroutineScope()
 
     // Seed material from the slot if it's a recognized type; otherwise default to PLA.
     val initialName = slot?.materialName?.takeIf { it.isNotBlank() && it != "?" }
     var selectedMaterial by remember {
-        mutableStateOf(initialName?.takeIf { it in IfsPalette.MATERIALS } ?: "PLA")
+        mutableStateOf(initialName?.takeIf { it in IfsPalette.materialsFor(isCreator5) } ?: "PLA")
     }
     var materialMenuOpen by remember { mutableStateOf(false) }
 
@@ -150,6 +153,7 @@ fun SlotEditorSheet(
                         repo = spoolmanRepository,
                         session = session,
                         slotId = slotId,
+                        isCreator5 = isCreator5,
                         currentMaterial = selectedMaterial,
                         onMatched = { matchedMaterial, matchedColor ->
                             selectedMaterial = matchedMaterial
@@ -206,7 +210,7 @@ fun SlotEditorSheet(
                     modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(expanded = materialMenuOpen, onDismissRequest = { materialMenuOpen = false }) {
-                    IfsPalette.MATERIALS.forEach { mat ->
+                    IfsPalette.materialsFor(isCreator5).forEach { mat ->
                         DropdownMenuItem(
                             text = { Text(mat) },
                             onClick = { selectedMaterial = mat; materialMenuOpen = false }
@@ -218,7 +222,7 @@ fun SlotEditorSheet(
             // Color swatch grid.
             Text("Color", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                IfsPalette.COLORS.forEach { pc ->
+                IfsPalette.colorsFor(isCreator5).forEach { pc ->
                     val selected = pc.hex.equals("#" + hex.removePrefix("#"), ignoreCase = true)
                     Box(
                         Modifier
@@ -318,6 +322,7 @@ private suspend fun applyScannedSpool(
     repo: SpoolmanRepository,
     session: ActivePrinterSession,
     slotId: Int,
+    isCreator5: Boolean,
     currentMaterial: String,
     onMatched: (material: String, color: IfsPalette.PaletteColor) -> Unit,
     onResult: (ScanUi) -> Unit
@@ -330,7 +335,7 @@ private suspend fun applyScannedSpool(
     // Prefer the single color; fall back to the first of a multi-color filament.
     val rawColor = spool.filament.color_hex?.takeIf { it.isNotBlank() }
         ?: spool.filament.multi_color_hexes?.split(",")?.firstOrNull()?.trim()
-    val matchedColor = IfsPalette.nearestColor(rawColor)
+    val matchedColor = IfsPalette.nearestColorFor(isCreator5, rawColor)
     if (matchedColor == null) {
         onResult(ScanUi.Error("${spool.displayName} has no color set in Spoolman."))
         return

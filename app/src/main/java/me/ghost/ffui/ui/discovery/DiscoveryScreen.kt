@@ -156,15 +156,21 @@ fun DiscoveryScreen(
 
 /**
  * Picks the printer render for a tile. Prefers the firmware-stable [PrinterEntity.modelPid]
- * (35=5M, 36=5M Pro, 38=AD5X); legacy printers (Adventurer 3/4) have no pid, and discovered-but-
- * unsaved printers don't know it yet, so it falls back to name heuristics. Unknown models default
- * to the 5M render.
+ * (35=5M, 36=5M Pro, 38=AD5X, 40=Creator 5, 41=Creator 5 Pro); legacy printers (Adventurer 3/4) have
+ * no pid, and discovered-but-unsaved printers don't know it yet, so it falls back to name heuristics.
+ * Unknown models default to the 5M render.
  */
 @DrawableRes
 private fun printerImageRes(modelPid: Int?, name: String): Int = when {
     modelPid == PrinterModel.PID_AD5X -> R.drawable.printer_ad5x
     modelPid == PrinterModel.PID_5M_PRO -> R.drawable.printer_5m_pro
     modelPid == PrinterModel.PID_5M -> R.drawable.printer_5m
+    modelPid == PrinterModel.PID_CREATOR_5_PRO -> R.drawable.printer_creator5_pro
+    modelPid == PrinterModel.PID_CREATOR_5 -> R.drawable.printer_creator5
+    // Creator 5 arms precede the generic Pro/5M name checks: "Creator 5 Pro" contains "Pro", so it
+    // must be matched first (mirrors how 5X/Pro are ordered against 5M below).
+    name.contains("Creator 5 Pro", ignoreCase = true) -> R.drawable.printer_creator5_pro
+    name.contains("Creator 5", ignoreCase = true) -> R.drawable.printer_creator5
     name.contains("5X", ignoreCase = true) -> R.drawable.printer_ad5x
     name.contains("Pro", ignoreCase = true) -> R.drawable.printer_5m_pro
     name.contains("5M", ignoreCase = true) -> R.drawable.printer_5m

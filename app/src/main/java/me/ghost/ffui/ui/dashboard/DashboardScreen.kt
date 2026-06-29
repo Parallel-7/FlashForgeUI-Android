@@ -238,7 +238,22 @@ private fun DashboardContent(session: ActivePrinterSession, viewModel: MainViewM
 
         JobStatsRow(status = status)
 
-        HeaterGrid(status = status, onHeaterClick = { showTempDialog = it })
+        if (capabilities.model.isCreator5) {
+            // Creator 5 / 5 Pro tool-changer: 4 tool heads + heated bed + heated chamber, each with
+            // its own Set/Off. The card owns its own dialog; these lambdas mirror the single-toolhead
+            // dispatch below (same scope, same session pass-throughs).
+            Creator5TemperatureCard(
+                detail = status,
+                onCreate5SetTool = { idx, t -> scope.launch { session.setToolTemp(idx, t) } },
+                onCreate5CancelTool = { idx -> scope.launch { session.cancelToolTemp(idx) } },
+                onCreate5SetBed = { t -> scope.launch { session.setBedTemp(t) } },
+                onCreate5CancelBed = { scope.launch { session.cancelBedTemp() } },
+                onCreate5SetChamber = { t -> scope.launch { session.setChamberTemp(t) } },
+                onCreate5CancelChamber = { scope.launch { session.cancelChamberTemp() } }
+            )
+        } else {
+            HeaterGrid(status = status, onHeaterClick = { showTempDialog = it })
+        }
 
         // Air filtration (5M Pro) — interactive, capability-gated.
         if (capabilities.filtrationControl) {

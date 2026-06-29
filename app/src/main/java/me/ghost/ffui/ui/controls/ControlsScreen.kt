@@ -45,6 +45,7 @@ import me.ghost.ffui.ui.MainViewModel
 import me.ghost.ffui.ui.jobStateOf
 import me.ghost.ffui.ui.dashboard.FiltrationCard
 import me.ghost.ffui.ui.dashboard.HeaterGrid
+import me.ghost.ffui.ui.dashboard.Creator5TemperatureCard
 import me.ghost.ffui.ui.dashboard.TemperatureDialog
 
 /**
@@ -134,20 +135,38 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
 
         // ── Temperature ─────────────────────────────────────────────────────
         ControlSection("Temperature") {
-            HeaterGrid(status = status, onHeaterClick = { showTempDialog = it })
+            if (capabilities.model.isCreator5) {
+                // Creator 5 / 5 Pro tool-changer: 4 tool heads + heated bed + heated chamber. The card
+                // owns its own dialog; lambdas mirror the single-toolhead dispatch (same scope/pass-throughs).
+                Creator5TemperatureCard(
+                    detail = status,
+                    onCreate5SetTool = { idx, t -> scope.launch { session.setToolTemp(idx, t) } },
+                    onCreate5CancelTool = { idx -> scope.launch { session.cancelToolTemp(idx) } },
+                    onCreate5SetBed = { t -> scope.launch { session.setBedTemp(t) } },
+                    onCreate5CancelBed = { scope.launch { session.cancelBedTemp() } },
+                    onCreate5SetChamber = { t -> scope.launch { session.setChamberTemp(t) } },
+                    onCreate5CancelChamber = { scope.launch { session.cancelChamberTemp() } }
+                )
+            } else {
+                HeaterGrid(status = status, onHeaterClick = { showTempDialog = it })
+            }
         }
 
         // ── Motion ──────────────────────────────────────────────────────────
-        ControlSection("Motion") {
-            Button(
-                onClick = { scope.launch { session.home() } },
-                enabled = !job.isActiveJob,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(Icons.Default.Home, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("HOME ALL AXES")
+        // Homing rides the TCP G-code channel, which the HTTP-only Creator 5 series lacks — the
+        // backend reports it unsupported, so the whole Motion section is hidden there.
+        if (!capabilities.model.isCreator5) {
+            ControlSection("Motion") {
+                Button(
+                    onClick = { scope.launch { session.home() } },
+                    enabled = !job.isActiveJob,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Default.Home, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("HOME ALL AXES")
+                }
             }
         }
 

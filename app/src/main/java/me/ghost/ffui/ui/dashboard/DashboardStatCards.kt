@@ -211,3 +211,64 @@ internal fun TemperatureDialog(heaterName: String, onSet: (Int) -> Unit, onDismi
         }
     )
 }
+
+/**
+ * Generalized [TemperatureDialog] for heaters whose **Off** action must route to a dedicated cancel
+ * (rather than `onSet(0)`), and/or which need a client-side temperature clamp.
+ *
+ * The original 3-arg [TemperatureDialog] routes Off through `onSet(0)` — correct for the
+ * single-toolhead 5M / 5M Pro / AD5X bed & nozzle (cancelled by setting 0), but **wrong** for a
+ * Creator 5 tool, whose firmware only treats a literal 0 inside the `nozzles` array as off and
+ * ignores -100. Passing a distinct [onOff] lambda keeps each call site safe: tool Off routes to the
+ * backend tool-cancel, bed/chamber Off route to their own cancels. The original 3-arg overload is
+ * left unchanged for the single-toolhead path.
+ *
+ * @param heaterName Label shown in the dialog title.
+ * @param onSet Invoked with the entered (and clamped) temperature when the user taps Set.
+ * @param onOff Invoked when the user taps Off — routes to the heater's dedicated cancel.
+ * @param onDismiss Invoked when the user dismisses the dialog (Cancel / back / outside tap).
+ * @param maxTemp Optional firmware ceiling; the entered value is clamped to this client-side
+ *  (e.g. 80 for the heated chamber).
+ */
+@Composable
+internal fun TemperatureDialog(
+    heaterName: String,
+    onSet: (Int) -> Unit,
+    onOff: () -> Unit,
+    onDismiss: () -> Unit,
+    maxTemp: Int? = null,
+) {
+    var tempStr by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Set $heaterName Temperature") },
+        text = {
+            OutlinedTextField(
+                value = tempStr,
+                onValueChange = { raw ->
+                    val digits = raw.filter(Char::isDigit)
+                    tempStr = digits.toIntOrNull()
+                        ?.let { v -> if (maxTemp != null) v.coerceAtMost(maxTemp) else v }
+                        ?.toString()
+                        ?: digits
+                },
+                label = { Text("Temperature °C") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onOff) { Text("Off") }
+                Button(onClick = {
+                    tempStr.toIntOrNull()?.let { v ->
+                        onSet(if (maxTemp != null) v.coerceAtMost(maxTemp) else v)
+                    }
+                }) { Text("Set") }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}

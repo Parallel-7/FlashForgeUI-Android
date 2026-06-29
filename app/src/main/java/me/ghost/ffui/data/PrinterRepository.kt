@@ -20,8 +20,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class PrinterRepository(private val dao: PrinterDao) {
     val savedPrinters: Flow<List<PrinterEntity>> = dao.getAllPrinters()
@@ -124,8 +126,11 @@ class ActivePrinterSession(
     fun startSession() {
         if (pollJob?.isActive == true) return
         _connectionState.value = ConnectionState.Connecting
-        // TCP is control-only for modern printers; connect it so LED/homing are ready on demand.
-        tcpClient.connect()
+        // TCP is control-only for modern printers; it is connected AFTER the model is identified
+        // and gated on the backend's `httpOnly` (Creator 5 has no usable TCP channel, so it is
+        // never connected — an eager connect here would hang on a dead 8899). The `forceLegacy`
+        // path identifies over TCP, so it eager-connects here.
+        if (printer.forceLegacy) tcpClient.connect()
         pollJob = scope.launch { pollLoop() }
     }
 
@@ -159,6 +164,11 @@ class ActivePrinterSession(
                 newBackend.initialize()
                 backend = newBackend
                 _capabilities.value = newBackend.capabilities
+                // HTTP-only models (Creator 5) expose no usable TCP control channel — never
+                // connect it, or the socket hangs/times out on a dead 8899. Modern dual-API
+                // printers connect here so LED/homing/temp controls are ready on demand (idempotent
+                // if already up, e.g. a forceLegacy reconnect that refined into a modern model).
+                if (!newBackend.httpOnly) tcpClient.connect()
                 _status.value = detail
                 _matlStation.value = newBackend.materialStation(detail)
                 _connectionState.value = ConnectionState.Connected
@@ -187,6 +197,15 @@ class ActivePrinterSession(
      * TCP client.
      */
     private suspend fun identifyViaTcp() {
+        // Ensure the TCP channel is open: startSession only eager-connects for `forceLegacy`, so the
+        // HTTP-failure fallback can arrive here without a prior connect. Idempotent. HTTP-only
+        // models don't reach this on the happy path (their /detail succeeds); if their HTTP is down
+        // the probe below simply fails fast (clean Offline via applyFailure) rather than crashing.
+        tcpClient.connect()
+        // connect() is async (socket + ~M601 login run on Dispatchers.IO); give it a moment to come
+        // up so legacy identify succeeds on the first tick rather than self-healing on the next one.
+        // No-op when already connected; returns null on timeout, after which the ~M115 probe fails fast.
+        withTimeoutOrNull(3_000) { tcpClient.isConnected.first { it } }
         tcpClient.sendRawCommand("~M115", timeoutMs = 3_000)
             .onSuccess { response ->
                 // Strip A3-specific ack:/echo: prefixes from each line before searching.
@@ -341,6 +360,15 @@ class ActivePrinterSession(
     suspend fun setLight(on: Boolean) = backend?.setLight(on)
     suspend fun setNozzleTemp(celsius: Int) = backend?.setNozzleTemp(celsius)
     suspend fun setBedTemp(celsius: Int) = backend?.setBedTemp(celsius)
+    // Creator 5 series: per-tool and heated-chamber temperature control (HTTP-only transport on the
+    // backend). Pure delegation — capability gating lives in the UI; the backend is the source of truth.
+    suspend fun setToolTemp(toolIndex: Int, celsius: Int) = backend?.setToolTemp(toolIndex, celsius)
+    suspend fun cancelToolTemp(toolIndex: Int) = backend?.cancelToolTemp(toolIndex)
+    suspend fun setChamberTemp(celsius: Int) = backend?.setChamberTemp(celsius)
+    suspend fun cancelChamberTemp() = backend?.cancelChamberTemp()
+    // Canonical bed heater-off: over HTTP (Creator 5) this sends the TEMP_OFF=-100 cancel sentinel
+    // rather than a target of 0 (which setBedTemp(0) does). Used by the Creator 5 temperature card.
+    suspend fun cancelBedTemp() = backend?.cancelBedTemp()
     suspend fun home() = backend?.home()
     suspend fun setFiltration(mode: FiltrationMode) = backend?.setFiltration(mode)
     suspend fun setSlotMaterial(slot: Int, materialName: String, hexRgb: String) = backend?.setSlotMaterial(slot, materialName, hexRgb)

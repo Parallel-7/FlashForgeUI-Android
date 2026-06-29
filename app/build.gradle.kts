@@ -79,7 +79,7 @@ secrets {
 // This makes it easy to add them back in the future if needed.
 dependencies {
   // FlashForge wire-protocol library (HTTP/TCP/UDP + per-model backends), 1:1 port of ff-5mp-api-ts.
-  implementation("me.ghost:ff-5mp-api-kt:0.1.1")
+  implementation("me.ghost:ff-5mp-api-kt:0.2.0")
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
   // implementation(libs.accompanist.permissions)

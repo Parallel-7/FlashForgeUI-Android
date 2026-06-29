@@ -405,10 +405,7 @@ fun SpoolsScreen(
                                 pendingOpenBox = pendingOpenBox,
                                 onPendingOpenBoxConsumed = { pendingOpenBox = null },
                                 onSnackbar = { scope.launch { snackbarHostState.showSnackbar(it) } },
-                                onSpoolInfo = { spoolId ->
-                                    val spool = spools.firstOrNull { it.id == spoolId }
-                                    if (spool != null) infoSpool = spool
-                                },
+                                onNavigateToEdit = onNavigateToEdit,
                                 statStyle = statStyle
                             )
                         }

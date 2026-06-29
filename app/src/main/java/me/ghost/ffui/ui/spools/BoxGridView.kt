@@ -54,7 +54,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import me.ghost.ffui.api.SpoolmanSpool
-import me.ghost.ffui.data.SpoolBox
 import me.ghost.ffui.data.SpoolmanLoadState
 import me.ghost.ffui.data.SpoolmanRepository
 import me.ghost.ffui.data.SettingsDataStore
@@ -82,7 +81,7 @@ import me.ghost.ffui.nfc.NfcWriteResult
  *   smart scan routing. Consumed once the dialog opens.
  * @param onPendingOpenBoxConsumed Clears the pending-open value after the dialog opens.
  * @param onSnackbar Callback to show a snackbar message.
- * @param onSpoolInfo Opens the spool info dialog for the given spool ID.
+ * @param onNavigateToEdit Navigates to the spool edit screen for the given spool ID.
  * @param statStyle Which usage metric to show in spool rows inside the box detail.
  */
 @Composable
@@ -96,7 +95,7 @@ fun BoxGridView(
     pendingOpenBox: String?,
     onPendingOpenBoxConsumed: () -> Unit,
     onSnackbar: (String) -> Unit,
-    onSpoolInfo: (spoolId: Int) -> Unit,
+    onNavigateToEdit: (spoolId: Int) -> Unit,
     statStyle: SpoolStatStyle
 ) {
     val taggedBoxes by settings.nfcTaggedBoxes.collectAsStateWithLifecycle(initialValue = emptyMap())
@@ -104,12 +103,19 @@ fun BoxGridView(
 
     var query by remember { mutableStateOf("") }
     var nfcFilter by remember { mutableStateOf(NfcFilter.All) }
-    var detailBox by remember { mutableStateOf<SpoolBox?>(null) }
+    var detailBoxLocation by remember { mutableStateOf<String?>(null) }
     var writeDialogLocation by remember { mutableStateOf<String?>(null) }
     var infoSpool by remember { mutableStateOf<SpoolmanSpool?>(null) }
 
     // Derive boxes from the spool list
     val boxes = remember(spools) { boxesFrom(spools) }
+
+    // The currently-open box detail, derived live from [boxes] (keyed by location) so it stays fresh
+    // as spools change — e.g. after editing a roll or a background refresh — and auto-closes if the
+    // box disappears (all its spools moved elsewhere).
+    val detailBox = remember(boxes, detailBoxLocation) {
+        detailBoxLocation?.let { loc -> boxes.firstOrNull { it.location == loc } }
+    }
 
     // Client-side search + NFC-tagged filter
     val filteredBoxes = remember(boxes, query, nfcFilter, taggedBoxes) {
@@ -131,7 +137,7 @@ fun BoxGridView(
             it.location.equals(target.trim(), ignoreCase = true)
         }
         if (match != null) {
-            detailBox = match
+            detailBoxLocation = match.location
             onPendingOpenBoxConsumed()
         } else if (boxes.isNotEmpty()) {
             // Boxes are loaded but no match
@@ -209,7 +215,7 @@ fun BoxGridView(
                                 box = box,
                                 nfcEnabled = nfcEnabled,
                                 tagged = isBoxTagged(taggedBoxes, box.location),
-                                onDetailsClick = { detailBox = box },
+                                onDetailsClick = { detailBoxLocation = box.location },
                                 onWriteClick = {
                                     nfc.beginWriteBox(box.location)
                                     writeDialogLocation = box.location
@@ -237,7 +243,7 @@ fun BoxGridView(
             allBoxes = boxes,
             repo = repo,
             settings = settings,
-            onDismiss = { detailBox = null },
+            onDismiss = { detailBoxLocation = null },
             onSpoolInfo = { spoolId ->
                 val spool = spools.firstOrNull { it.id == spoolId }
                 if (spool != null) infoSpool = spool
@@ -250,12 +256,13 @@ fun BoxGridView(
         )
     }
 
-    // Spool info dialog (opened from box detail roll list)
+    // Spool info dialog (opened from a box detail roll row). Editing navigates to the spool edit
+    // screen; SpoolInfoDialog dismisses itself first.
     infoSpool?.let { spool ->
         SpoolInfoDialog(
             spool = spool,
             onDismiss = { infoSpool = null },
-            onEditClick = { /* no-op from box detail */ },
+            onEditClick = { onNavigateToEdit(spool.id) },
             taggedAt = null
         )
     }

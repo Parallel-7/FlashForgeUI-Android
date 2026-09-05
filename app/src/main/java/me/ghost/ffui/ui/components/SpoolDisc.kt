@@ -17,8 +17,14 @@ import androidx.compose.ui.unit.dp
 /** Parses a `#RRGGBB` (or bare `RRGGBB`) color string; `null` when unparseable. */
 fun parseHexColor(hex: String): Color? {
     val s = if (hex.startsWith("#")) hex else "#$hex"
-    return try { Color(android.graphics.Color.parseColor(s)) } catch (e: Exception) { null }
+    return try { Color(android.graphics.Color.parseColor(s)) } catch (e: IllegalArgumentException) { null }
 }
+
+/**
+ * Rough perceptual-luminance check (Rec. 601 luma) used for contrast decisions — e.g. the check
+ * mark tint on a swatch, or guarding a dark filament color against a dark progress-track.
+ */
+fun Color.luminanceIsDark(): Boolean = (0.299f * red + 0.587f * green + 0.114f * blue) < 0.6f
 
 /**
  * A colored disc representing a filament spool — a filled circle with a border ring and a center

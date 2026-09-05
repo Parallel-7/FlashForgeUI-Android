@@ -1,6 +1,5 @@
 package me.ghost.ffui.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -24,11 +23,8 @@ private val GeometricColorScheme = darkColorScheme(
     onErrorContainer = GeometricOnErrorContainer,
 )
 
+/** The app's single dark Geometric scheme — there is no light/dynamic variant to pick. */
 @Composable
-fun MyApplicationTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
-  dynamicColor: Boolean = false,
-  content: @Composable () -> Unit,
-) {
+fun MyApplicationTheme(content: @Composable () -> Unit) {
   MaterialTheme(colorScheme = GeometricColorScheme, typography = Typography, content = content)
 }

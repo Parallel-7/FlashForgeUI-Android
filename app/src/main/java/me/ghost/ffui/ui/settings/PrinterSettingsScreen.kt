@@ -1,13 +1,45 @@
 package me.ghost.ffui.ui.settings
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -18,6 +50,12 @@ import me.ghost.ffui.data.PrinterEntity
 import me.ghost.ffui.data.maskSerial
 import me.ghost.ffui.ui.MainViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 /**
  * Per-printer settings screen. Loads the [PrinterEntity] from Room, exposes toggles for
@@ -114,10 +152,8 @@ fun PrinterSettingsScreen(
                     checked = currentPrinter.customLedEnabled,
                     onCheckedChange = { enabled ->
                         updatePrinter(currentPrinter.copy(customLedEnabled = enabled))
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Reconnect for changes to take effect")
-                        }
                         if (isConnected) viewModel.reconnectSession(serialNumber)
+                        else scope.launch { snackbarHostState.showSnackbar("Reconnect for changes to take effect") }
                     }
                 )
             }
@@ -177,11 +213,20 @@ fun PrinterSettingsScreen(
                             containerColor = MaterialTheme.colorScheme.surface
                         )
                     ) {
+                        // Local state + debounce: writing to Room on every keystroke churned the
+                        // DAO and the live session entity ~20x per typed URL.
+                        var cameraUrl by remember(currentPrinter.serialNumber) {
+                            mutableStateOf(currentPrinter.customCameraUrl)
+                        }
+                        LaunchedEffect(cameraUrl) {
+                            delay(600)
+                            if (cameraUrl != currentPrinter.customCameraUrl) {
+                                updatePrinter(currentPrinter.copy(customCameraUrl = cameraUrl))
+                            }
+                        }
                         OutlinedTextField(
-                            value = currentPrinter.customCameraUrl,
-                            onValueChange = { url ->
-                                updatePrinter(currentPrinter.copy(customCameraUrl = url))
-                            },
+                            value = cameraUrl,
+                            onValueChange = { url -> cameraUrl = url },
                             label = { Text("Camera URL") },
                             placeholder = { Text("rtsp://192.168.1.x:554/stream") },
                             singleLine = true,
@@ -211,10 +256,8 @@ fun PrinterSettingsScreen(
                     checked = currentPrinter.forceLegacy,
                     onCheckedChange = { enabled ->
                         updatePrinter(currentPrinter.copy(forceLegacy = enabled))
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Reconnect for changes to take effect")
-                        }
                         if (isConnected) viewModel.reconnectSession(serialNumber)
+                        else scope.launch { snackbarHostState.showSnackbar("Reconnect for changes to take effect") }
                     }
                 )
             }

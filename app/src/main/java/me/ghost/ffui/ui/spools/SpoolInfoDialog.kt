@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import me.ghost.ffui.api.SpoolmanSpool
 import me.ghost.ffui.ui.components.parseHexColor
+import me.ghost.ffui.ui.components.InfoRow
 import kotlin.math.roundToInt
 
 /**
@@ -142,22 +143,3 @@ private fun formatTaggedAt(iso: String): String = try {
     iso
 }
 
-@Composable
-private fun InfoRow(label: String, value: String?) {
-    if (value == null) return
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}

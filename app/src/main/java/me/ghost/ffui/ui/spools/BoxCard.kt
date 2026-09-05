@@ -141,14 +141,6 @@ fun BoxCard(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            // 4. Stat line
-            Text(
-                text = "${box.spools.size} rolls",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
             // Push the action row to the bottom
             Spacer(Modifier.weight(1f))
 

@@ -64,6 +64,7 @@ import me.ghost.ffui.data.SpoolmanRepository
 import me.ghost.ffui.nfc.NfcManager
 import me.ghost.ffui.nfc.NfcReadResult
 import me.ghost.ffui.ui.components.IfsPalette
+import me.ghost.ffui.ui.components.luminanceIsDark
 
 /** Parses a `#RRGGBB` (or bare `RRGGBB`) string to a Compose [Color]; null when unparseable. */
 private fun parseHex(hex: String): Color? {
@@ -420,5 +421,3 @@ private fun ScanErrorDialog(message: String, onRetry: () -> Unit, onClose: () ->
     }
 }
 
-/** Rough perceptual-luminance check so the check mark stays legible on any swatch. */
-private fun Color.luminanceIsDark(): Boolean = (0.299f * red + 0.587f * green + 0.114f * blue) < 0.6f

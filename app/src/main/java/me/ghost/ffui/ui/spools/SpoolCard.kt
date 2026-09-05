@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.ghost.ffui.api.SpoolmanSpool
 import me.ghost.ffui.data.SpoolStatStyle
+import me.ghost.ffui.ui.components.luminanceIsDark
 import me.ghost.ffui.ui.components.SpoolDisc
 import me.ghost.ffui.ui.components.parseHexColor
 import kotlin.math.roundToInt
@@ -173,8 +174,7 @@ fun SpoolCard(
                 val tintColor = filamentColor?.let { color ->
                     // Luminance contrast guard: if the color is too dark against the dark surface,
                     // fall back to the primary accent.
-                    val luminance = 0.299f * color.red + 0.587f * color.green + 0.114f * color.blue
-                    if (luminance < 0.15f) MaterialTheme.colorScheme.primary else color
+                    if (color.luminanceIsDark()) MaterialTheme.colorScheme.primary else color
                 } ?: MaterialTheme.colorScheme.primary
 
                 LinearProgressIndicator(

@@ -52,6 +52,7 @@ import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.PrinterEntity
 import me.ghost.ffui.data.maskSerial
 import me.ghost.ffui.ui.MainViewModel
+import me.ghost.ffui.ui.components.InfoRow
 import kotlinx.coroutines.launch
 
 /**
@@ -270,10 +271,16 @@ private fun PrinterInfoBody(
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    onAutoShutdown(enabled, minutesStr.toIntOrNull() ?: 0)
-                    showShutdown = false
-                }) { Text("Save") }
+                // Require a valid number while the feature is on — a blank field must not silently
+                // send 0 (firmware behavior at 0 is unverified). Disabled-with-blank still saves.
+                val minutes = minutesStr.toIntOrNull()
+                Button(
+                    onClick = {
+                        onAutoShutdown(enabled, minutes?.coerceIn(1, 720) ?: 0)
+                        showShutdown = false
+                    },
+                    enabled = !enabled || (minutes != null && minutes >= 1)
+                ) { Text("Save") }
             },
             dismissButton = { TextButton(onClick = { showShutdown = false }) { Text("Cancel") } }
         )
@@ -292,21 +299,6 @@ private fun InfoCard(title: String, content: @Composable () -> Unit) {
             Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
             content()
         }
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(
-            value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 16.dp)
-        )
     }
 }
 

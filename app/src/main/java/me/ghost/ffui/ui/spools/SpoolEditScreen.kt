@@ -46,6 +46,7 @@ import kotlinx.coroutines.launch
 import me.ghost.ffui.api.SpoolPatchBody
 import me.ghost.ffui.ui.MainViewModel
 import me.ghost.ffui.ui.components.SpoolDisc
+import me.ghost.ffui.ui.components.SectionHeader
 import kotlin.math.roundToInt
 
 /**
@@ -165,7 +166,7 @@ fun SpoolEditScreen(
             }
 
             // ── Adjust usage section ──
-            SectionHeader("Adjust usage")
+            SectionHeader("Adjust usage", emphasized = true)
 
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -248,7 +249,7 @@ fun SpoolEditScreen(
             }
 
             // ── Details section ──
-            SectionHeader("Details")
+            SectionHeader("Details", emphasized = true)
 
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -317,7 +318,7 @@ fun SpoolEditScreen(
             }
 
             // ── Archive section ──
-            SectionHeader("Archive")
+            SectionHeader("Archive", emphasized = true)
 
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -413,12 +414,3 @@ fun SpoolEditScreen(
     }
 }
 
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        fontWeight = FontWeight.SemiBold
-    )
-}

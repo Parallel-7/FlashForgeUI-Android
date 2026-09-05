@@ -70,13 +70,13 @@ internal fun FiltrationCard(
                 }
             }
 
-            // TVOC readout, color-coded: ≤100 green, ≤300 orange, >300 red.
+            // TVOC readout, color-coded on the printer's own thresholds: green below 30, orange
+            // from 30 up (5M Pro screen parity — the old 100/300 tiers contradicted it).
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val tvocColor = when {
                     tvoc == null -> MaterialTheme.colorScheme.onSurfaceVariant
-                    tvoc <= 100f -> GeometricGreenPrimary
-                    tvoc <= 300f -> GeometricOrangePrimary
-                    else -> MaterialTheme.colorScheme.error
+                    tvoc < 30f -> GeometricGreenPrimary
+                    else -> GeometricOrangePrimary
                 }
                 Box(modifier = Modifier.size(8.dp).background(tvocColor, CircleShape))
                 Text(

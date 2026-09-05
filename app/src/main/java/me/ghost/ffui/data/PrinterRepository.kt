@@ -278,17 +278,25 @@ class ActivePrinterSession(
 
     /**
      * Reconciles capability flags that depend on live hardware truth the backend baselines can't
-     * know: the heated chamber is a Creator 5 series *option*, and the library's C5 baseline
-     * reports `chamberTempControl` for the whole family. A chamber-less unit answers with the
-     * `-108` sentinel, which the library's `MachineInfo.fromDetail` normalizes to "no sensor" —
-     * so gate the capability on `hasChamberSensor` and the chamber cell (and its Set/Off
-     * commands, which such units silently ACK) never render.
+     * know:
+     *  - The heated chamber is a Creator 5 series *option*, and the library's C5 baseline reports
+     *    `chamberTempControl` for the whole family. A chamber-less unit answers with the `-108`
+     *    sentinel, which the library's `MachineInfo.fromDetail` normalizes to "no sensor" — so
+     *    gate the capability on `hasChamberSensor` and the chamber cell (and its Set/Off
+     *    commands, which such units silently ACK) never render.
+     *  - `circulateCtl_cmd` actuates nothing on the Creator 5 series (the Pro has filtration
+     *    hardware but it is not API-controllable), so the library's forced Pro baseline would
+     *    render a silent no-op card. Drop the capability there; the 5M Pro (where the command
+     *    works) keeps it.
      */
     private fun syncCapabilityTruth(detail: PrinterDetailResponse) {
         val caps = _capabilities.value
         if (!caps.model.isCreator5) return
-        val hasChamber = machineInfo.fromDetail(detail)?.hasChamberSensor ?: return
-        val updated = caps.copy(chamberTempControl = caps.chamberTempControl && hasChamber)
+        val info = machineInfo.fromDetail(detail) ?: return
+        val updated = caps.copy(
+            chamberTempControl = caps.chamberTempControl && info.hasChamberSensor,
+            filtrationControl = false,
+        )
         if (updated != caps) _capabilities.value = updated
     }
 

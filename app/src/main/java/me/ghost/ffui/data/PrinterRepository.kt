@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -123,8 +124,16 @@ class ActivePrinterSession(
 
     private var pollJob: Job? = null
 
+    /**
+     * Set by [stopSession]; once true the session never initiates further work (poll ticks, TCP
+     * connects). Volatile because [stopSession] and the poll loop observe it across coroutines.
+     */
+    @Volatile
+    private var stopped = false
+
     fun startSession() {
         if (pollJob?.isActive == true) return
+        if (stopped) return
         _connectionState.value = ConnectionState.Connecting
         // TCP is control-only for modern printers; it is connected AFTER the model is identified
         // and gated on the backend's `httpOnly` (Creator 5 has no usable TCP channel, so it is
@@ -135,7 +144,8 @@ class ActivePrinterSession(
     }
 
     private suspend fun pollLoop() {
-        while (scope.isActive) {
+        // The coroutine's own liveness, not the (never-cancelled) process scope.
+        while (currentCoroutineContext().isActive && !stopped) {
             if (backend == null) {
                 identify()
             } else {
@@ -151,6 +161,7 @@ class ActivePrinterSession(
      * HTTP entirely and goes straight to TCP.
      */
     private suspend fun identify() {
+        if (stopped) return
         if (printer.forceLegacy) {
             identifyViaTcp()
             return
@@ -168,7 +179,7 @@ class ActivePrinterSession(
                 // connect it, or the socket hangs/times out on a dead 8899. Modern dual-API
                 // printers connect here so LED/homing/temp controls are ready on demand (idempotent
                 // if already up, e.g. a forceLegacy reconnect that refined into a modern model).
-                if (!newBackend.httpOnly) tcpClient.connect()
+                if (!newBackend.httpOnly && !stopped) tcpClient.connect()
                 _status.value = detail
                 _matlStation.value = newBackend.materialStation(detail)
                 _connectionState.value = ConnectionState.Connected
@@ -197,6 +208,7 @@ class ActivePrinterSession(
      * TCP client.
      */
     private suspend fun identifyViaTcp() {
+        if (stopped) return
         // Ensure the TCP channel is open: startSession only eager-connects for `forceLegacy`, so the
         // HTTP-failure fallback can arrive here without a prior connect. Idempotent. HTTP-only
         // models don't reach this on the happy path (their /detail succeeds); if their HTTP is down
@@ -206,6 +218,7 @@ class ActivePrinterSession(
         // up so legacy identify succeeds on the first tick rather than self-healing on the next one.
         // No-op when already connected; returns null on timeout, after which the ~M115 probe fails fast.
         withTimeoutOrNull(3_000) { tcpClient.isConnected.first { it } }
+        if (stopped) return   // stopSession landed while we waited — teardown is already in flight
         tcpClient.sendRawCommand("~M115", timeoutMs = 3_000)
             .onSuccess { response ->
                 // Strip A3-specific ack:/echo: prefixes from each line before searching.
@@ -401,11 +414,35 @@ class ActivePrinterSession(
     suspend fun startPrint(fileName: String, leveling: Boolean, mappings: List<AD5XMaterialMapping> = emptyList()): Result<Unit> =
         backend?.startPrint(fileName, leveling, mappings) ?: notReady()
 
+    /**
+     * Tears the session down for good: stops the poll loop, drops the backend, and closes the TCP
+     * control channel (releasing the `~M601` lock).
+     *
+     * The library's `connect()`/`disconnect()` are unsynchronized fire-and-forget coroutines and
+     * `connect()` uses a blocking socket constructor with **no connect timeout** — so a connect
+     * initiated just before this call can *complete after* the first disconnect below (the closer
+     * sees `connected == false` and no-ops), leaving a `~M601`-locked socket on a session nobody
+     * owns anymore (audit-A HIGH-1). The durable fix is library-side; app-side we guarantee
+     * teardown on every exit by (1) setting [stopped] so this session never initiates another
+     * connect, (2) re-issuing the disconnect after the cancelled poll job settles, and (3) keeping
+     * a bounded watcher that releases the lock if a late-landing connect flips the client back to
+     * connected. All three run on the manager's scope, which outlives the session.
+     */
     fun stopSession() {
+        stopped = true
+        val job = pollJob
         pollJob?.cancel()
         pollJob = null
         backend = null
         tcpClient.disconnect()
+        scope.launch {
+            job?.join()
+            tcpClient.disconnect()
+            val lateConnect = withTimeoutOrNull(LATE_CONNECT_RELEASE_MS) {
+                tcpClient.isConnected.first { it }
+            }
+            if (lateConnect != null) tcpClient.disconnect()
+        }
     }
 
     private companion object {
@@ -413,5 +450,11 @@ class ActivePrinterSession(
         const val BED_SAFE_TEMP_C = 40f
         /** Wire statuses that mean a job is actively running (cancels a pending cooldown watch). */
         val ACTIVE_PRINT_STATES = setOf("printing", "working", "busy", "heating")
+        /**
+         * How long [stopSession]'s watcher waits for a possibly-still-blocking TCP connect to land
+         * so it can release the `~M601` lock it acquires. Longer than any OS-level SYN retry
+         * window (~2 min worst case on a filtered port); the watcher is one suspended coroutine.
+         */
+        const val LATE_CONNECT_RELEASE_MS = 180_000L
     }
 }

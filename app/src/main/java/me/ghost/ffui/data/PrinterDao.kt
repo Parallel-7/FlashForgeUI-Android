@@ -21,8 +21,16 @@ interface PrinterDao {
     @Update
     suspend fun update(printer: PrinterEntity)
 
-    /** Persists identity/capability fields learned from the first successful /detail. */
-    @Query("UPDATE printers SET modelPid = :pid, firmwareVersion = :firmware, cameraStreamUrl = :cameraUrl WHERE serialNumber = :serialNumber")
+    /**
+     * Persists identity/capability fields learned from a successful identify. Null arguments keep
+     * the stored value (COALESCE) — the legacy TCP `~M115` path learns firmware but not pid or
+     * camera URL, and must not wipe fields a previous HTTP identify persisted.
+     */
+    @Query(
+        "UPDATE printers SET modelPid = COALESCE(:pid, modelPid), " +
+            "firmwareVersion = COALESCE(:firmware, firmwareVersion), " +
+            "cameraStreamUrl = COALESCE(:cameraUrl, cameraStreamUrl) WHERE serialNumber = :serialNumber"
+    )
     suspend fun updateIdentity(serialNumber: String, pid: Int?, firmware: String?, cameraUrl: String?)
 
     @Query("DELETE FROM printers WHERE serialNumber = :serialNumber")

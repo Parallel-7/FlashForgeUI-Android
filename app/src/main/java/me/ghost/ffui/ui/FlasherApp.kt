@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -28,6 +29,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import me.ghost.ffui.R
 import me.ghost.ffui.ui.controls.ControlsScreen
 import me.ghost.ffui.ui.dashboard.DashboardScreen
 import me.ghost.ffui.ui.discovery.DiscoveryScreen
@@ -85,8 +87,8 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                 val currentDestination = navBackStackEntry?.destination
 
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Dashboard, contentDescription = "Home") },
-                    label = { Text("Home") },
+                    icon = { Icon(Icons.Default.Dashboard, contentDescription = stringResource(R.string.nav_home)) },
+                    label = { Text(stringResource(R.string.nav_home)) },
                     selected = currentDestination?.hierarchy?.any { it.hasRoute(DashboardRoute::class) } == true,
                     onClick = {
                         navController.navigate(DashboardRoute) {
@@ -97,8 +99,8 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                     }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Build, contentDescription = "Controls") },
-                    label = { Text("Controls") },
+                    icon = { Icon(Icons.Default.Build, contentDescription = stringResource(R.string.controls_title)) },
+                    label = { Text(stringResource(R.string.controls_title)) },
                     selected = currentDestination?.hierarchy?.any { it.hasRoute(ControlsRoute::class) } == true,
                     onClick = {
                         navController.navigate(ControlsRoute) {
@@ -109,8 +111,8 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                     }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Print, contentDescription = "Printers") },
-                    label = { Text("Printers") },
+                    icon = { Icon(Icons.Default.Print, contentDescription = stringResource(R.string.printers_title)) },
+                    label = { Text(stringResource(R.string.printers_title)) },
                     selected = currentDestination?.hierarchy?.any { it.hasRoute(PrintersRoute::class) } == true,
                     onClick = {
                         navController.navigate(PrintersRoute) {
@@ -122,8 +124,8 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                 )
                 if (spoolmanEnabled) {
                     NavigationBarItem(
-                        icon = { Icon(Icons.Default.Album, contentDescription = "Spools") },
-                        label = { Text("Spools") },
+                        icon = { Icon(Icons.Default.Album, contentDescription = stringResource(R.string.spools_title)) },
+                        label = { Text(stringResource(R.string.spools_title)) },
                         selected = currentDestination?.hierarchy?.any { it.hasRoute(SpoolsRoute::class) } == true,
                         onClick = {
                             navController.navigate(SpoolsRoute) {
@@ -135,8 +137,8 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                     )
                 }
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings") },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings_title)) },
+                    label = { Text(stringResource(R.string.settings_title)) },
                     selected = currentDestination?.hierarchy?.any { it.hasRoute(SettingsRoute::class) } == true,
                     onClick = {
                         navController.navigate(SettingsRoute) {

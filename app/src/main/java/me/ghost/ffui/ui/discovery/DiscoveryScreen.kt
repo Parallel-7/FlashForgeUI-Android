@@ -46,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -80,13 +81,13 @@ fun DiscoveryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Printers") },
+                title = { Text(stringResource(R.string.printers_title)) },
                 actions = {
                     IconButton(onClick = { viewModel.discoverPrinters() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Discover")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.discovery_refresh_cd))
                     }
                     IconButton(onClick = { showAddDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Printer")
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.discovery_add_printer_cd))
                     }
                 }
             )
@@ -106,7 +107,7 @@ fun DiscoveryScreen(
             ) {
                 if (savedPrinters.isNotEmpty()) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text("Saved Printers", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.discovery_saved_section), style = MaterialTheme.typography.titleMedium)
                     }
                     items(savedPrinters, key = { it.serialNumber }) { printer ->
                         val isConnected = sessions.containsKey(printer.serialNumber)
@@ -129,7 +130,7 @@ fun DiscoveryScreen(
                     val notSaved = discovered.filter { d -> savedPrinters.none { it.serialNumber == d.serialNumber } }
                     if (notSaved.isNotEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
-                            Text("Discovered on Network", style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.discovery_network_section), style = MaterialTheme.typography.titleMedium)
                         }
                         items(notSaved, key = { it.serialNumber }) { printer ->
                             PrinterTile(
@@ -251,7 +252,7 @@ fun PrinterTile(
                     Box(Modifier.size(8.dp).background(StatusConnected, CircleShape))
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "Connected",
+                        stringResource(R.string.discovery_connected_badge),
                         style = MaterialTheme.typography.labelSmall,
                         color = StatusConnected
                     )
@@ -281,7 +282,7 @@ fun PrinterTile(
                 IconButton(onClick = onInfoClick, modifier = Modifier.size(40.dp)) {
                     Icon(
                         Icons.Default.Info,
-                        contentDescription = "Printer Info",
+                        contentDescription = stringResource(R.string.discovery_info_cd),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -290,7 +291,7 @@ fun PrinterTile(
                 IconButton(onClick = onSettingsClick, modifier = Modifier.size(40.dp)) {
                     Icon(
                         Icons.Default.Settings,
-                        contentDescription = "Printer Settings",
+                        contentDescription = stringResource(R.string.printers_settings_title),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -318,12 +319,12 @@ fun AddPrinterDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initialSerial.isEmpty()) "Add Printer" else "Connect to $name") },
+        title = { Text(if (initialSerial.isEmpty()) stringResource(R.string.discovery_add_printer_cd) else stringResource(R.string.discovery_connect_to, name)) },
         text = {
             Column {
                 if (needsManualSerial) {
                     Text(
-                        "This printer reports no serial number. Enter the one shown on the printer.",
+                        stringResource(R.string.discovery_manual_serial_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 12.dp)
@@ -331,22 +332,22 @@ fun AddPrinterDialog(
                 }
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
-                    label = { Text("Printer Name") },
+                    label = { Text(stringResource(R.string.discovery_field_name)) },
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                 )
                 OutlinedTextField(
                     value = ip, onValueChange = { ip = it },
-                    label = { Text("IP Address") },
+                    label = { Text(stringResource(R.string.discovery_field_ip)) },
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                 )
                 OutlinedTextField(
                     value = serial, onValueChange = { serial = it },
-                    label = { Text("Serial Number") },
+                    label = { Text(stringResource(R.string.discovery_field_serial)) },
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                 )
                 OutlinedTextField(
                     value = pin, onValueChange = { pin = it },
-                    label = { Text("Check Code (PIN)") },
+                    label = { Text(stringResource(R.string.discovery_field_pin)) },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -359,11 +360,11 @@ fun AddPrinterDialog(
                     }
                 }
             ) {
-                Text("Connect")
+                Text(stringResource(R.string.discovery_connect))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

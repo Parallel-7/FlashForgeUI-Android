@@ -197,4 +197,89 @@
     <string name="controls_stop_cd">Stop</string>
     <string name="controls_stop_confirm_title">Stop this print?</string>
     <string name="controls_stop_confirm_text">The print cannot resume after you stop it.</string>
+
+    <!-- ═══════════════════════ Bottom navigation ═══════════════════════ -->
+    <string name="nav_home">Home</string>
+
+    <!-- ═══════════════════════ Discovery / Printers list ═══════════════════════ -->
+    <string name="printers_title">Printers</string>
+    <string name="discovery_refresh_cd">Discover</string>
+    <string name="discovery_add_printer_cd">Add Printer</string>
+    <string name="discovery_saved_section">Saved Printers</string>
+    <string name="discovery_network_section">Discovered on Network</string>
+    <string name="discovery_connected_badge">Connected</string>
+    <string name="discovery_info_cd">Printer Info</string>
+    <string name="discovery_connect_to">Connect to %1$s</string>
+    <string name="discovery_manual_serial_hint">This printer reports no serial number. Enter the one shown on the printer.</string>
+    <string name="discovery_field_name">Printer Name</string>
+    <string name="discovery_field_ip">IP Address</string>
+    <string name="discovery_field_serial">Serial Number</string>
+    <string name="discovery_field_pin">Check Code (PIN)</string>
+    <string name="discovery_connect">Connect</string>
+
+    <!-- ═══════════════════════ Printer info ═══════════════════════ -->
+    <string name="printers_info_title">Printer Info</string>
+    <string name="printers_not_connected">Printer not connected.</string>
+    <string name="printers_info_section_printer">PRINTER</string>
+    <string name="printers_info_section_stats">LIFETIME STATS</string>
+    <string name="printers_info_name">Name</string>
+    <string name="printers_info_model">Model</string>
+    <string name="printers_info_firmware">Firmware</string>
+    <string name="printers_info_serial">Serial</string>
+    <string name="printers_info_mac">MAC</string>
+    <string name="printers_info_ip">IP</string>
+    <string name="printers_info_camera">Camera</string>
+    <string name="printers_info_led">LED</string>
+    <string name="printers_info_stat_filament">Filament used</string>
+    <string name="printers_info_stat_print_time">Print time</string>
+    <string name="printers_info_stat_free_disk">Free disk</string>
+    <string name="printers_info_stats_offline">Connect to this printer to see lifetime stats.</string>
+    <string name="printers_info_edit_name">Edit name</string>
+    <string name="printers_info_shutdown_on">Auto-shutdown: on (%1$d min)</string>
+    <string name="printers_info_shutdown_off">Auto-shutdown: off</string>
+    <string name="printers_info_actions_offline">Connect to this printer to rename it or change auto-shutdown.</string>
+    <string name="printers_info_rename_title">Rename printer</string>
+    <string name="printers_info_shutdown_title">Auto-shutdown</string>
+    <string name="printers_info_shutdown_enabled">Shut down after a completed print</string>
+    <string name="printers_info_shutdown_disabled">Disabled</string>
+    <string name="printers_info_shutdown_minutes">Minutes after completion</string>
+    <string name="printers_info_duration_hm">%1$dh %2$dm</string>
+    <string name="printers_info_duration_m">%1$dm</string>
+    <string name="printers_info_km">%1$.2f km</string>
+    <string name="printers_info_m">%1$.1f m</string>
+    <string name="printers_info_gb">%1$.2f GB</string>
+    <string name="printers_info_mb">%1$.0f MB</string>
+    <string name="common_on">On</string>
+    <string name="common_save">Save</string>
+
+    <!-- ═══════════════════════ Files ═══════════════════════ -->
+    <string name="files_title">Files</string>
+    <string name="files_refresh_cd">Refresh</string>
+    <string name="files_load_error">Couldn\'t load files: %1$s</string>
+    <string name="files_empty">No files on this printer.</string>
+    <string name="files_recent_section">RECENT FILES</string>
+    <string name="files_local_section">ON PRINTER</string>
+    <string name="files_grams">%1$.0f g</string>
+    <string name="files_level_bed">Level bed before printing</string>
+    <string name="files_start_print">Start Print</string>
+    <string name="files_match_and_print">Match &amp; Print</string>
+    <string name="files_multicolor_notice">Multi-color: %1$d materials — you\'ll match them to station slots next.</string>
+    <string name="files_print_started">Print started: %1$s</string>
+    <string name="files_print_failed">Failed: %1$s</string>
+    <string name="files_match_title">Match Materials</string>
+    <string name="files_match_tools_section">FILE TOOLS</string>
+    <string name="files_match_slots_section">STATION SLOTS</string>
+    <string name="files_match_no_station">Station not connected.</string>
+    <string name="files_match_tool_label">Tool %1$d</string>
+    <string name="files_match_mapped_slot">→ Slot %1$d</string>
+    <string name="files_match_loaded">Loaded</string>
+    <string name="files_match_error_select_tool">Select a tool first, then a slot.</string>
+    <string name="files_match_error_slot_empty">Slot %1$d is empty. Load filament first.</string>
+    <string name="files_match_error_material">Tool %1$d needs %2$s, but Slot %3$d has %4$s.</string>
+    <string name="files_match_no_material">no material</string>
+    <string name="files_match_error_assigned">Slot %1$d is already assigned.</string>
+    <string name="files_match_warning_colors">Tool %1$d and Slot %2$d are different colors — print will succeed but look different.</string>
+
+    <!-- ═══════════════════════ Spools tab (nav label) ═══════════════════════ -->
+    <string name="spools_title">Spools</string>
 </resources>

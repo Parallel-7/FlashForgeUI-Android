@@ -27,10 +27,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import me.ghost.ffui.R
 import me.ghost.ffapi.models.AD5XMaterialMapping
 import me.ghost.ffapi.models.FFGcodeToolData
 import me.ghost.ffapi.models.SlotInfo as MatlSlotInfo
@@ -110,19 +113,24 @@ internal fun MaterialMatchingDialog(
     val mappings = remember { mutableStateMapOf<Int, AD5XMaterialMapping>() }
     var error by remember { mutableStateOf<String?>(null) }
     var warning by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
 
     fun slotAssigned(slotId: Int) = mappings.values.any { it.slotId == slotId }
 
     fun assign(slot: MatlSlotInfo) {
         val toolId = selectedTool
-        if (toolId == null) { error = "Select a tool first, then a slot."; return }
-        if (!slot.hasFilament) { error = "Slot ${slot.slotId} is empty. Load filament first."; return }
+        if (toolId == null) { error = context.getString(R.string.files_match_error_select_tool); return }
+        if (!slot.hasFilament) { error = context.getString(R.string.files_match_error_slot_empty, slot.slotId); return }
         val tool = tools.first { it.toolId == toolId }
         if (!materialsMatch(tool.materialName, slot.materialName)) {
-            error = "Tool ${toolId + 1} needs ${tool.materialName}, but Slot ${slot.slotId} has ${slot.materialName.ifBlank { "no material" }}."
+            error = context.getString(
+                R.string.files_match_error_material,
+                toolId + 1, tool.materialName, slot.slotId,
+                slot.materialName.ifBlank { context.getString(R.string.files_match_no_material) }
+            )
             return
         }
-        if (slotAssigned(slot.slotId)) { error = "Slot ${slot.slotId} is already assigned."; return }
+        if (slotAssigned(slot.slotId)) { error = context.getString(R.string.files_match_error_assigned, slot.slotId); return }
         mappings[toolId] = AD5XMaterialMapping(
             toolId = toolId,
             slotId = slot.slotId,
@@ -133,13 +141,13 @@ internal fun MaterialMatchingDialog(
         selectedTool = null
         error = null
         warning = if (colorsDiffer(tool.materialColor, slot.materialColor))
-            "Tool ${toolId + 1} and Slot ${slot.slotId} are different colors — print will succeed but look different."
+            context.getString(R.string.files_match_warning_colors, toolId + 1, slot.slotId)
         else null
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Match Materials", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        title = { Text(stringResource(R.string.files_match_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         text = {
             // Scrollable: 4 tools + 4 slots + status rows already overflow small screens.
             Column(
@@ -151,11 +159,11 @@ internal fun MaterialMatchingDialog(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                     // Tools (requirements)
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("FILE TOOLS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.files_match_tools_section), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         tools.forEach { tool ->
                             val mapped = mappings[tool.toolId]
                             ToolRow(
-                                label = "Tool ${tool.toolId + 1}",
+                                label = stringResource(R.string.files_match_tool_label, tool.toolId + 1),
                                 material = tool.materialName,
                                 color = tool.materialColor,
                                 selected = selectedTool == tool.toolId,
@@ -169,9 +177,9 @@ internal fun MaterialMatchingDialog(
                     }
                     // Slots
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("STATION SLOTS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.files_match_slots_section), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (slots.isEmpty()) {
-                            Text("Station not connected.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                            Text(stringResource(R.string.files_match_no_station), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                         }
                         slots.sortedBy { it.slotId }.forEach { slot ->
                             SlotRow(
@@ -191,9 +199,9 @@ internal fun MaterialMatchingDialog(
             Button(
                 onClick = { onConfirm(tools.mapNotNull { mappings[it.toolId] }) },
                 enabled = mappings.size == tools.size
-            ) { Text("Start Print") }
+            ) { Text(stringResource(R.string.files_start_print)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
     )
 }
 
@@ -218,7 +226,7 @@ private fun ToolRow(
             Column(Modifier.weight(1f)) {
                 Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, maxLines = 1)
                 Text(
-                    mappedSlot?.let { "→ Slot $it" } ?: material.ifBlank { "—" },
+                    mappedSlot?.let { stringResource(R.string.files_match_mapped_slot, it) } ?: material.ifBlank { "—" },
                     style = MaterialTheme.typography.labelSmall,
                     color = if (mappedSlot != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -243,9 +251,9 @@ private fun SlotRow(slot: MatlSlotInfo, assigned: Boolean, onClick: () -> Unit) 
         Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ColorDot(slot.materialColor)
             Column(Modifier.weight(1f)) {
-                Text("Slot ${slot.slotId}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(stringResource(R.string.dashboard_ifs_slot, slot.slotId), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, maxLines = 1)
                 Text(
-                    if (slot.hasFilament) slot.materialName.ifBlank { "Loaded" } else "Empty",
+                    if (slot.hasFilament) slot.materialName.ifBlank { stringResource(R.string.files_match_loaded) } else stringResource(R.string.dashboard_ifs_empty),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis
                 )

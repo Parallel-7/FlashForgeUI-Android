@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,6 +55,7 @@ import androidx.compose.foundation.Image
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffapi.models.AD5XMaterialMapping
 import me.ghost.ffapi.models.FFGcodeFileEntry
+import me.ghost.ffui.R
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.ThumbnailCache
 import me.ghost.ffui.ui.MainViewModel
@@ -65,11 +67,12 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.mutableIntStateOf
 
 /** Formats a print duration (seconds) as `Hh Mm` / `Mm`, or empty when unknown. */
+@Composable
 private fun formatPrintTime(seconds: Float?): String {
     val s = seconds?.toInt() ?: return ""
     if (s <= 0) return ""
     val mins = s / 60
-    return if (mins >= 60) "${mins / 60}h ${mins % 60}m" else "${mins}m"
+    return if (mins >= 60) stringResource(R.string.printers_info_duration_hm, mins / 60, mins % 60) else stringResource(R.string.printers_info_duration_m, mins)
 }
 
 /**
@@ -89,9 +92,9 @@ fun FilesScreen(
     val session = sessions[serialNumber]
 
     if (session == null) {
-        Scaffold(topBar = { TopAppBar(title = { Text("Files") }, navigationIcon = { BackButton(onBack) }) }) { p ->
+        Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.files_title)) }, navigationIcon = { BackButton(onBack) }) }) { p ->
             Box(Modifier.padding(p).fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Printer not connected.")
+                Text(stringResource(R.string.printers_not_connected))
             }
         }
         return
@@ -101,6 +104,7 @@ fun FilesScreen(
     val matlStation by session.matlStation.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     var recent by remember { mutableStateOf<List<FFGcodeFileEntry>>(emptyList()) }
     var local by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -127,8 +131,8 @@ fun FilesScreen(
     fun startPrint(fileName: String, leveling: Boolean, mappings: List<AD5XMaterialMapping> = emptyList()) {
         scope.launch {
             session.startPrint(fileName, leveling, mappings)
-                .onSuccess { snackbar.showSnackbar("Print started: $fileName") }
-                .onFailure { snackbar.showSnackbar("Failed: ${it.message}") }
+                .onSuccess { snackbar.showSnackbar(context.getString(R.string.files_print_started, fileName)) }
+                .onFailure { snackbar.showSnackbar(context.getString(R.string.files_print_failed, it.message ?: "")) }
         }
     }
 
@@ -159,7 +163,7 @@ fun FilesScreen(
                 navigationIcon = { BackButton(onBack) },
                 actions = {
                     IconButton(onClick = { refreshKey++ }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.files_refresh_cd))
                     }
                 }
             )
@@ -170,18 +174,18 @@ fun FilesScreen(
                 loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 error != null && recent.isEmpty() && local.isEmpty() ->
                     Text(
-                        "Couldn't load files: $error",
+                        stringResource(R.string.files_load_error, error ?: ""),
                         Modifier.align(Alignment.Center).padding(24.dp),
                         color = MaterialTheme.colorScheme.error
                     )
                 recent.isEmpty() && local.isEmpty() ->
-                    Text("No files on this printer.", Modifier.align(Alignment.Center))
+                    Text(stringResource(R.string.files_empty), Modifier.align(Alignment.Center))
                 else -> LazyColumn(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (recent.isNotEmpty()) {
-                        item { SectionHeader("RECENT FILES") }
+                        item { SectionHeader(stringResource(R.string.files_recent_section)) }
                         items(recent, key = { "r:" + it.gcodeFileName }) { entry ->
                             RecentFileCard(
                                 session = session,
@@ -191,7 +195,7 @@ fun FilesScreen(
                         }
                     }
                     if (local.isNotEmpty()) {
-                        item { SectionHeader("ON PRINTER") }
+                        item { SectionHeader(stringResource(R.string.files_local_section)) }
                         items(local, key = { "l:$it" }) { name ->
                             LocalFileRow(name = name, onClick = { selected = SelectedFile(name, null) })
                         }
@@ -232,7 +236,7 @@ private data class SelectedFile(val name: String, val entry: FFGcodeFileEntry?)
 @Composable
 private fun BackButton(onBack: () -> Unit) {
     IconButton(onClick = onBack) {
-        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
     }
 }
 
@@ -257,9 +261,11 @@ private fun RecentFileCard(
             Thumbnail(session, entry.gcodeFileName, size = 56)
             Column(Modifier.weight(1f)) {
                 Text(entry.gcodeFileName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                val timeStr = formatPrintTime(entry.printingTime)
+                val grams = entry.totalFilamentWeight?.takeIf { it > 0 }?.let { stringResource(R.string.files_grams, it) }
                 val meta = buildList {
-                    formatPrintTime(entry.printingTime).takeIf { it.isNotEmpty() }?.let { add(it) }
-                    entry.totalFilamentWeight?.takeIf { it > 0 }?.let { add("%.0f g".format(it)) }
+                    timeStr.takeIf { it.isNotEmpty() }?.let { add(it) }
+                    grams?.let { add(it) }
                 }.joinToString(" · ")
                 if (meta.isNotEmpty()) {
                     Text(meta, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -362,9 +368,11 @@ private fun PrintSheet(
                 Thumbnail(session, file.name, size = 72)
                 Column(Modifier.weight(1f)) {
                     Text(file.name, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    val timeStr = entry?.printingTime?.let { formatPrintTime(it) }
+                    val grams = entry?.totalFilamentWeight?.takeIf { it > 0 }?.let { stringResource(R.string.files_grams, it) }
                     val meta = buildList {
-                        entry?.printingTime?.let { formatPrintTime(it) }?.takeIf { it.isNotEmpty() }?.let { add(it) }
-                        entry?.totalFilamentWeight?.takeIf { it > 0 }?.let { add("%.0f g".format(it)) }
+                        timeStr?.takeIf { it.isNotEmpty() }?.let { add(it) }
+                        grams?.let { add(it) }
                     }.joinToString(" · ")
                     if (meta.isNotEmpty()) {
                         Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -375,7 +383,7 @@ private fun PrintSheet(
             if (entry?.isMultiColor == true) {
                 Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)) {
                     Text(
-                        "Multi-color: ${entry.gcodeToolDatas.orEmpty().size} materials — you'll match them to station slots next.",
+                        stringResource(R.string.files_multicolor_notice, entry.gcodeToolDatas.orEmpty().size),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(12.dp)
@@ -385,7 +393,7 @@ private fun PrintSheet(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = leveling, onCheckedChange = { leveling = it })
-                Text("Level bed before printing", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.files_level_bed), style = MaterialTheme.typography.bodyMedium)
             }
 
             Button(
@@ -393,7 +401,7 @@ private fun PrintSheet(
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(14.dp)
             ) {
-                Text(if (entry?.isMultiColor == true) "Match & Print" else "Start Print")
+                Text(if (entry?.isMultiColor == true) stringResource(R.string.files_match_and_print) else stringResource(R.string.files_start_print))
             }
         }
     }

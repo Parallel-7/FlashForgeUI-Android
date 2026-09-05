@@ -40,12 +40,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import me.ghost.ffui.R
 import me.ghost.ffui.ui.PrinterModelNames
 import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
 import me.ghost.ffui.data.ActivePrinterSession
@@ -71,10 +73,10 @@ fun PrinterInfoScreen(
     val session = sessions[serialNumber]
 
     if (session == null) {
-        Scaffold(topBar = { TopAppBar(title = { Text("Printer Info") }, navigationIcon = {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+        Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.printers_info_title)) }, navigationIcon = {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back)) }
         }) }) { p ->
-            Box(Modifier.padding(p).fillMaxSize(), contentAlignment = Alignment.Center) { Text("Printer not connected.") }
+            Box(Modifier.padding(p).fillMaxSize(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.printers_not_connected)) }
         }
         return
     }
@@ -90,7 +92,7 @@ fun PrinterInfoScreen(
             TopAppBar(
                 title = { Text(displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back)) }
                 }
             )
         }
@@ -158,7 +160,7 @@ private fun DialogHeader(name: String, onClose: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(name, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "Close") }
+        IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.common_close)) }
     }
 }
 
@@ -189,25 +191,25 @@ private fun PrinterInfoBody(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        InfoCard("PRINTER") {
-            InfoRow("Name", displayName)
-            InfoRow("Model", model)
-            InfoRow("Firmware", firmware ?: "—")
-            InfoRow("Serial", maskSerial(printer.serialNumber, hideSerials))
-            InfoRow("MAC", status?.macAddr ?: "—")
-            InfoRow("IP", printer.ipAddress)
-            InfoRow("Camera", cameraUrl ?: "—")
-            InfoRow("LED", lightLabel(status?.lightStatus))
+        InfoCard(stringResource(R.string.printers_info_section_printer)) {
+            InfoRow(stringResource(R.string.printers_info_name), displayName)
+            InfoRow(stringResource(R.string.printers_info_model), model)
+            InfoRow(stringResource(R.string.printers_info_firmware), firmware ?: "—")
+            InfoRow(stringResource(R.string.printers_info_serial), maskSerial(printer.serialNumber, hideSerials))
+            InfoRow(stringResource(R.string.printers_info_mac), status?.macAddr ?: "—")
+            InfoRow(stringResource(R.string.printers_info_ip), printer.ipAddress)
+            InfoRow(stringResource(R.string.printers_info_camera), cameraUrl ?: "—")
+            InfoRow(stringResource(R.string.printers_info_led), lightLabel(status?.lightStatus))
         }
 
-        InfoCard("LIFETIME STATS") {
+        InfoCard(stringResource(R.string.printers_info_section_stats)) {
             if (connected) {
-                InfoRow("Filament used", formatFilament(status?.cumulativeFilament))
-                InfoRow("Print time", formatPrintMinutes(status?.cumulativePrintTime))
-                InfoRow("Free disk", formatDiskGb(status?.remainingDiskSpace))
+                InfoRow(stringResource(R.string.printers_info_stat_filament), formatFilament(status?.cumulativeFilament))
+                InfoRow(stringResource(R.string.printers_info_stat_print_time), formatPrintMinutes(status?.cumulativePrintTime))
+                InfoRow(stringResource(R.string.printers_info_stat_free_disk), formatDiskGb(status?.remainingDiskSpace))
             } else {
                 Text(
-                    "Connect to this printer to see lifetime stats.",
+                    stringResource(R.string.printers_info_stats_offline),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -215,16 +217,16 @@ private fun PrinterInfoBody(
         }
 
         OutlinedButton(onClick = { showRename = true }, enabled = connected, modifier = Modifier.fillMaxWidth()) {
-            Text("Edit name")
+            Text(stringResource(R.string.printers_info_edit_name))
         }
         OutlinedButton(onClick = { showShutdown = true }, enabled = connected, modifier = Modifier.fillMaxWidth()) {
             val on = status?.autoShutdown == "open"
             val mins = status?.autoShutdownTime?.toInt() ?: 0
-            Text(if (on) "Auto-shutdown: on ($mins min)" else "Auto-shutdown: off")
+            Text(if (on) stringResource(R.string.printers_info_shutdown_on, mins) else stringResource(R.string.printers_info_shutdown_off))
         }
         if (!connected) {
             Text(
-                "Connect to this printer to rename it or change auto-shutdown.",
+                stringResource(R.string.printers_info_actions_offline),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -235,16 +237,16 @@ private fun PrinterInfoBody(
         var name by remember { mutableStateOf(displayName) }
         AlertDialog(
             onDismissRequest = { showRename = false },
-            title = { Text("Rename printer") },
-            text = { OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Name") }) },
+            title = { Text(stringResource(R.string.printers_info_rename_title)) },
+            text = { OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text(stringResource(R.string.printers_info_name)) }) },
             confirmButton = {
                 Button(onClick = {
                     val n = name.trim()
                     if (n.isNotEmpty()) onRename(n)
                     showRename = false
-                }) { Text("Save") }
+                }) { Text(stringResource(R.string.common_save)) }
             },
-            dismissButton = { TextButton(onClick = { showRename = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showRename = false }) { Text(stringResource(R.string.common_cancel)) } }
         )
     }
 
@@ -253,20 +255,20 @@ private fun PrinterInfoBody(
         var minutesStr by remember { mutableStateOf((status?.autoShutdownTime?.toInt() ?: 30).toString()) }
         AlertDialog(
             onDismissRequest = { showShutdown = false },
-            title = { Text("Auto-shutdown") },
+            title = { Text(stringResource(R.string.printers_info_shutdown_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(checked = enabled, onCheckedChange = { enabled = it })
                         Spacer(Modifier.width(12.dp))
-                        Text(if (enabled) "Shut down after a completed print" else "Disabled")
+                        Text(if (enabled) stringResource(R.string.printers_info_shutdown_enabled) else stringResource(R.string.printers_info_shutdown_disabled))
                     }
                     OutlinedTextField(
                         value = minutesStr,
                         onValueChange = { minutesStr = it.filter(Char::isDigit) },
                         enabled = enabled,
                         singleLine = true,
-                        label = { Text("Minutes after completion") }
+                        label = { Text(stringResource(R.string.printers_info_shutdown_minutes)) }
                     )
                 }
             },
@@ -280,9 +282,9 @@ private fun PrinterInfoBody(
                         showShutdown = false
                     },
                     enabled = !enabled || (minutes != null && minutes >= 1)
-                ) { Text("Save") }
+                ) { Text(stringResource(R.string.common_save)) }
             },
-            dismissButton = { TextButton(onClick = { showShutdown = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showShutdown = false }) { Text(stringResource(R.string.common_cancel)) } }
         )
     }
 }
@@ -302,28 +304,32 @@ private fun InfoCard(title: String, content: @Composable () -> Unit) {
     }
 }
 
+@Composable
 private fun lightLabel(status: String?): String = when (status) {
-    "open", "1" -> "On"
-    "close", "0" -> "Off"
+    "open", "1" -> stringResource(R.string.common_on)
+    "close", "0" -> stringResource(R.string.common_off)
     else -> "—"
 }
 
 /** Cumulative filament is in meters; show km past 1 km. */
+@Composable
 private fun formatFilament(meters: Float?): String {
     val m = meters ?: return "—"
-    return if (m >= 1000f) "%.2f km".format(m / 1000f) else "%.1f m".format(m)
+    return if (m >= 1000f) stringResource(R.string.printers_info_km, m / 1000f) else stringResource(R.string.printers_info_m, m)
 }
 
 /** Cumulative print time is in minutes. */
+@Composable
 private fun formatPrintMinutes(minutes: Float?): String {
     val total = minutes?.toInt() ?: return "—"
     val h = total / 60
     val m = total % 60
-    return if (h > 0) "${h}h ${m}m" else "${m}m"
+    return if (h > 0) stringResource(R.string.printers_info_duration_hm, h, m) else stringResource(R.string.printers_info_duration_m, m)
 }
 
 /** remainingDiskSpace is GB free (a fractional value on the wire); show MB under 1 GB. */
+@Composable
 private fun formatDiskGb(gb: Float?): String {
     val g = gb ?: return "—"
-    return if (g >= 1f) "%.2f GB".format(g) else "%.0f MB".format(g * 1024f)
+    return if (g >= 1f) stringResource(R.string.printers_info_gb, g) else stringResource(R.string.printers_info_mb, g * 1024f)
 }

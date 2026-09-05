@@ -24,6 +24,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "My Application"
+rootProject.name = "FlashForgeUI"
 
 include(":app")

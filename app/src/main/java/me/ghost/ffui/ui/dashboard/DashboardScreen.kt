@@ -23,6 +23,7 @@ import me.ghost.ffui.ui.MainViewModel
 import me.ghost.ffui.ui.controls.JobControlRow
 import me.ghost.ffui.ui.jobStateOf
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 
 // ── DashboardScreen (top-level entry point) ─────────────────────────────────
@@ -36,8 +37,8 @@ fun DashboardScreen(
     onNavigateToInfo: (String) -> Unit = {},
     onNavigateToPrinters: () -> Unit = {}
 ) {
-    val sessionsMap by viewModel.sessions.collectAsState()
-    val activeSerial by viewModel.activeSerial.collectAsState()
+    val sessionsMap by viewModel.sessions.collectAsStateWithLifecycle()
+    val activeSerial by viewModel.activeSerial.collectAsStateWithLifecycle()
 
     // Stable ordered list from the sessions map so that pager indices remain consistent.
     val sessionEntries = remember(sessionsMap) { sessionsMap.entries.toList() }
@@ -120,8 +121,8 @@ fun DashboardScreen(
                     }
                     // LED toggle (uses active session's capability / state)
                     currentEntry?.value?.let { session ->
-                        val capabilities by session.capabilities.collectAsState()
-                        val status by session.status.collectAsState()
+                        val capabilities by session.capabilities.collectAsStateWithLifecycle()
+                        val status by session.status.collectAsStateWithLifecycle()
                         val isLightOn = status?.lightStatus == "open" || status?.lightStatus == "1"
                         if (capabilities.ledControl) {
                             IconButton(onClick = {
@@ -175,12 +176,12 @@ fun DashboardScreen(
 
 @Composable
 private fun DashboardContent(session: ActivePrinterSession, viewModel: MainViewModel) {
-    val status by session.status.collectAsState()
-    val connectionState by session.connectionState.collectAsState()
-    val capabilities by session.capabilities.collectAsState()
-    val matlStation by session.matlStation.collectAsState()
+    val status by session.status.collectAsStateWithLifecycle()
+    val connectionState by session.connectionState.collectAsStateWithLifecycle()
+    val capabilities by session.capabilities.collectAsStateWithLifecycle()
+    val matlStation by session.matlStation.collectAsStateWithLifecycle()
     // Live per-printer settings so camera prefs (autoplay / FPS / custom URL) apply without a reconnect.
-    val livePrinter by session.printerFlow.collectAsState()
+    val livePrinter by session.printerFlow.collectAsStateWithLifecycle()
 
     val scope = rememberCoroutineScope()
 

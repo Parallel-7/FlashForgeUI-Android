@@ -29,7 +29,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.ui.MainViewModel
@@ -61,8 +61,8 @@ import me.ghost.ffui.ui.dashboard.TemperatureDialog
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ControlsScreen(viewModel: MainViewModel) {
-    val sessionsMap by viewModel.sessions.collectAsState()
-    val activeSerial by viewModel.activeSerial.collectAsState()
+    val sessionsMap by viewModel.sessions.collectAsStateWithLifecycle()
+    val activeSerial by viewModel.activeSerial.collectAsStateWithLifecycle()
     val session = activeSerial?.let { sessionsMap[it] }
 
     Scaffold(
@@ -90,8 +90,8 @@ fun ControlsScreen(viewModel: MainViewModel) {
 
 @Composable
 private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = Modifier) {
-    val status by session.status.collectAsState()
-    val capabilities by session.capabilities.collectAsState()
+    val status by session.status.collectAsStateWithLifecycle()
+    val capabilities by session.capabilities.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     // Shared job-state machine (see ui/JobState.kt) — same derivation the dashboard uses.

@@ -28,6 +28,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffui.BuildConfig
 import me.ghost.ffui.data.SettingsDataStore
 import me.ghost.ffui.data.SpoolStatStyle
@@ -42,12 +43,12 @@ import kotlin.math.roundToInt
 fun SettingsScreen(viewModel: MainViewModel) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val reconnectMode by viewModel.settingsDataStore.startupReconnect.collectAsState(initial = StartupReconnect.OFF)
-    val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsState(initial = false)
-    val backgroundEnabled by viewModel.settingsDataStore.backgroundMonitoringEnabled.collectAsState(initial = false)
-    val throttleEnabled by viewModel.settingsDataStore.backgroundThrottleEnabled.collectAsState(initial = false)
-    val throttleSeconds by viewModel.settingsDataStore.backgroundThrottleSeconds.collectAsState(
-        initial = SettingsDataStore.THROTTLE_DEFAULT_SECONDS
+    val reconnectMode by viewModel.settingsDataStore.startupReconnect.collectAsStateWithLifecycle(initialValue = StartupReconnect.OFF)
+    val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsStateWithLifecycle(initialValue = false)
+    val backgroundEnabled by viewModel.settingsDataStore.backgroundMonitoringEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val throttleEnabled by viewModel.settingsDataStore.backgroundThrottleEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val throttleSeconds by viewModel.settingsDataStore.backgroundThrottleSeconds.collectAsStateWithLifecycle(
+        initialValue = SettingsDataStore.THROTTLE_DEFAULT_SECONDS
     )
 
     // Battery-optimization exemption status, refreshed each time the screen resumes (the system
@@ -277,8 +278,8 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 )
             }
             item {
-                val spoolmanEnabled by viewModel.settingsDataStore.spoolmanEnabled.collectAsState(initial = false)
-                val spoolmanBaseUrl by viewModel.settingsDataStore.spoolmanBaseUrl.collectAsState(initial = "")
+                val spoolmanEnabled by viewModel.settingsDataStore.spoolmanEnabled.collectAsStateWithLifecycle(initialValue = false)
+                val spoolmanBaseUrl by viewModel.settingsDataStore.spoolmanBaseUrl.collectAsStateWithLifecycle(initialValue = "")
 
                 Card(
                     shape = RoundedCornerShape(16.dp),
@@ -374,7 +375,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
 
                             // Which stat the spool cards display.
                             val statStyle by viewModel.settingsDataStore.spoolStatStyle
-                                .collectAsState(initial = SpoolStatStyle.PERCENT)
+                                .collectAsStateWithLifecycle(initialValue = SpoolStatStyle.PERCENT)
                             Text("Card stat", style = MaterialTheme.typography.bodyLarge)
                             Text(
                                 "Show percentage or weight on spool cards",
@@ -419,8 +420,8 @@ fun SettingsScreen(viewModel: MainViewModel) {
             item {
                 // NFC hardware presence decides whether the toggle is interactive at all.
                 val nfcAvailable = remember { NfcAdapter.getDefaultAdapter(context) != null }
-                val nfcEnabled by viewModel.settingsDataStore.nfcEnabled.collectAsState(initial = false)
-                val nfcWriteUrl by viewModel.settingsDataStore.nfcWriteUrl.collectAsState(initial = false)
+                val nfcEnabled by viewModel.settingsDataStore.nfcEnabled.collectAsStateWithLifecycle(initialValue = false)
+                val nfcWriteUrl by viewModel.settingsDataStore.nfcWriteUrl.collectAsStateWithLifecycle(initialValue = false)
 
                 Card(
                     shape = RoundedCornerShape(16.dp),

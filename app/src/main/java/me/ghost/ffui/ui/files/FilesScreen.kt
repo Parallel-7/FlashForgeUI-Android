@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffapi.models.AD5XMaterialMapping
 import me.ghost.ffapi.models.FFGcodeFileEntry
 import me.ghost.ffui.data.ActivePrinterSession
@@ -51,7 +52,7 @@ fun FilesScreen(
     viewModel: MainViewModel,
     onBack: () -> Unit
 ) {
-    val sessions by viewModel.sessions.collectAsState()
+    val sessions by viewModel.sessions.collectAsStateWithLifecycle()
     val session = sessions[serialNumber]
 
     if (session == null) {
@@ -63,8 +64,8 @@ fun FilesScreen(
         return
     }
 
-    val capabilities by session.capabilities.collectAsState()
-    val matlStation by session.matlStation.collectAsState()
+    val capabilities by session.capabilities.collectAsStateWithLifecycle()
+    val matlStation by session.matlStation.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
 

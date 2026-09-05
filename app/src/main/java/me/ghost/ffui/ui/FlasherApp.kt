@@ -16,7 +16,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -27,6 +26,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffui.ui.controls.ControlsScreen
 import me.ghost.ffui.ui.dashboard.DashboardScreen
 import me.ghost.ffui.ui.discovery.DiscoveryScreen
@@ -73,7 +73,7 @@ data class PrinterInfoRoute(val serialNumber: String)
 @Composable
 fun FlasherApp(viewModel: MainViewModel = viewModel()) {
     val navController = rememberNavController()
-    val spoolmanEnabled by viewModel.settingsDataStore.spoolmanEnabled.collectAsState(initial = false)
+    val spoolmanEnabled by viewModel.settingsDataStore.spoolmanEnabled.collectAsStateWithLifecycle(initialValue = false)
     
     Scaffold(
         modifier = Modifier.fillMaxSize(),

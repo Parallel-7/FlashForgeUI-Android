@@ -33,7 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffapi.PrinterModel
 import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
 import me.ghost.ffui.data.ActivePrinterSession
@@ -66,7 +66,7 @@ fun PrinterInfoScreen(
     viewModel: MainViewModel,
     onBack: () -> Unit
 ) {
-    val sessions by viewModel.sessions.collectAsState()
+    val sessions by viewModel.sessions.collectAsStateWithLifecycle()
     val session = sessions[serialNumber]
 
     if (session == null) {
@@ -78,9 +78,9 @@ fun PrinterInfoScreen(
         return
     }
 
-    val status by session.status.collectAsState()
-    val livePrinter by session.printerFlow.collectAsState()
-    val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsState(initial = false)
+    val status by session.status.collectAsStateWithLifecycle()
+    val livePrinter by session.printerFlow.collectAsStateWithLifecycle()
+    val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsStateWithLifecycle(initialValue = false)
     val scope = rememberCoroutineScope()
     val displayName = status?.name?.takeIf { it.isNotBlank() } ?: livePrinter.name
 
@@ -122,8 +122,8 @@ fun PrinterInfoDialog(
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize()) {
                 if (session != null) {
-                    val status by session.status.collectAsState()
-                    val livePrinter by session.printerFlow.collectAsState()
+                    val status by session.status.collectAsStateWithLifecycle()
+                    val livePrinter by session.printerFlow.collectAsStateWithLifecycle()
                     val scope = rememberCoroutineScope()
                     DialogHeader(name = status?.name?.takeIf { it.isNotBlank() } ?: livePrinter.name, onClose = onDismiss)
                     PrinterInfoBody(

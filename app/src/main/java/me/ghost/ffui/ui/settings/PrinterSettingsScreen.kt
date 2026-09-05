@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffapi.PrinterModel
 import me.ghost.ffui.data.PrinterEntity
 import me.ghost.ffui.data.maskSerial
@@ -32,8 +33,8 @@ fun PrinterSettingsScreen(
     var printer by remember { mutableStateOf<PrinterEntity?>(null) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val sessions by viewModel.sessions.collectAsState()
-    val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsState(initial = false)
+    val sessions by viewModel.sessions.collectAsStateWithLifecycle()
+    val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsStateWithLifecycle(initialValue = false)
 
     LaunchedEffect(serialNumber) {
         printer = viewModel.repository.getPrinter(serialNumber)

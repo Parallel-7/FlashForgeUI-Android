@@ -41,7 +41,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.ConnectionState
 import me.ghost.ffui.ui.theme.GeometricPrimary
@@ -92,7 +92,7 @@ internal fun PrinterTabBar(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             for ((serial, session) in sessions) {
-                val connState by session.connectionState.collectAsState()
+                val connState by session.connectionState.collectAsStateWithLifecycle()
                 PrinterTab(
                     name = session.printer.name,
                     subtitle = buildString {

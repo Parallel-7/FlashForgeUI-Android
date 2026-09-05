@@ -23,6 +23,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffui.R
 import me.ghost.ffui.api.DiscoveredPrinter
 import me.ghost.ffapi.PrinterModel
@@ -39,15 +40,15 @@ fun DiscoveryScreen(
     onNavigateToDashboard: () -> Unit,
     onNavigateToSettings: (String) -> Unit = {}
 ) {
-    val discovered by viewModel.discoveredPrinters.collectAsState()
-    val savedPrinters by viewModel.savedPrinters.collectAsState()
-    val isDiscovering by viewModel.isDiscovering.collectAsState()
-    val sessions by viewModel.sessions.collectAsState()
+    val discovered by viewModel.discoveredPrinters.collectAsStateWithLifecycle()
+    val savedPrinters by viewModel.savedPrinters.collectAsStateWithLifecycle()
+    val isDiscovering by viewModel.isDiscovering.collectAsStateWithLifecycle()
+    val sessions by viewModel.sessions.collectAsStateWithLifecycle()
     
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedToConnect by remember { mutableStateOf<DiscoveredPrinter?>(null) }
     var infoFor by remember { mutableStateOf<PrinterEntity?>(null) }
-    val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsState(initial = false)
+    val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsStateWithLifecycle(initialValue = false)
 
     Scaffold(
         topBar = {

@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import me.ghost.ffui.api.SpoolmanApi
 import me.ghost.ffui.api.SpoolPatchBody
 import me.ghost.ffui.api.SpoolmanSpool
@@ -42,7 +43,13 @@ class SpoolmanRepository(private val settings: SettingsDataStore) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    // Cross-thread shared state: written by the Dispatchers.IO settings collector, read from
+    // whatever thread a caller resumes on — volatile so a set URL is visible without a restart.
+    @Volatile
     private var api: SpoolmanApi? = null
+
+    /** Serializes list refreshes so two overlapping calls can't interleave load-state writes. */
+    private val refreshMutex = Mutex()
 
     private val _spools = MutableStateFlow<List<SpoolmanSpool>>(emptyList())
     val spools: StateFlow<List<SpoolmanSpool>> = _spools.asStateFlow()
@@ -80,16 +87,22 @@ class SpoolmanRepository(private val settings: SettingsDataStore) {
             _loadState.value = SpoolmanLoadState.NotConfigured
             return
         }
-
-        _loadState.value = SpoolmanLoadState.Loading
-        val result = currentApi.getSpools(allowArchived, sort)
-        if (result.isSuccess) {
-            _spools.value = result.getOrDefault(emptyList())
-            _loadState.value = SpoolmanLoadState.Loaded
-        } else {
-            _loadState.value = SpoolmanLoadState.Error(
-                result.exceptionOrNull()?.message ?: "Unknown error"
-            )
+        // A refresh already in flight owns the load-state writes; skipping avoids an older
+        // Error overwriting a newer Loaded when two callers overlap (screen revisit + pull-refresh).
+        if (!refreshMutex.tryLock()) return
+        try {
+            _loadState.value = SpoolmanLoadState.Loading
+            val result = currentApi.getSpools(allowArchived, sort)
+            if (result.isSuccess) {
+                _spools.value = result.getOrDefault(emptyList())
+                _loadState.value = SpoolmanLoadState.Loaded
+            } else {
+                _loadState.value = SpoolmanLoadState.Error(
+                    result.exceptionOrNull()?.message ?: "Unknown error"
+                )
+            }
+        } finally {
+            refreshMutex.unlock()
         }
     }
 

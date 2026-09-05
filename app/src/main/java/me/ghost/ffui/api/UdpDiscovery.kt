@@ -2,11 +2,13 @@ package me.ghost.ffui.api
 
 import android.content.Context
 import android.net.wifi.WifiManager
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.DatagramPacket
 import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.MulticastSocket
 import java.net.SocketTimeoutException
 
@@ -21,6 +23,8 @@ data class DiscoveredPrinter(
 
 object UdpDiscovery {
 
+    private const val TAG = "UdpDiscovery"
+
     suspend fun discover(context: Context): List<DiscoveredPrinter> = withContext(Dispatchers.IO) {
         val printers = mutableListOf<DiscoveredPrinter>()
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
@@ -31,16 +35,20 @@ object UdpDiscovery {
         var socket: MulticastSocket? = null
 
         try {
-            socket = MulticastSocket(0)
-            socket.broadcast = true
-            socket.reuseAddress = true
-            socket.soTimeout = 1500 // 1.5 seconds per read
-
+            // Bind explicitly so SO_REUSEADDR is set BEFORE the bind (it's a no-op afterwards —
+            // MulticastSocket(0) binds in the constructor). Ephemeral port via InetSocketAddress(0).
+            socket = MulticastSocket(null).apply {
+                reuseAddress = true
+                bind(InetSocketAddress(0))
+                broadcast = true
+                soTimeout = 1500 // 1.5 seconds per read
+            }
             val group = InetAddress.getByName("225.0.0.9")
             try {
                 socket.joinGroup(group)
             } catch (e: Exception) {
-                e.printStackTrace()
+                // Not fatal — the broadcast probes below still work without the multicast group.
+                Log.w(TAG, "joinGroup failed; falling back to broadcast only", e)
             }
 
             val discoverMsg = ByteArray(0)
@@ -63,7 +71,7 @@ object UdpDiscovery {
                         val packet = DatagramPacket(discoverMsg, discoverMsg.size, addr, port)
                         socket.send(packet)
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        Log.w(TAG, "probe to $ip:$port failed", e)
                     }
                 }
 
@@ -111,7 +119,7 @@ object UdpDiscovery {
                     } catch (e: Exception) {
                         // One bad packet (e.g. a transient ICMP port-unreachable) doesn't kill the
                         // socket — skip it and keep listening; the window's time bound still exits.
-                        e.printStackTrace()
+                        Log.w(TAG, "dropping malformed discovery packet", e)
                         continue
                     }
                 }
@@ -123,11 +131,13 @@ object UdpDiscovery {
                 if (retry < 2) delay(1000)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "discovery round failed", e)
         } finally {
             try {
                 socket?.leaveGroup(InetAddress.getByName("225.0.0.9"))
-            } catch (e: Exception) {}
+            } catch (_: Exception) {
+                // Never joined (or already closed) — nothing to leave.
+            }
             socket?.close()
             if (multicastLock?.isHeld == true) {
                 multicastLock.release()

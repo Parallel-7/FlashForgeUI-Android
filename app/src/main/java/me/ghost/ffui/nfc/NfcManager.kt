@@ -282,19 +282,27 @@ class NfcManager(
                 ?.ifBlank { null }
         }
 
-        /** Decode a well-known RTD_TEXT record into its UTF-8 string, or null if not a text record. */
+        /**
+         * Decode a well-known RTD_TEXT record. Honors the status byte's UTF-16 flag — tags
+         * written by other apps in UTF-16 decode correctly instead of as mojibake (our own
+         * writes are always UTF-8).
+         */
         private fun NdefRecord.toText(): String? {
             if (tnf != NdefRecord.TNF_WELL_KNOWN || !type.contentEquals(NdefRecord.RTD_TEXT)) {
                 return null
             }
             val data = payload
             if (data.isEmpty()) return null
-            val languageCodeLength = data[0].toInt() and 0x3F
+            val status = data[0].toInt()
+            val utf16 = status and 0x80 != 0
+            val languageCodeLength = status and 0x3F
+            val textStart = 1 + languageCodeLength
+            if (textStart > data.size) return null
             return String(
                 data,
-                1 + languageCodeLength,
-                data.size - 1 - languageCodeLength,
-                Charsets.UTF_8
+                textStart,
+                data.size - textStart,
+                if (utf16) Charsets.UTF_16 else Charsets.UTF_8
             )
         }
     }

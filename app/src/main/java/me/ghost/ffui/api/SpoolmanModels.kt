@@ -11,7 +11,6 @@ import kotlinx.serialization.Serializable
  * @property comment Free-text comment about this vendor.
  * @property emptySpoolWeight Weight of an empty spool from this vendor, in grams.
  * @property externalId ID in an external database if applicable.
- * @property extra Custom extra fields.
  */
 @Serializable
 data class SpoolmanVendor(
@@ -21,7 +20,6 @@ data class SpoolmanVendor(
     val comment: String? = null,
     val empty_spool_weight: Float? = null,
     val external_id: String? = null,
-    val extra: Map<String, String>? = null
 )
 
 /**
@@ -48,7 +46,6 @@ data class SpoolmanVendor(
  * @property multiColorHexes Multiple hex colors separated by commas.
  * @property multiColorDirection Multi-color direction ("coaxial" or "longitudinal").
  * @property externalId ID in an external database.
- * @property extra Custom extra fields.
  */
 @Serializable
 data class SpoolmanFilament(
@@ -64,13 +61,12 @@ data class SpoolmanFilament(
     val spool_weight: Float? = null,
     val article_number: String? = null,
     val comment: String? = null,
-    val settings_extruder_temp: Int? = null,
-    val settings_bed_temp: Int? = null,
+    val settings_extruder_temp: Float? = null,
+    val settings_bed_temp: Float? = null,
     val color_hex: String? = null,
     val multi_color_hexes: String? = null,
     val multi_color_direction: String? = null,
     val external_id: String? = null,
-    val extra: Map<String, String>? = null
 )
 
 /**
@@ -93,7 +89,6 @@ data class SpoolmanFilament(
  * @property lotNr Vendor manufacturing lot/batch number.
  * @property comment Free-text comment about this specific spool.
  * @property archived Whether this spool is archived.
- * @property extra Custom extra fields.
  */
 @Serializable
 data class SpoolmanSpool(
@@ -113,7 +108,6 @@ data class SpoolmanSpool(
     val lot_nr: String? = null,
     val comment: String? = null,
     val archived: Boolean = false,
-    val extra: Map<String, String>? = null
 ) {
     /**
      * Remaining filament as a fraction 0..1. Computed as `remaining_weight / initial_weight`

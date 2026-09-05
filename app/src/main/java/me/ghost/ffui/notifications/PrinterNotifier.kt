@@ -3,12 +3,14 @@ package me.ghost.ffui.notifications
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import me.ghost.ffui.MainActivity
 import me.ghost.ffui.R
 import me.ghost.ffui.data.PrinterEvent
 
@@ -23,17 +25,16 @@ import me.ghost.ffui.data.PrinterEvent
 class PrinterNotifier(private val context: Context) {
 
     init {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Printer status",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Print completion, bed-cooled, and printer error alerts"
-            }
-            context.getSystemService(NotificationManager::class.java)
-                .createNotificationChannel(channel)
+        // minSdk 26 == O — channel creation is required unconditionally, no guard needed.
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Printer status",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Print completion, bed-cooled, and printer error alerts"
         }
+        context.getSystemService(NotificationManager::class.java)
+            .createNotificationChannel(channel)
     }
 
     /** Renders [event] for the printer named [printerName]. No-op if the user denied notifications. */
@@ -48,10 +49,22 @@ class PrinterNotifier(private val context: Context) {
             is PrinterEvent.PrinterError -> "printer error" to "Reported error code ${event.code}."
         }
 
+        // Tapping the alert opens the app — the heads-up "print complete" is exactly the
+        // notification a user taps from another app; without a content intent it only dismisses.
+        val openApp = PendingIntent.getActivity(
+            context,
+            0,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            },
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_printer)
             .setContentTitle("$printerName — $titleSuffix")
             .setContentText(text)
+            .setContentIntent(openApp)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()

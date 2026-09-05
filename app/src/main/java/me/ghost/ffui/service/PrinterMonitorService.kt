@@ -101,7 +101,8 @@ class PrinterMonitorService : Service() {
 
     private fun buildNotification(printerCount: Int): Notification {
         val text = when (printerCount) {
-            0, 1 -> "Monitoring 1 printer"
+            0 -> "Monitoring printers"
+            1 -> "Monitoring 1 printer"
             else -> "Monitoring $printerCount printers"
         }
         val openApp = PendingIntent.getActivity(
@@ -113,7 +114,7 @@ class PrinterMonitorService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_printer)
             .setContentTitle("FlashForgeUI")
             .setContentText(text)
             .setContentIntent(openApp)
@@ -124,17 +125,16 @@ class PrinterMonitorService : Service() {
     }
 
     private fun createChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Background monitoring",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Keeps printers monitored while the app is closed"
-                setShowBadge(false)
-            }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        // minSdk 26 == O — channel creation is required unconditionally, no guard needed.
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Background monitoring",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Keeps printers monitored while the app is closed"
+            setShowBadge(false)
         }
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     companion object {

@@ -352,7 +352,7 @@ private suspend fun applyScannedSpool(
     onMatched(matchedMaterial, matchedColor)
 
     val applied = session.setSlotMaterial(slotId, matchedMaterial, matchedColor.hex)
-    if (applied?.isSuccess == true) {
+    if (applied.isSuccess) {
         onResult(ScanUi.Success("Slot $slotId → $matchedMaterial · ${matchedColor.name}\nfrom ${spool.displayName}"))
     } else {
         onResult(ScanUi.Error("Couldn't update Slot $slotId. Try again."))

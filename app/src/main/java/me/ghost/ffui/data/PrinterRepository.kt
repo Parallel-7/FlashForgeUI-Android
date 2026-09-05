@@ -310,6 +310,9 @@ class ActivePrinterSession(
     private var prevErrorCode: String? = null
     private var awaitingCooldown = false
 
+    /** Whether the bed was seen at/above [BED_SAFE_TEMP_C] since the job started — see [detectEvents]. */
+    private var bedWasHot = false
+
     private fun detectEvents(detail: PrinterDetailResponse) {
         val p = printer
         val status = detail.status?.lowercase()
@@ -322,11 +325,13 @@ class ActivePrinterSession(
             return
         }
 
-        // Bed cooled below the safe-to-remove threshold (only after a completion we witnessed).
+        // Bed cooled below the safe-to-remove threshold (only after a completion we witnessed
+        // AND only if the bed was actually hot at some point — a short PLA job on an already-cold
+        // bed must not fire "safe to remove" right behind "print complete").
         if (awaitingCooldown) {
             val bed = detail.platTemp
             when {
-                status in ACTIVE_PRINT_STATES -> awaitingCooldown = false   // new job started; abandon
+                status in ACTIVE_PRINT_STATES -> { awaitingCooldown = false; bedWasHot = false } // new job
                 bed != null && bed < BED_SAFE_TEMP_C -> {
                     awaitingCooldown = false
                     if (p.notifyOnCooled) onEvent(p, PrinterEvent.PrintCooled)
@@ -334,10 +339,13 @@ class ActivePrinterSession(
             }
         }
 
-        // Print just finished.
+        // Track whether the bed ever reached the removal threshold this job.
+        detail.platTemp?.let { if (it >= BED_SAFE_TEMP_C) bedWasHot = true }
+
+        // Print just finished — arm the cooled watch only when there is hot mass to cool.
         if (status == "completed" && prevStatusKey != "completed") {
             if (p.notifyOnComplete) onEvent(p, PrinterEvent.PrintCompleted)
-            awaitingCooldown = true   // always arm; cooled fires on a later poll, gated then
+            awaitingCooldown = bedWasHot
         }
 
         // A new error code appeared.
@@ -429,28 +437,31 @@ class ActivePrinterSession(
     }
 
     // ---- Control passthrough (capability-aware via the backend) ----
-    suspend fun setLight(on: Boolean) = backend?.setLight(on)
-    suspend fun setNozzleTemp(celsius: Int) = backend?.setNozzleTemp(celsius)
-    suspend fun setBedTemp(celsius: Int) = backend?.setBedTemp(celsius)
+    // One failure contract across the whole session surface: a missing backend yields the same
+    // typed "not ready" failure the file APIs use — never a silent null that reads as a dead
+    // button in the UI.
+    suspend fun setLight(on: Boolean) = backend?.setLight(on) ?: notReady()
+    suspend fun setNozzleTemp(celsius: Int) = backend?.setNozzleTemp(celsius) ?: notReady()
+    suspend fun setBedTemp(celsius: Int) = backend?.setBedTemp(celsius) ?: notReady()
     // Creator 5 series: per-tool and heated-chamber temperature control (HTTP-only transport on the
     // backend). Pure delegation — capability gating lives in the UI; the backend is the source of truth.
-    suspend fun setToolTemp(toolIndex: Int, celsius: Int) = backend?.setToolTemp(toolIndex, celsius)
-    suspend fun cancelToolTemp(toolIndex: Int) = backend?.cancelToolTemp(toolIndex)
-    suspend fun setChamberTemp(celsius: Int) = backend?.setChamberTemp(celsius)
-    suspend fun cancelChamberTemp() = backend?.cancelChamberTemp()
+    suspend fun setToolTemp(toolIndex: Int, celsius: Int) = backend?.setToolTemp(toolIndex, celsius) ?: notReady()
+    suspend fun cancelToolTemp(toolIndex: Int) = backend?.cancelToolTemp(toolIndex) ?: notReady()
+    suspend fun setChamberTemp(celsius: Int) = backend?.setChamberTemp(celsius) ?: notReady()
+    suspend fun cancelChamberTemp() = backend?.cancelChamberTemp() ?: notReady()
     // Canonical bed heater-off: over HTTP (Creator 5) this sends the TEMP_OFF=-100 cancel sentinel
     // rather than a target of 0 (which setBedTemp(0) does). Used by the Creator 5 temperature card.
-    suspend fun cancelBedTemp() = backend?.cancelBedTemp()
-    suspend fun home() = backend?.home()
-    suspend fun setFiltration(mode: FiltrationMode) = backend?.setFiltration(mode)
-    suspend fun setSlotMaterial(slot: Int, materialName: String, hexRgb: String) = backend?.setSlotMaterial(slot, materialName, hexRgb)
-    suspend fun slotAction(slot: Int, action: SlotAction) = backend?.slotAction(slot, action)
-    suspend fun pause() = backend?.pause()
-    suspend fun resume() = backend?.resume()
-    suspend fun cancel() = backend?.cancel()
-    suspend fun clearPlatform() = backend?.clearPlatform()
-    suspend fun rename(name: String) = backend?.rename(name)
-    suspend fun setAutoShutdown(enabled: Boolean, minutes: Int) = backend?.setAutoShutdown(enabled, minutes)
+    suspend fun cancelBedTemp() = backend?.cancelBedTemp() ?: notReady()
+    suspend fun home() = backend?.home() ?: notReady()
+    suspend fun setFiltration(mode: FiltrationMode) = backend?.setFiltration(mode) ?: notReady()
+    suspend fun setSlotMaterial(slot: Int, materialName: String, hexRgb: String) = backend?.setSlotMaterial(slot, materialName, hexRgb) ?: notReady()
+    suspend fun slotAction(slot: Int, action: SlotAction) = backend?.slotAction(slot, action) ?: notReady()
+    suspend fun pause() = backend?.pause() ?: notReady()
+    suspend fun resume() = backend?.resume() ?: notReady()
+    suspend fun cancel() = backend?.cancel() ?: notReady()
+    suspend fun clearPlatform() = backend?.clearPlatform() ?: notReady()
+    suspend fun rename(name: String) = backend?.rename(name) ?: notReady()
+    suspend fun setAutoShutdown(enabled: Boolean, minutes: Int) = backend?.setAutoShutdown(enabled, minutes) ?: notReady()
 
     // ---- File management (Phase 4) ----
     private fun notReady() = Result.failure<Nothing>(IllegalStateException("Printer not connected"))

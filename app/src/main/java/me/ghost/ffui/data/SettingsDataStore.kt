@@ -78,7 +78,7 @@ class SettingsDataStore(private val context: Context) {
     /** The startup-reconnect mode (defaults to [StartupReconnect.OFF]). */
     val startupReconnect: Flow<StartupReconnect> = context.dataStore.data.map { prefs ->
         prefs[Keys.STARTUP_RECONNECT]?.let { name ->
-            try { StartupReconnect.valueOf(name) } catch (_: Exception) { StartupReconnect.OFF }
+            try { StartupReconnect.valueOf(name) } catch (_: IllegalArgumentException) { StartupReconnect.OFF }
         } ?: StartupReconnect.OFF
     }
 
@@ -134,7 +134,7 @@ class SettingsDataStore(private val context: Context) {
     /** Which usage metric the spool cards show (defaults to [SpoolStatStyle.PERCENT]). */
     val spoolStatStyle: Flow<SpoolStatStyle> = context.dataStore.data.map { prefs ->
         prefs[Keys.SPOOL_STAT_STYLE]?.let { name ->
-            try { SpoolStatStyle.valueOf(name) } catch (_: Exception) { SpoolStatStyle.PERCENT }
+            try { SpoolStatStyle.valueOf(name) } catch (_: IllegalArgumentException) { SpoolStatStyle.PERCENT }
         } ?: SpoolStatStyle.PERCENT
     }
 

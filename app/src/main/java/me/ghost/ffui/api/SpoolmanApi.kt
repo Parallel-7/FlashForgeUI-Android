@@ -2,13 +2,17 @@ package me.ghost.ffui.api
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -79,12 +83,21 @@ class SpoolmanApi(baseUrl: String) {
                 }
                 val bodyStr = response.body?.string()
                     ?: return@withContext Result.failure(Exception("Empty body"))
-                if (!bodyStr.contains("\"healthy\"")) {
+                // Parse the status field rather than substring-match — robust against any future
+                // body that merely mentions the word "healthy" (e.g. "unhealthy").
+                val status = try {
+                    json.parseToJsonElement(bodyStr).jsonObject["status"]?.jsonPrimitive?.content
+                } catch (_: IllegalArgumentException) {
+                    null
+                }
+                if (status != "healthy") {
                     return@withContext Result.failure(Exception("Unexpected health response: $bodyStr"))
                 }
                 Result.success(Unit)
             }
-        } catch (e: Exception) {
+        } catch (e: IOException) {
+            Result.failure(e)
+        } catch (e: SerializationException) {
             Result.failure(e)
         }
     }
@@ -121,7 +134,9 @@ class SpoolmanApi(baseUrl: String) {
                     val spools = json.decodeFromString<List<SpoolmanSpool>>(bodyStr)
                     Result.success(spools)
                 }
-            } catch (e: Exception) {
+            } catch (e: IOException) {
+                Result.failure(e)
+            } catch (e: SerializationException) {
                 Result.failure(e)
             }
         }
@@ -149,7 +164,9 @@ class SpoolmanApi(baseUrl: String) {
                         ?: return@withContext Result.failure(Exception("Empty body"))
                     Result.success(json.decodeFromString<SpoolmanSpool>(bodyStr))
                 }
-            } catch (e: Exception) {
+            } catch (e: IOException) {
+                Result.failure(e)
+            } catch (e: SerializationException) {
                 Result.failure(e)
             }
         }
@@ -178,7 +195,9 @@ class SpoolmanApi(baseUrl: String) {
                         ?: return@withContext Result.failure(Exception("Empty body"))
                     Result.success(json.decodeFromString<SpoolmanSpool>(bodyStr))
                 }
-            } catch (e: Exception) {
+            } catch (e: IOException) {
+                Result.failure(e)
+            } catch (e: SerializationException) {
                 Result.failure(e)
             }
         }
@@ -208,7 +227,9 @@ class SpoolmanApi(baseUrl: String) {
                         ?: return@withContext Result.failure(Exception("Empty body"))
                     Result.success(json.decodeFromString<SpoolmanSpool>(respStr))
                 }
-            } catch (e: Exception) {
+            } catch (e: IOException) {
+                Result.failure(e)
+            } catch (e: SerializationException) {
                 Result.failure(e)
             }
         }

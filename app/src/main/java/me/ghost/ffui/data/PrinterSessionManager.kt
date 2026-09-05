@@ -180,9 +180,11 @@ class PrinterSessionManager(
 
     /**
      * Opens a live session for [printer]. If a session for this serial already exists the call just
-     * switches the active tab to it (no duplicate connections).
+     * switches the active tab to it (no duplicate connections). [deferServiceEvaluation] skips the
+     * trailing foreground-service evaluation — used by [reconnectSession] so a disconnect+connect
+     * pair doesn't stop/start the service around what is, from the user's view, one operation.
      */
-    fun connectToPrinter(printer: PrinterEntity) {
+    fun connectToPrinter(printer: PrinterEntity, deferServiceEvaluation: Boolean = false) {
         if (_sessions.value.containsKey(printer.serialNumber)) {
             setActive(printer.serialNumber)
             return
@@ -201,18 +203,21 @@ class PrinterSessionManager(
         setActive(printer.serialNumber)
         session.startSession()
         persistSessionState()
-        evaluateService()
+        if (!deferServiceEvaluation) evaluateService()
     }
 
-    /** Disconnects a single printer by serial number. */
-    fun disconnect(serial: String) {
+    /**
+     * Disconnects a single printer by serial number. [deferServiceEvaluation] as in
+     * [connectToPrinter].
+     */
+    fun disconnect(serial: String, deferServiceEvaluation: Boolean = false) {
         _sessions.value[serial]?.stopSession()
         _sessions.update { it - serial }
         if (_activeSerial.value == serial) {
             _activeSerial.value = _sessions.value.keys.firstOrNull()
         }
         persistSessionState()
-        evaluateService()
+        if (!deferServiceEvaluation) evaluateService()
     }
 
     /** Convenience overload: disconnect whatever printer is currently active. */
@@ -245,16 +250,20 @@ class PrinterSessionManager(
 
     /**
      * Reconnects an already-connected session — used when per-printer settings change so the
-     * backend re-resolves capabilities.
+     * backend re-resolves capabilities. The disconnect/connect pair defers the foreground-service
+     * evaluation (see [connectToPrinter]): evaluating after each half would stop the service when
+     * the map momentarily empties and restart it milliseconds later — churning the "Monitoring N
+     * printers" notification for no benefit.
      */
     fun reconnectSession(serial: String) {
         scope.launch {
             val wasActive = _activeSerial.value == serial
-            disconnect(serial)
+            disconnect(serial, deferServiceEvaluation = true)
             repository.getPrinter(serial)?.let { entity ->
-                connectToPrinter(entity)
+                connectToPrinter(entity, deferServiceEvaluation = true)
                 if (wasActive) setActive(serial)
             }
+            evaluateService()
         }
     }
 

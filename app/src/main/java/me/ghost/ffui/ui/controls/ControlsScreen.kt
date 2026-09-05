@@ -142,6 +142,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
                 // owns its own dialog; lambdas mirror the single-toolhead dispatch (same scope/pass-throughs).
                 Creator5TemperatureCard(
                     detail = status,
+                    hasChamberSensor = capabilities.chamberTempControl,
                     onCreate5SetTool = { idx, t -> scope.launch { session.setToolTemp(idx, t) } },
                     onCreate5CancelTool = { idx -> scope.launch { session.cancelToolTemp(idx) } },
                     onCreate5SetBed = { t -> scope.launch { session.setBedTemp(t) } },

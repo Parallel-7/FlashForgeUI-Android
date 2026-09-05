@@ -75,6 +75,10 @@ private sealed interface Creator5HeaterTarget {
  * (gated on `PrinterCapabilities.model.isCreator5`).
  *
  * @param detail Latest `/detail` snapshot, or null while connecting (cells render 0/0°).
+ * @param hasChamberSensor Whether this unit actually reports a chamber temperature (a Creator 5
+ *   series *option*). When false the CHAMBER cell is omitted entirely instead of rendering the
+ *   firmware's `-108` "no sensor" sentinel — and its Set/Off commands (silently ACK'd by
+ *   chamber-less units) are never offered.
  * @param onCreate5SetTool Set tool [toolIndex] (0-based wire index) to [celsius].
  * @param onCreate5CancelTool Turn tool [toolIndex] off (dedicated cancel — not set(0)).
  * @param onCreate5SetBed Set the bed to [celsius].
@@ -86,6 +90,7 @@ private sealed interface Creator5HeaterTarget {
 @Composable
 internal fun Creator5TemperatureCard(
     detail: FFPrinterDetail?,
+    hasChamberSensor: Boolean,
     onCreate5SetTool: (toolIndex: Int, celsius: Int) -> Unit,
     onCreate5CancelTool: (toolIndex: Int) -> Unit,
     onCreate5SetBed: (celsius: Int) -> Unit,
@@ -141,7 +146,8 @@ internal fun Creator5TemperatureCard(
                     )
                 }
             }
-            // Base row: bed + chamber.
+            // Base row: bed (+ chamber only on units that have the sensor). Without a chamber
+            // the bed cell stretches full-width — no phantom -108° cell.
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Creator5HeaterCell(
                     label = "BED",
@@ -153,16 +159,18 @@ internal fun Creator5TemperatureCard(
                     onOff = onCreate5CancelBed,
                     modifier = Modifier.weight(1f)
                 )
-                Creator5HeaterCell(
-                    label = "CHAMBER",
-                    current = chamberCurrent,
-                    target = chamberTarget,
-                    heatingColor = GeometricYellowPrimary,
-                    trackColor = MaterialTheme.colorScheme.outlineVariant,
-                    onSet = { dialogTarget = Creator5HeaterTarget.Chamber },
-                    onOff = onCreate5CancelChamber,
-                    modifier = Modifier.weight(1f)
-                )
+                if (hasChamberSensor) {
+                    Creator5HeaterCell(
+                        label = "CHAMBER",
+                        current = chamberCurrent,
+                        target = chamberTarget,
+                        heatingColor = GeometricYellowPrimary,
+                        trackColor = MaterialTheme.colorScheme.outlineVariant,
+                        onSet = { dialogTarget = Creator5HeaterTarget.Chamber },
+                        onOff = onCreate5CancelChamber,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
     }

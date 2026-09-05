@@ -183,6 +183,7 @@ class ActivePrinterSession(
                 newBackend.initialize()
                 backend = newBackend
                 _capabilities.value = newBackend.capabilities
+                syncCapabilityTruth(detail)
                 // HTTP-only models (Creator 5) expose no usable TCP control channel — never
                 // connect it, or the socket hangs/times out on a dead 8899. Modern dual-API
                 // printers connect here so LED/homing/temp controls are ready on demand (idempotent
@@ -268,10 +269,27 @@ class ActivePrinterSession(
             .onSuccess { detail ->
                 _status.value = detail
                 _matlStation.value = b.materialStation(detail)
+                syncCapabilityTruth(detail)
                 _connectionState.value = ConnectionState.Connected
                 detectEvents(detail)
             }
             .onFailure { e -> applyFailure(e) }
+    }
+
+    /**
+     * Reconciles capability flags that depend on live hardware truth the backend baselines can't
+     * know: the heated chamber is a Creator 5 series *option*, and the library's C5 baseline
+     * reports `chamberTempControl` for the whole family. A chamber-less unit answers with the
+     * `-108` sentinel, which the library's `MachineInfo.fromDetail` normalizes to "no sensor" —
+     * so gate the capability on `hasChamberSensor` and the chamber cell (and its Set/Off
+     * commands, which such units silently ACK) never render.
+     */
+    private fun syncCapabilityTruth(detail: PrinterDetailResponse) {
+        val caps = _capabilities.value
+        if (!caps.model.isCreator5) return
+        val hasChamber = machineInfo.fromDetail(detail)?.hasChamberSensor ?: return
+        val updated = caps.copy(chamberTempControl = caps.chamberTempControl && hasChamber)
+        if (updated != caps) _capabilities.value = updated
     }
 
     // ---- Notification event detection ----

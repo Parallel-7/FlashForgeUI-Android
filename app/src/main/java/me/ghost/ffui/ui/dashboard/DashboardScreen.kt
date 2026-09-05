@@ -261,6 +261,7 @@ private fun DashboardContent(
             // dispatch below (same scope, same session pass-throughs).
             Creator5TemperatureCard(
                 detail = status,
+                hasChamberSensor = capabilities.chamberTempControl,
                 onCreate5SetTool = { idx, t -> scope.launch { session.setToolTemp(idx, t) } },
                 onCreate5CancelTool = { idx -> scope.launch { session.cancelToolTemp(idx) } },
                 onCreate5SetBed = { t -> scope.launch { session.setBedTemp(t) } },

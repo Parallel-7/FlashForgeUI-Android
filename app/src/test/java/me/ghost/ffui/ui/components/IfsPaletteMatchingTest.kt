@@ -5,13 +5,15 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Unit tests for [IfsPalette]'s nearest-match helpers, which snap arbitrary Spoolman values onto the
- * printer's fixed material/color lists for the scan-to-set-slot flow. Pure JVM — [IfsPalette] parses
- * hex and runs CIEDE2000 by hand, so no Robolectric is needed.
+ * Unit tests for [IfsPalette]'s Spoolman-facing helpers — the snap-to-palette plumbing the
+ * scan-to-set-slot flow relies on. The CIEDE2000 math and the palettes themselves live in the
+ * library (`Ad5xPalette`/`PaletteSnap`, covered 1:1 by its own tests); these tests pin what
+ * remains app-side: the null/unparseable contract layered over the library snap, RRGGBBAA
+ * alpha-dropping, the model dispatch, and the Spoolman material-name matching.
  *
  * Several color cases are real fixtures pulled from a live Spoolman library (see
- * `liveSpoolmanColors`), so this doubles as a regression guard against the perceptual matcher
- * drifting on real-world data.
+ * `liveSpoolmanColors`), so this doubles as a regression guard that the delegated snap still
+ * resolves real-world data the same way.
  */
 class IfsPaletteMatchingTest {
 
@@ -59,9 +61,11 @@ class IfsPaletteMatchingTest {
     }
 
     @Test
-    fun `hash is optional and alpha is ignored`() {
+    fun `hash is optional, alpha is ignored, and shorthand expands`() {
         assertEquals("Red", IfsPalette.nearestColor("FF0000")?.name)
         assertEquals("Red", IfsPalette.nearestColor("#FF0000FF")?.name) // RRGGBBAA
+        // 3-digit shorthand now expands through the library snap (FFF → White).
+        assertEquals("White", IfsPalette.nearestColor("#FFF")?.name)
     }
 
     @Test
@@ -69,7 +73,18 @@ class IfsPaletteMatchingTest {
         assertNull(IfsPalette.nearestColor(null))
         assertNull(IfsPalette.nearestColor(""))
         assertNull(IfsPalette.nearestColor("nothex"))
-        assertNull(IfsPalette.nearestColor("#FFF")) // 3-digit shorthand unsupported
+    }
+
+    @Test
+    fun `model dispatch snaps through the right palette`() {
+        // Blue is the palette differentiator: #45A8F9 on the AD5X vs #4CAAF8 on the Creator 5.
+        // Snapping the C5 blue on the AD5X palette yields the AD5X hex — never cross-wired.
+        assertEquals("#45A8F9", IfsPalette.nearestColorFor(isCreator5 = false, hex = "#4CAAF8")?.hex)
+        assertEquals("#4CAAF8", IfsPalette.nearestColorFor(isCreator5 = true, hex = "#4CAAF8")?.hex)
+        assertEquals("#45A8F9", IfsPalette.nearestColorFor(isCreator5 = false, hex = "#45A8F9")?.hex)
+        // Absent color stays null on both models (no silent White).
+        assertNull(IfsPalette.nearestColorFor(isCreator5 = true, hex = null))
+        assertNull(IfsPalette.nearestColorFor(isCreator5 = false, hex = null))
     }
 
     @Test

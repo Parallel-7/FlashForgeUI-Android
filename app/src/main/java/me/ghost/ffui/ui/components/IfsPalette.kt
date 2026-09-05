@@ -1,58 +1,36 @@
 package me.ghost.ffui.ui.components
 
 import androidx.compose.ui.graphics.Color
+import me.ghost.ffapi.api.controls.PaletteSnap
+import me.ghost.ffapi.api.controls.ad5x.Ad5xPalette
 import me.ghost.ffapi.api.controls.creator5.Creator5Palette
 
 /**
- * Canonical AD5X IFS materials and colors, shared between the dashboard slot editor and the future
- * "Files → multi-color start" matching flow. Single source of truth so the two surfaces present the
- * same lists.
+ * Model-aware view over the firmware palettes the library ships, shared between the dashboard
+ * slot editor and the "Files → multi-color start" matching flow.
  *
- * Both lists mirror what the printer's own UI recognizes (see the wiki's
- * `AD5X-IFS-Material-Station.md`). The firmware accepts arbitrary material strings and hex colors,
- * so the editor offers a free-text/hex escape hatch in addition to these — but off-list values
- * won't render an icon on the printer's screen.
+ * The colors, materials, and the CIEDE2000 snap all live in `ff-5mp-api-kt`
+ * ([Ad5xPalette] / [Creator5Palette] over the shared [PaletteSnap] machinery) — the single source
+ * of truth, so the app can never drift from what the backend actually sends. This object only
+ * adds the UI concerns: Compose [Color] values for swatches, model dispatch, and the Spoolman
+ * material-name matching that has no wire counterpart.
+ *
+ * Freeform values are still allowed as an escape hatch (the firmware accepts arbitrary material
+ * strings and hex colors), but off-list values won't render an icon on the printer's screen.
  */
 object IfsPalette {
 
-    /** Material types the printer UI renders correctly. The editor adds a "Custom…" sink for the rest. */
-    val MATERIALS: List<String> = listOf(
-        "PLA", "PLA-CF", "PETG", "PETG-CF", "ABS", "TPU", "SILK",
-        "PA", "PA-CF", "PAHT-CF", "PC", "PC-ABS", "PET-CF", "PPS-CF"
-    )
-
     /** A named, UI-recognized color. [hex] is `#RRGGBB`; [color] is its Compose form for swatches. */
     data class PaletteColor(val name: String, val hex: String) {
-        val color: Color get() = Color(android.graphics.Color.parseColor(hex))
+        /** Parsed once at construction; hand-parsed so this stays pure-JVM unit-testable. */
+        val color: Color = hexToCompose(hex)
     }
 
-    /** The 24 colors the printer UI shows a proper icon for. Free hex entry is allowed as an escape hatch. */
-    val COLORS: List<PaletteColor> = listOf(
-        PaletteColor("White", "#FFFFFF"),
-        PaletteColor("Yellow", "#FEF043"),
-        PaletteColor("Light Green", "#DCF478"),
-        PaletteColor("Green", "#0ACC38"),
-        PaletteColor("Dark Green", "#067749"),
-        PaletteColor("Teal", "#0C6283"),
-        PaletteColor("Cyan", "#0DE2A0"),
-        PaletteColor("Light Blue", "#75D9F3"),
-        PaletteColor("Blue", "#45A8F9"),
-        PaletteColor("Dark Blue", "#2750E0"),
-        PaletteColor("Purple", "#46328E"),
-        PaletteColor("Violet", "#A03CF7"),
-        PaletteColor("Magenta", "#F330F9"),
-        PaletteColor("Pink", "#D4B0DC"),
-        PaletteColor("Coral", "#F95D73"),
-        PaletteColor("Red", "#F72224"),
-        PaletteColor("Brown", "#7C4B00"),
-        PaletteColor("Orange", "#F98D33"),
-        PaletteColor("Cream", "#FDEBD5"),
-        PaletteColor("Tan", "#D3C4A3"),
-        PaletteColor("Dark Brown", "#AF7836"),
-        PaletteColor("Gray", "#898989"),
-        PaletteColor("Light Gray", "#BCBCBC"),
-        PaletteColor("Black", "#161616")
-    )
+    /** Material types the AD5X printer UI renders. The editor adds a free-text sink for the rest. */
+    val MATERIALS: List<String> = Ad5xPalette.AD5X_MATERIALS
+
+    /** The 24 colors the AD5X printer UI shows a proper icon for (library palette, exact hexes). */
+    val COLORS: List<PaletteColor> = Ad5xPalette.AD5X_PALETTE.map { PaletteColor(it.name, it.hex) }
 
     /** Whether [hex] (case-insensitive, with or without `#`) is one of the UI-recognized palette colors. */
     fun isRecognizedColor(hex: String): Boolean {
@@ -62,21 +40,15 @@ object IfsPalette {
 
     // ── Nearest-match (for snapping arbitrary Spoolman values onto the printer's fixed lists) ──
 
-    /** Each palette color's CIELAB coordinates, computed once. Parallel to [COLORS]. */
-    private val colorsLab: List<Triple<Double, Double, Double>> by lazy {
-        COLORS.map { hexToLab(it.hex)!! } // palette hexes are all valid #RRGGBB
-    }
-
     /**
-     * The palette color perceptually closest to [hex] (`#RRGGBB`, with or without `#`), or `null` if
-     * [hex] can't be parsed. Distance is **CIEDE2000** (ΔE2000) — the modern perceptual metric, which
-     * (unlike plain Euclidean ΔE76) correctly handles the saturated blue/red regions, so e.g. pure
-     * blue `#0000FF` snaps to Dark Blue rather than Violet and a burgundy snaps to Red rather than
-     * Coral. Verified against the live Spoolman library. Pure math, no dependencies.
+     * The AD5X palette color perceptually closest to [hex] (`#RRGGBB`, with or without `#`), or
+     * `null` if [hex] is null/unparseable. Delegates to the library's CIEDE2000 snap — the same
+     * code path the backend uses when writing a slot, so the swatch shown here is the value the
+     * printer will actually store. Pure math, no Android dependencies.
      */
     fun nearestColor(hex: String?): PaletteColor? {
-        val lab = hex?.let { hexToLab(it) } ?: return null
-        return COLORS.indices.minByOrNull { i -> ciede2000(lab, colorsLab[i]) }?.let { COLORS[it] }
+        val norm = normalizeHex(hex) ?: return null
+        return Ad5xPalette.snapToAd5xPalette(norm).let { PaletteColor(it.name, it.hex) }
     }
 
     /**
@@ -87,6 +59,9 @@ object IfsPalette {
      * `"PLA+" → PLA`, `"PETG-CF Pro" → PETG-CF`. A leading-token (rather than longest-prefix) rule
      * deliberately keeps oddball names like `"PCTG"` or `"PA6"` from snapping to a chemically-unrelated
      * type (`PC`, `PA`); those fall through to `null` so the caller keeps the current selection.
+     *
+     * App-side on purpose: the wire material strings are freeform and the library ships only the
+     * fixed firmware lists — nothing protocol-related here.
      */
     fun nearestMaterial(raw: String?): String? {
         val trimmed = raw?.trim().orEmpty()
@@ -102,17 +77,16 @@ object IfsPalette {
 
     // ── Creator 5 (model-aware overlay) ────────────────────────────
     //
-    // Everything above is the AD5X palette and stays the default. The Creator 5 firmware only
-    // renders a color icon when the slot's rgb field is an EXACT, case-sensitive #RRGGBB match
-    // against its own 24-color palette (Blue is #4CAAF8 here vs #45A8F9 on the AD5X), so the slot
-    // editor must render the right swatches per model. The 24 colors are pulled straight from the
-    // library's Creator5Palette (single source of truth — never re-declare the hexes here, they'd
-    // drift); materials are freeform on the wire so they live here.
+    // The Creator 5 firmware only renders a color icon when the slot's rgb field is an EXACT,
+    // case-sensitive #RRGGBB match against its own 24-color palette (Blue is #4CAAF8 here vs
+    // #45A8F9 on the AD5X), so the slot editor must render the right swatches per model. Colors
+    // come straight from the library's Creator5Palette; the material list below is app-side
+    // (the library ships AD5X materials only, and C5 materials are freeform on the wire).
 
     /**
      * The 21 materials the Creator 5 UI renders (firmware order, sourced from the FFUI Electron
-     * reference `creator5-palette.ts`). The library exposes colors only; materials are freeform on
-     * the wire so they live here.
+     * reference `creator5-palette.ts`). Kept app-side: the library ships the AD5X material list
+     * only, and the C5 wire format treats materials as freeform strings.
      */
     val CREATOR5_MATERIALS: List<String> = listOf(
         "PLA", "PETG", "PLA-CF", "PETG-CF", "ABS", "ASA", "SILK", "PET-CF",
@@ -120,11 +94,7 @@ object IfsPalette {
         "TPU-95A", "TPU-64D", "PC", "PA", "PC-ABS", "PPS-CF"
     )
 
-    /**
-     * The Creator 5 24-color palette as [PaletteColor]s, sourced from the library's
-     * [Creator5Palette] (the exact firmware hexes, uppercase `#RRGGBB`). [PaletteColor.color]
-     * parses `#RRGGBB` via `android.graphics.Color`, so it renders these too.
-     */
+    /** The Creator 5 24-color palette (library hexes, uppercase `#RRGGBB`). */
     val CREATOR5_COLORS: List<PaletteColor> =
         Creator5Palette.CREATOR5_PALETTE.map { PaletteColor(it.name, it.hex) }
 
@@ -138,121 +108,44 @@ object IfsPalette {
 
     /**
      * The palette color the printer will actually store for [hex] (`#RRGGBB`, with or without `#`),
-     * snapped through the right palette for the model. AD5X uses the existing CIEDE2000 path (null
-     * if [hex] is null/unparseable); Creator 5 delegates to the library's exact-match snap, which
-     * never returns null (unparseable -> White, the firmware's own fallback) — but a null [hex]
-     * still yields null so callers can report "no color set".
+     * snapped through the right palette for the model — both snaps are the library's, so this is
+     * byte-for-byte what the backend will send. A null/unparseable [hex] yields null so callers
+     * can report "no color set" (the library's own fallback-to-White only applies to non-null
+     * garbage, and an absent color is a different thing).
      */
     fun nearestColorFor(isCreator5: Boolean, hex: String?): PaletteColor? {
-        if (hex == null) return null
+        val norm = normalizeHex(hex) ?: return null
         return if (isCreator5) {
-            Creator5Palette.snapToCreator5Palette(hex).let { PaletteColor(it.name, it.hex) }
+            Creator5Palette.snapToCreator5Palette(norm).let { PaletteColor(it.name, it.hex) }
         } else {
-            nearestColor(hex)
+            Ad5xPalette.snapToAd5xPalette(norm).let { PaletteColor(it.name, it.hex) }
         }
+    }
+
+    /**
+     * Normalizes a caller-supplied hex to a form the library snap accepts: strips `#`, drops an
+     * alpha channel (Spoolman colors can be `RRGGBBAA`; the printer palettes are opaque), and
+     * re-prefixes `#`. Returns null when the result still isn't a parseable color — that keeps the
+     * app's "absent/unparseable → null" contract on top of the library's snap (which would
+     * otherwise fall back to White).
+     */
+    private fun normalizeHex(hex: String?): String? {
+        if (hex == null) return null
+        val clean = hex.trim().removePrefix("#")
+        val rgb = when (clean.length) {
+            8 -> clean.substring(0, 6) // RRGGBBAA → drop alpha
+            else -> clean
+        }
+        return PaletteSnap.hexToRgb(rgb)?.let { "#$rgb" }
     }
 
     /** Uppercase, alphanumerics only — so "PETG-CF" and "petg cf" both become "PETGCF". */
     private fun normalizeMaterial(s: String): String =
         s.uppercase().filter { it.isLetterOrDigit() }
 
-    /**
-     * Parse `#RRGGBB` (or `RRGGBBAA`, with or without `#`) and convert sRGB → CIELAB (D65). Null if
-     * unparseable. Parses hex by hand (no `android.graphics.Color`) so the matching logic stays
-     * pure-JVM unit-testable.
-     */
-    private fun hexToLab(hex: String): Triple<Double, Double, Double>? {
-        val clean = hex.trim().removePrefix("#")
-        val rgb = when (clean.length) {
-            6 -> clean
-            8 -> clean.substring(0, 6) // RRGGBBAA → drop alpha
-            else -> return null
-        }
-        val value = rgb.toLongOrNull(16)?.toInt() ?: return null
-        val r = ((value shr 16) and 0xFF) / 255.0
-        val g = ((value shr 8) and 0xFF) / 255.0
-        val b = (value and 0xFF) / 255.0
-        // sRGB companding → linear RGB.
-        fun lin(c: Double) = if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
-        val rl = lin(r); val gl = lin(g); val bl = lin(b)
-        // Linear RGB → XYZ (D65), then normalize by the reference white.
-        val x = (rl * 0.4124 + gl * 0.3576 + bl * 0.1805) / 0.95047
-        val y = (rl * 0.2126 + gl * 0.7152 + bl * 0.0722) / 1.00000
-        val z = (rl * 0.0193 + gl * 0.1192 + bl * 0.9505) / 1.08883
-        // XYZ → Lab.
-        fun f(t: Double) = if (t > 0.008856) Math.cbrt(t) else (7.787 * t) + (16.0 / 116.0)
-        val fx = f(x); val fy = f(y); val fz = f(z)
-        val l = (116.0 * fy) - 16.0
-        val a = 500.0 * (fx - fy)
-        val bb = 200.0 * (fy - fz)
-        return Triple(l, a, bb)
-    }
-
-    /**
-     * CIEDE2000 colour difference between two CIELAB colours (as `Triple(L, a, b)`). Returns the
-     * **squared** ΔE2000 — we only ever compare these for an argmin, so skipping the final `sqrt` is
-     * cheaper and order-preserving. Standard formula (Sharma et al. 2005).
-     */
-    private fun ciede2000(
-        lab1: Triple<Double, Double, Double>,
-        lab2: Triple<Double, Double, Double>
-    ): Double {
-        val (l1, a1, b1) = lab1
-        val (l2, a2, b2) = lab2
-        val pow25_7 = Math.pow(25.0, 7.0)
-
-        val c1 = Math.hypot(a1, b1)
-        val c2 = Math.hypot(a2, b2)
-        val cBar = (c1 + c2) / 2.0
-        val cBar7 = Math.pow(cBar, 7.0)
-        val g = 0.5 * (1 - Math.sqrt(cBar7 / (cBar7 + pow25_7)))
-
-        val a1p = (1 + g) * a1
-        val a2p = (1 + g) * a2
-        val c1p = Math.hypot(a1p, b1)
-        val c2p = Math.hypot(a2p, b2)
-        val h1p = atan2Deg(b1, a1p)
-        val h2p = atan2Deg(b2, a2p)
-
-        val dLp = l2 - l1
-        val dCp = c2p - c1p
-        val dhp = when {
-            c1p * c2p == 0.0 -> 0.0
-            Math.abs(h2p - h1p) <= 180 -> h2p - h1p
-            h2p - h1p > 180 -> h2p - h1p - 360
-            else -> h2p - h1p + 360
-        }
-        val dHp = 2 * Math.sqrt(c1p * c2p) * Math.sin(Math.toRadians(dhp) / 2)
-
-        val lBarp = (l1 + l2) / 2
-        val cBarp = (c1p + c2p) / 2
-        val hBarp = when {
-            c1p * c2p == 0.0 -> h1p + h2p
-            Math.abs(h1p - h2p) <= 180 -> (h1p + h2p) / 2
-            h1p + h2p < 360 -> (h1p + h2p + 360) / 2
-            else -> (h1p + h2p - 360) / 2
-        }
-        val t = 1 - 0.17 * Math.cos(Math.toRadians(hBarp - 30)) +
-            0.24 * Math.cos(Math.toRadians(2 * hBarp)) +
-            0.32 * Math.cos(Math.toRadians(3 * hBarp + 6)) -
-            0.20 * Math.cos(Math.toRadians(4 * hBarp - 63))
-        val dTheta = 30 * Math.exp(-Math.pow((hBarp - 275) / 25, 2.0))
-        val cBarp7 = Math.pow(cBarp, 7.0)
-        val rc = 2 * Math.sqrt(cBarp7 / (cBarp7 + pow25_7))
-        val sl = 1 + (0.015 * Math.pow(lBarp - 50, 2.0)) / Math.sqrt(20 + Math.pow(lBarp - 50, 2.0))
-        val sc = 1 + 0.045 * cBarp
-        val sh = 1 + 0.015 * cBarp * t
-        val rt = -Math.sin(Math.toRadians(2 * dTheta)) * rc
-
-        val termL = dLp / sl
-        val termC = dCp / sc
-        val termH = dHp / sh
-        return termL * termL + termC * termC + termH * termH + rt * termC * termH
-    }
-
-    /** `atan2` in degrees, normalized to `[0, 360)`. */
-    private fun atan2Deg(y: Double, x: Double): Double {
-        val d = Math.toDegrees(Math.atan2(y, x))
-        return if (d < 0) d + 360 else d
+    /** `#RRGGBB` → opaque ARGB-packed [Color] (pure Kotlin, no android.graphics). */
+    private fun hexToCompose(hex: String): Color {
+        val v = hex.removePrefix("#").toLongOrNull(16) ?: 0L
+        return Color(0xFF000000L or v)
     }
 }

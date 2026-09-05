@@ -52,6 +52,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.ThumbnailCache
 import me.ghost.ffui.ui.components.MpvController
@@ -68,6 +71,12 @@ import kotlinx.coroutines.delay
  * [MpvVideoSurface]), only one [MpvVideoSurface] is composed at once — the card's is removed
  * while fullscreen is open and restored on close. The controller keeps the stream loaded across
  * that handoff, so there's no reconnect.
+ *
+ * [isActivePage] is false for pager pages that are composed but not settled on (adjacent pages
+ * kept alive by `beyondViewportPageCount`, or the page being swiped away from). The network stream
+ * runs only while the page is active AND not user-paused — so swiping between printers never
+ * opens/tears down camera connections for pages the user merely passes, and at most one stream
+ * (the visible printer's) is ever live. The controller itself survives page switches.
  */
 /**
  * Identifies the active print job for the dashboard's "what am I printing?" thumbnail tile. Held by
@@ -85,14 +94,18 @@ fun CameraCard(
     streamUrl: String?,
     autoPlay: Boolean,
     showFps: Boolean,
-    jobThumbnail: JobThumbnailRef? = null
+    jobThumbnail: JobThumbnailRef? = null,
+    /** Whether the pager page holding this card is the settled (visible) page. */
+    isActivePage: Boolean = true,
 ) {
     var isPlaying by remember(streamUrl) { mutableStateOf(autoPlay) }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
 
     val controller = rememberMpvController()
-    LaunchedEffect(controller, streamUrl, isPlaying) {
-        controller.setMedia(streamUrl, isPlaying)
+    // Stream only while settled on this page (see isActivePage above); a pure page switch keeps
+    // `isPlaying`, so returning to a page resumes its stream on its own controller.
+    LaunchedEffect(controller, streamUrl, isPlaying, isActivePage) {
+        controller.setMedia(streamUrl, isPlaying && isActivePage)
     }
 
     // Poll the controller's measured frame rate only while the overlay is enabled and playing.
@@ -129,9 +142,9 @@ fun CameraCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (!streamUrl.isNullOrBlank()) {
+                    // Default touch-target size; only the icon is small (28dp was sub-48dp).
                     IconButton(
-                        onClick = { fullscreen = true },
-                        modifier = Modifier.size(28.dp)
+                        onClick = { fullscreen = true }
                     ) {
                         Icon(
                             Icons.Default.OpenInFull,
@@ -152,6 +165,11 @@ fun CameraCard(
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                     .clickable(enabled = !streamUrl.isNullOrBlank()) {
                         isPlaying = !isPlaying
+                    }
+                    // TalkBack: the video surface is a play/pause toggle — announce it as one.
+                    .semantics {
+                        contentDescription = "Camera feed"
+                        stateDescription = if (isPlaying) "Playing" else "Paused"
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -235,7 +253,12 @@ private fun FullscreenCamera(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .clickable(onClick = onTogglePlay),
+                .clickable(onClick = onTogglePlay)
+                // TalkBack: the fullscreen video is the same play/pause toggle as the card.
+                .semantics {
+                    contentDescription = "Camera feed"
+                    stateDescription = if (isPlaying) "Playing" else "Paused"
+                },
             contentAlignment = Alignment.Center
         ) {
             MpvVideoSurface(

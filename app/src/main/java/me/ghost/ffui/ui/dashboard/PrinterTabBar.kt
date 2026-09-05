@@ -44,20 +44,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.ConnectionState
+import me.ghost.ffui.ui.PrinterModelNames
 import me.ghost.ffui.ui.theme.GeometricPrimary
 import me.ghost.ffui.ui.theme.GeometricSurface
 import me.ghost.ffui.ui.theme.StatusConnected
 import me.ghost.ffui.ui.theme.StatusConnecting
 import me.ghost.ffui.ui.theme.StatusError
 import me.ghost.ffui.ui.theme.StatusOffline
-
-/** Short model label for a printer's tab subtitle, by firmware pid. */
-internal fun modelDisplayName(pid: Int?): String = when (pid) {
-    35 -> "5M"
-    36 -> "5M Pro"
-    38 -> "AD5X"
-    else -> ""
-}
 
 /** Horizontal, scrollable strip of printer tabs with a trailing add button. */
 @Composable
@@ -97,7 +90,7 @@ internal fun PrinterTabBar(
                     name = session.printer.name,
                     subtitle = buildString {
                         append(session.printer.ipAddress)
-                        val model = modelDisplayName(session.printer.modelPid)
+                        val model = PrinterModelNames.shortName(session.printer.modelPid)
                         if (model.isNotBlank()) {
                             append(" · ")
                             append(model)
@@ -110,10 +103,9 @@ internal fun PrinterTabBar(
                 )
             }
 
-            // Trailing "+" button
+            // Trailing "+" button — default touch-target size; only the icon is small.
             IconButton(
-                onClick = onAddClick,
-                modifier = Modifier.size(32.dp)
+                onClick = onAddClick
             ) {
                 Icon(
                     Icons.Default.Add,
@@ -192,9 +184,10 @@ private fun PrinterTab(
                 )
             }
 
+            // Close (disconnect) — keep the default 48dp touch target even though it slightly
+            // overflows the 44dp tab; an 18dp target on a destructive action misses too easily.
             IconButton(
-                onClick = onClose,
-                modifier = Modifier.size(18.dp)
+                onClick = onClose
             ) {
                 Icon(
                     Icons.Default.Close,

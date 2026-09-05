@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import me.ghost.ffapi.PrinterModel
+import me.ghost.ffui.ui.PrinterModelNames
 import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.PrinterEntity
@@ -177,7 +177,7 @@ private fun PrinterInfoBody(
 
     val displayName = status?.name?.takeIf { it.isNotBlank() } ?: printer.name
     val firmware = status?.firmwareVersion ?: printer.firmwareVersion
-    val model = modelName(status?.pid ?: printer.modelPid)
+    val model = PrinterModelNames.fullName(status?.pid ?: printer.modelPid)
     val cameraUrl = printer.customCameraUrl.takeIf { printer.customCameraEnabled && it.isNotBlank() }
         ?: status?.cameraStreamUrl ?: printer.cameraStreamUrl
 
@@ -308,14 +308,6 @@ private fun InfoRow(label: String, value: String) {
             modifier = Modifier.padding(start = 16.dp)
         )
     }
-}
-
-private fun modelName(pid: Int?): String = when (pid) {
-    PrinterModel.PID_5M -> "Adventurer 5M"
-    PrinterModel.PID_5M_PRO -> "Adventurer 5M Pro"
-    PrinterModel.PID_AD5X -> "AD5X"
-    null -> "—"
-    else -> "Unknown (pid $pid)"
 }
 
 private fun lightLabel(status: String?): String = when (status) {

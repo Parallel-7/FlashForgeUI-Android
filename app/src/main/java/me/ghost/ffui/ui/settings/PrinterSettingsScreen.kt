@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffapi.PrinterModel
+import me.ghost.ffui.ui.PrinterModelNames
 import me.ghost.ffui.data.PrinterEntity
 import me.ghost.ffui.data.maskSerial
 import me.ghost.ffui.ui.MainViewModel
@@ -90,12 +91,7 @@ fun PrinterSettingsScreen(
             // Full identity (model/firmware/IP/serial) lives behind the (i) info screen; this page
             // just needs to say which printer is being configured.
             item {
-                val modelName = when (currentPrinter.modelPid) {
-                    PrinterModel.PID_5M -> "Adventurer 5M"
-                    PrinterModel.PID_5M_PRO -> "Adventurer 5M Pro"
-                    PrinterModel.PID_AD5X -> "AD5X"
-                    else -> "Printer"
-                }
+                val modelName = PrinterModelNames.shortName(currentPrinter.modelPid).ifBlank { "Printer" }
                 Text(
                     text = "Settings for ${currentPrinter.name.ifBlank { modelName }}",
                     style = MaterialTheme.typography.titleLarge,

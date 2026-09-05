@@ -161,12 +161,21 @@ fun DashboardScreen(
                 onAddClick = onNavigateToPrinters
             )
 
+            // beyondViewportPageCount=1 keeps adjacent pages (and their per-printer MpvPlayer
+            // controllers) composed across a single tab switch, so a swipe doesn't tear down and
+            // recreate an mpv instance per page. The camera STREAM is still gated to the settled
+            // page (see DashboardContent/CameraCard), so only the visible printer ever connects.
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
-                key = { sessionEntries[it].key }
+                key = { sessionEntries[it].key },
+                beyondViewportPageCount = 1
             ) { page ->
-                DashboardContent(session = sessionEntries[page].value, viewModel = viewModel)
+                DashboardContent(
+                    session = sessionEntries[page].value,
+                    viewModel = viewModel,
+                    isActivePage = pagerState.settledPage == page
+                )
             }
         }
     }
@@ -175,7 +184,12 @@ fun DashboardScreen(
 // ── DashboardContent (per-session page contents) ────────────────────────────
 
 @Composable
-private fun DashboardContent(session: ActivePrinterSession, viewModel: MainViewModel) {
+private fun DashboardContent(
+    session: ActivePrinterSession,
+    viewModel: MainViewModel,
+    /** Whether this page is the pager's settled (visible) page — gates the camera stream. */
+    isActivePage: Boolean,
+) {
     val status by session.status.collectAsStateWithLifecycle()
     val connectionState by session.connectionState.collectAsStateWithLifecycle()
     val capabilities by session.capabilities.collectAsStateWithLifecycle()
@@ -216,6 +230,7 @@ private fun DashboardContent(session: ActivePrinterSession, viewModel: MainViewM
             streamUrl = livePrinter.customCameraUrl.takeIf { livePrinter.customCameraEnabled && it.isNotBlank() }
                 ?: livePrinter.cameraStreamUrl,
             autoPlay = livePrinter.cameraAutoPlayEnabled,
+            isActivePage = isActivePage,
             showFps = livePrinter.cameraFpsCounterEnabled,
             jobThumbnail = if (showJobThumb) {
                 JobThumbnailRef(session, jobFileName!!, status?.printFileThumbUrl)

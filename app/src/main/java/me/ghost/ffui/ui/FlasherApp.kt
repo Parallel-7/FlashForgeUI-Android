@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -86,7 +87,7 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Dashboard, contentDescription = "Home") },
                     label = { Text("Home") },
-                    selected = currentDestination?.hierarchy?.any { it.route?.contains("DashboardRoute") == true } == true,
+                    selected = currentDestination?.hierarchy?.any { it.hasRoute(DashboardRoute::class) } == true,
                     onClick = {
                         navController.navigate(DashboardRoute) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -98,7 +99,7 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Build, contentDescription = "Controls") },
                     label = { Text("Controls") },
-                    selected = currentDestination?.hierarchy?.any { it.route?.contains("ControlsRoute") == true } == true,
+                    selected = currentDestination?.hierarchy?.any { it.hasRoute(ControlsRoute::class) } == true,
                     onClick = {
                         navController.navigate(ControlsRoute) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -110,7 +111,7 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Print, contentDescription = "Printers") },
                     label = { Text("Printers") },
-                    selected = currentDestination?.hierarchy?.any { it.route?.contains("PrintersRoute") == true } == true,
+                    selected = currentDestination?.hierarchy?.any { it.hasRoute(PrintersRoute::class) } == true,
                     onClick = {
                         navController.navigate(PrintersRoute) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -123,7 +124,7 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Album, contentDescription = "Spools") },
                         label = { Text("Spools") },
-                        selected = currentDestination?.hierarchy?.any { it.route?.contains("SpoolsRoute") == true } == true,
+                        selected = currentDestination?.hierarchy?.any { it.hasRoute(SpoolsRoute::class) } == true,
                         onClick = {
                             navController.navigate(SpoolsRoute) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -136,7 +137,7 @@ fun FlasherApp(viewModel: MainViewModel = viewModel()) {
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
                     label = { Text("Settings") },
-                    selected = currentDestination?.hierarchy?.any { it.route?.contains("SettingsRoute") == true } == true,
+                    selected = currentDestination?.hierarchy?.any { it.hasRoute(SettingsRoute::class) } == true,
                     onClick = {
                         navController.navigate(SettingsRoute) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }

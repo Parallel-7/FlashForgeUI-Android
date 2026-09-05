@@ -68,9 +68,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_isDiscovering.value) return
         _isDiscovering.value = true
         viewModelScope.launch {
-            val printers = UdpDiscovery.discover(getApplication())
-            _discoveredPrinters.value = printers
-            _isDiscovering.value = false
+            try {
+                val printers = UdpDiscovery.discover(getApplication())
+                _discoveredPrinters.value = printers
+            } finally {
+                // Clear on every exit — an exception mid-scan must not wedge the flag (and the
+                // Discovery progress bar + rescan guard) until process death.
+                _isDiscovering.value = false
+            }
         }
     }
 

@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffapi.models.SlotInfo as MatlSlotInfo
 import me.ghost.ffapi.models.MatlStationInfo
+import me.ghost.ffui.R
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.ui.MainViewModel
 import me.ghost.ffui.ui.components.SpoolDisc
@@ -73,10 +75,10 @@ internal fun IfsStationCard(station: MatlStationInfo, session: ActivePrinterSess
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("MATERIAL STATION", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.dashboard_ifs_title), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (activeSlot > 0) {
                     Text(
-                        "Active: Slot $activeSlot",
+                        stringResource(R.string.dashboard_ifs_active_slot, activeSlot),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold
@@ -187,14 +189,14 @@ private fun SpoolSlot(
             }
         } else {
             Text(
-                "Empty",
+                stringResource(R.string.dashboard_ifs_empty),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
         }
 
         Text(
-            "Slot $slotId",
+            stringResource(R.string.dashboard_ifs_slot, slotId),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

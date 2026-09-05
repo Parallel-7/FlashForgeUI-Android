@@ -36,10 +36,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
+import me.ghost.ffui.R
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.ui.MainViewModel
 import me.ghost.ffui.ui.jobStateOf
@@ -70,7 +72,8 @@ fun ControlsScreen(viewModel: MainViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(title = {
-                Text(session?.printer?.name?.let { "Controls — $it" } ?: "Controls")
+                val name = session?.printer?.name
+                Text(name?.let { stringResource(R.string.controls_title_printer, it) } ?: stringResource(R.string.controls_title))
             })
         }
     ) { padding ->
@@ -80,7 +83,7 @@ fun ControlsScreen(viewModel: MainViewModel) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "No printer connected. Go to the Printers tab.",
+                    stringResource(R.string.controls_empty_hint),
                     style = MaterialTheme.typography.bodyLarge
                 )
             }
@@ -99,7 +102,9 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
     // Shared job-state machine (see ui/JobState.kt) — same derivation the dashboard uses.
     val job = jobStateOf(status)
 
-    var showTempDialog by remember { mutableStateOf<String?>(null) } // "Nozzle" / "Bed"
+    var showTempDialog by remember { mutableStateOf<String?>(null) } // heater label: nozzle / bed
+    val nozzleHeaterLabel = stringResource(R.string.common_nozzle)
+    val bedHeaterLabel = stringResource(R.string.common_bed)
 
     Column(
         modifier = modifier
@@ -109,7 +114,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // ── Job ─────────────────────────────────────────────────────────────
-        ControlSection("Job") {
+        ControlSection(stringResource(R.string.controls_section_job)) {
             if (job.isActiveJob) {
                 JobControlRow(
                     isPrinting = job.isPrinting,
@@ -121,7 +126,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
                 )
             } else {
                 Text(
-                    "No active job.",
+                    stringResource(R.string.controls_no_active_job),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -131,12 +136,12 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text("CLEAR PLATFORM")
+                Text(stringResource(R.string.dashboard_clear_platform))
             }
         }
 
         // ── Temperature ─────────────────────────────────────────────────────
-        ControlSection("Temperature") {
+        ControlSection(stringResource(R.string.controls_section_temperature)) {
             if (capabilities.model.isCreator5) {
                 // Creator 5 / 5 Pro tool-changer: 4 tool heads + heated bed + heated chamber. The card
                 // owns its own dialog; lambdas mirror the single-toolhead dispatch (same scope/pass-throughs).
@@ -159,7 +164,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
         // Homing rides the TCP G-code channel, which the HTTP-only Creator 5 series lacks — the
         // backend reports it unsupported, so the whole Motion section is hidden there.
         if (!capabilities.model.isCreator5) {
-            ControlSection("Motion") {
+            ControlSection(stringResource(R.string.controls_section_motion)) {
                 Button(
                     onClick = { scope.launch { session.home() } },
                     enabled = !job.isActiveJob,
@@ -168,7 +173,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
                 ) {
                     Icon(Icons.Default.Home, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("HOME ALL AXES")
+                    Text(stringResource(R.string.controls_home_all))
                 }
             }
         }
@@ -176,7 +181,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
         // ── Lighting ────────────────────────────────────────────────────────
         if (capabilities.ledControl) {
             val isLightOn = status?.lightStatus == "open" || status?.lightStatus == "1"
-            ControlSection("Lighting") {
+            ControlSection(stringResource(R.string.controls_section_lighting)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -190,7 +195,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
                             else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.width(12.dp))
-                        Text(if (isLightOn) "Light on" else "Light off")
+                        Text(if (isLightOn) stringResource(R.string.controls_light_on) else stringResource(R.string.controls_light_off))
                     }
                     Switch(
                         checked = isLightOn,
@@ -202,7 +207,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
 
         // ── Filtration (5M Pro) ─────────────────────────────────────────────
         if (capabilities.filtrationControl) {
-            ControlSection("Filtration") {
+            ControlSection(stringResource(R.string.controls_section_filtration)) {
                 FiltrationCard(
                     internalFanOn = status?.internalFanStatus == "open",
                     externalFanOn = status?.externalFanStatus == "open",
@@ -215,7 +220,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
     }
 
     showTempDialog?.let { heaterName ->
-        val isNozzle = heaterName == "Nozzle"
+        val isNozzle = heaterName == nozzleHeaterLabel
         TemperatureDialog(
             heaterName = heaterName,
             maxTemp = if (isNozzle) NOZZLE_MAX_TEMP else BED_MAX_TEMP,

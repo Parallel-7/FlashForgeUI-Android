@@ -22,8 +22,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import me.ghost.ffapi.backend.FiltrationMode
+import me.ghost.ffui.R
 import me.ghost.ffui.ui.theme.GeometricGreenPrimary
 import me.ghost.ffui.ui.theme.GeometricOrangePrimary
 
@@ -43,9 +45,9 @@ internal fun FiltrationCard(
         else -> FiltrationMode.OFF
     }
     val options = listOf(
-        FiltrationMode.EXTERNAL to "External",
-        FiltrationMode.INTERNAL to "Internal",
-        FiltrationMode.OFF to "Off"
+        FiltrationMode.EXTERNAL to stringResource(R.string.dashboard_filtration_external),
+        FiltrationMode.INTERNAL to stringResource(R.string.dashboard_filtration_internal),
+        FiltrationMode.OFF to stringResource(R.string.common_off)
     )
 
     Card(
@@ -55,7 +57,7 @@ internal fun FiltrationCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("AIR FILTRATION", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.dashboard_filtration_title), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 options.forEachIndexed { index, (mode, label) ->
@@ -80,7 +82,7 @@ internal fun FiltrationCard(
                 }
                 Box(modifier = Modifier.size(8.dp).background(tvocColor, CircleShape))
                 Text(
-                    text = if (tvoc != null) "Air quality (TVOC): ${tvoc.toInt()}" else "Air quality (TVOC): —",
+                    text = if (tvoc != null) stringResource(R.string.dashboard_filtration_tvoc, tvoc.toInt()) else stringResource(R.string.dashboard_filtration_tvoc_none),
                     style = MaterialTheme.typography.labelMedium,
                     color = tvocColor
                 )
@@ -88,7 +90,7 @@ internal fun FiltrationCard(
 
             if (!controlsEnabled) {
                 Text(
-                    "Filtration is locked while the printer is heating or printing.",
+                    stringResource(R.string.dashboard_filtration_locked),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )

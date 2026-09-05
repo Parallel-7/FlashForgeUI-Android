@@ -1,5 +1,6 @@
 package me.ghost.ffui.ui.dashboard
 
+import android.content.Context
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,7 +47,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -59,6 +62,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import me.ghost.ffapi.models.SlotInfo as MatlSlotInfo
+import me.ghost.ffui.R
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.SpoolmanRepository
 import me.ghost.ffui.nfc.NfcManager
@@ -116,6 +120,9 @@ fun SlotEditorSheet(
     isCreator5: Boolean = false
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val noSpoolDataMsg = stringResource(R.string.nfc_scan_error_no_spool_data)
+    val boxTagMsg = stringResource(R.string.nfc_scan_error_box_tag)
 
     // Seed material from the slot if it's a recognized type; otherwise default to PLA.
     val initialName = slot?.materialName?.takeIf { it.isNotBlank() && it != "?" }
@@ -159,6 +166,7 @@ fun SlotEditorSheet(
                         slotId = slotId,
                         isCreator5 = isCreator5,
                         currentMaterial = selectedMaterial,
+                        context = context,
                         onMatched = { matchedMaterial, matchedColor ->
                             selectedMaterial = matchedMaterial
                             hex = matchedColor.hex
@@ -167,9 +175,9 @@ fun SlotEditorSheet(
                     )
                 }
             }
-            is NfcReadResult.Unknown -> scanUi = ScanUi.Error("That tag has no spool data.")
+            is NfcReadResult.Unknown -> scanUi = ScanUi.Error(noSpoolDataMsg)
             is NfcReadResult.Error -> scanUi = ScanUi.Error(result.message)
-            is NfcReadResult.BoxFound -> scanUi = ScanUi.Error("That tag is a box, not a spool.")
+            is NfcReadResult.BoxFound -> scanUi = ScanUi.Error(boxTagMsg)
         }
     }
 
@@ -194,11 +202,11 @@ fun SlotEditorSheet(
                         .border(2.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
                 )
                 Column(Modifier.weight(1f)) {
-                    Text("Slot $slotId", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.dashboard_ifs_slot, slotId), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     val current = if (slot?.hasFilament == true) {
-                        val n = slot.materialName.takeIf { it.isNotBlank() && it != "?" } ?: "Unknown"
-                        "Loaded: $n"
-                    } else "Empty"
+                        val n = slot.materialName.takeIf { it.isNotBlank() && it != "?" } ?: stringResource(R.string.common_unknown)
+                        stringResource(R.string.dashboard_slot_loaded, n)
+                    } else stringResource(R.string.dashboard_ifs_empty)
                     Text(current, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -209,7 +217,7 @@ fun SlotEditorSheet(
                     value = selectedMaterial,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Material") },
+                    label = { Text(stringResource(R.string.dashboard_slot_material_label)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = materialMenuOpen) },
                     modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
                 )
@@ -224,7 +232,7 @@ fun SlotEditorSheet(
             }
 
             // Color swatch grid.
-            Text("Color", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.dashboard_slot_color_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 IfsPalette.colorsFor(isCreator5).forEach { pc ->
                     val selected = pc.hex.equals("#" + hex.removePrefix("#"), ignoreCase = true)
@@ -269,7 +277,7 @@ fun SlotEditorSheet(
                 ) {
                     Icon(Icons.Default.Contactless, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.size(8.dp))
-                    Text("Scan roll")
+                    Text(stringResource(R.string.nfc_scan_roll))
                 }
             }
 
@@ -282,7 +290,7 @@ fun SlotEditorSheet(
                 enabled = canSave,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(14.dp)
-            ) { Text("Save material") }
+            ) { Text(stringResource(R.string.dashboard_slot_save)) }
         }
     }
 
@@ -291,14 +299,14 @@ fun SlotEditorSheet(
         is ScanUi.Idle -> Unit
         is ScanUi.Scanning -> ScanStatusDialog(
             icon = { Icon(Icons.Default.Contactless, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp)) },
-            title = "Scan a roll",
-            message = "Hold your phone to the spool's NFC tag.",
+            title = stringResource(R.string.nfc_scan_title),
+            message = stringResource(R.string.nfc_scan_prompt),
             onDismiss = { scanUi = ScanUi.Idle; nfc?.cancel() }
         )
         is ScanUi.Resolving -> ScanStatusDialog(
             icon = { CircularProgressIndicator(modifier = Modifier.size(40.dp)) },
-            title = "Reading spool…",
-            message = "Fetching the material and color from Spoolman.",
+            title = stringResource(R.string.nfc_scan_reading_title),
+            message = stringResource(R.string.nfc_scan_reading_message),
             onDismiss = null
         )
         is ScanUi.Success -> {
@@ -308,7 +316,7 @@ fun SlotEditorSheet(
             }
             ScanStatusDialog(
                 icon = { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp)) },
-                title = "Slot updated",
+                title = stringResource(R.string.nfc_scan_updated_title),
                 message = state.message,
                 onDismiss = null
             )
@@ -333,11 +341,12 @@ private suspend fun applyScannedSpool(
     slotId: Int,
     isCreator5: Boolean,
     currentMaterial: String,
+    context: Context,
     onMatched: (material: String, color: IfsPalette.PaletteColor) -> Unit,
     onResult: (ScanUi) -> Unit
 ) {
     val spool = repo.getSpool(spoolId).getOrElse {
-        onResult(ScanUi.Error("Couldn't load spool #$spoolId from Spoolman."))
+        onResult(ScanUi.Error(context.getString(R.string.nfc_scan_error_load_failed, spoolId)))
         return
     }
 
@@ -346,7 +355,7 @@ private suspend fun applyScannedSpool(
         ?: spool.filament.multi_color_hexes?.split(",")?.firstOrNull()?.trim()
     val matchedColor = IfsPalette.nearestColorFor(isCreator5, rawColor)
     if (matchedColor == null) {
-        onResult(ScanUi.Error("${spool.displayName} has no color set in Spoolman."))
+        onResult(ScanUi.Error(context.getString(R.string.nfc_scan_error_no_color, spool.displayName)))
         return
     }
     val matchedMaterial = IfsPalette.nearestMaterial(spool.filament.material) ?: currentMaterial
@@ -354,9 +363,9 @@ private suspend fun applyScannedSpool(
 
     val applied = session.setSlotMaterial(slotId, matchedMaterial, matchedColor.hex)
     if (applied.isSuccess) {
-        onResult(ScanUi.Success("Slot $slotId → $matchedMaterial · ${matchedColor.name}\nfrom ${spool.displayName}"))
+        onResult(ScanUi.Success(context.getString(R.string.nfc_scan_success_applied, slotId, matchedMaterial, matchedColor.name, spool.displayName)))
     } else {
-        onResult(ScanUi.Error("Couldn't update Slot $slotId. Try again."))
+        onResult(ScanUi.Error(context.getString(R.string.nfc_scan_error_update_failed, slotId)))
     }
 }
 
@@ -385,7 +394,7 @@ private fun ScanStatusDialog(
                 )
                 if (onDismiss != null) {
                     TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.common_cancel))
                     }
                 }
             }
@@ -404,7 +413,7 @@ private fun ScanErrorDialog(message: String, onRetry: () -> Unit, onClose: () ->
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp))
-                Text("Couldn't set slot", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.nfc_scan_error_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
                     message,
                     style = MaterialTheme.typography.bodyMedium,
@@ -412,9 +421,9 @@ private fun ScanErrorDialog(message: String, onRetry: () -> Unit, onClose: () ->
                     textAlign = TextAlign.Center
                 )
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onClose) { Text("Close") }
+                    TextButton(onClick = onClose) { Text(stringResource(R.string.common_close)) }
                     Spacer(Modifier.size(8.dp))
-                    Button(onClick = onRetry) { Text("Retry") }
+                    Button(onClick = onRetry) { Text(stringResource(R.string.common_retry)) }
                 }
             }
         }

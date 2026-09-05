@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import me.ghost.ffui.R
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.ConnectionState
 import me.ghost.ffui.ui.MainViewModel
@@ -67,14 +69,14 @@ fun DashboardScreen(
     // ── Empty state ─────────────────────────────────────────────────────────
     if (sessionEntries.isEmpty()) {
         Scaffold(
-            topBar = { TopAppBar(title = { Text("Dashboard") }) }
+            topBar = { TopAppBar(title = { Text(stringResource(R.string.dashboard_title)) }) }
         ) { padding ->
             Box(
                 modifier = Modifier.padding(padding).fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "No printer connected. Go to Printers tab.",
+                    stringResource(R.string.dashboard_empty_hint),
                     style = MaterialTheme.typography.bodyLarge
                 )
             }
@@ -107,7 +109,7 @@ fun DashboardScreen(
 
     // Derive title from whatever session is currently active in the pager.
     val currentEntry = sessionEntries.getOrNull(pagerState.settledPage)
-    val titleText = currentEntry?.value?.printer?.name ?: "Dashboard"
+    val titleText = currentEntry?.value?.printer?.name ?: stringResource(R.string.dashboard_title)
 
     Scaffold(
         topBar = {
@@ -125,7 +127,7 @@ fun DashboardScreen(
                         IconButton(onClick = { onNavigateToFiles(serial) }) {
                             Icon(
                                 Icons.Default.Folder,
-                                contentDescription = "Files",
+                                contentDescription = stringResource(R.string.dashboard_open_files_cd),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -135,7 +137,7 @@ fun DashboardScreen(
                         IconButton(onClick = { onNavigateToSettings(serial) }) {
                             Icon(
                                 Icons.Default.Settings,
-                                contentDescription = "Printer settings",
+                                contentDescription = stringResource(R.string.dashboard_printer_settings_cd),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -151,7 +153,7 @@ fun DashboardScreen(
                             }) {
                                 Icon(
                                     imageVector = if (isLightOn) Icons.Filled.Lightbulb else Icons.Outlined.Lightbulb,
-                                    contentDescription = if (isLightOn) "Turn light off" else "Turn light on",
+                                    contentDescription = if (isLightOn) stringResource(R.string.dashboard_light_off_cd) else stringResource(R.string.dashboard_light_on_cd),
                                     tint = if (isLightOn) me.ghost.ffui.ui.theme.GeometricYellowPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -159,7 +161,7 @@ fun DashboardScreen(
                     }
                     // Disconnect current session
                     IconButton(onClick = { viewModel.disconnect() }) {
-                        Icon(Icons.Default.LinkOff, contentDescription = "Disconnect")
+                        Icon(Icons.Default.LinkOff, contentDescription = stringResource(R.string.dashboard_disconnect_cd))
                     }
                 }
             )
@@ -226,7 +228,9 @@ private fun DashboardContent(
     // Normalized job state → which controls show/enable. Shared with the Controls tab via jobStateOf.
     val job = jobStateOf(status)
 
-    var showTempDialog by remember { mutableStateOf<String?>(null) } // heater: "Nozzle" / "Bed"
+    var showTempDialog by remember { mutableStateOf<String?>(null) } // heater label: nozzle / bed
+    val nozzleHeaterLabel = stringResource(R.string.common_nozzle)
+    val bedHeaterLabel = stringResource(R.string.common_bed)
 
     Column(
         modifier = Modifier
@@ -237,9 +241,9 @@ private fun DashboardContent(
     ) {
         // Connection banner (offline / auth issues)
         when (val cs = connectionState) {
-            is ConnectionState.Connecting -> ConnectionBanner("Connecting…", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
-            is ConnectionState.Offline -> ConnectionBanner("Offline — reconnecting… ${cs.reason ?: ""}".trim(), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
-            is ConnectionState.AuthFailed -> ConnectionBanner("Authentication failed — check serial / check code", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+            is ConnectionState.Connecting -> ConnectionBanner(stringResource(R.string.dashboard_connecting_banner), MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+            is ConnectionState.Offline -> ConnectionBanner(stringResource(R.string.dashboard_offline_banner, cs.reason ?: "").trim(), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+            is ConnectionState.AuthFailed -> ConnectionBanner(stringResource(R.string.dashboard_auth_failed_banner), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
             is ConnectionState.Connected -> {}
         }
 
@@ -315,14 +319,14 @@ private fun DashboardContent(
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text("CLEAR PLATFORM")
+                Text(stringResource(R.string.dashboard_clear_platform))
             }
         }
     }
 
     // ── Temperature dialog (scoped per page) ────────────────────────────────
     showTempDialog?.let { heaterName ->
-        val isNozzle = heaterName == "Nozzle"
+        val isNozzle = heaterName == nozzleHeaterLabel
         TemperatureDialog(
             heaterName = heaterName,
             maxTemp = if (isNozzle) NOZZLE_MAX_TEMP else BED_MAX_TEMP,

@@ -35,9 +35,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
+import me.ghost.ffui.R
 import me.ghost.ffui.ui.jobStateOf
 import me.ghost.ffui.ui.theme.GeometricBlueContainer
 import me.ghost.ffui.ui.theme.GeometricBluePrimary
@@ -66,8 +68,8 @@ internal fun JobProgressHeader(fileName: String?, progress: Int, stateLabel: Str
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom
         ) {
-            Text("Printing: ${fileName ?: "None"}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
-            Text("$progress%", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+            Text(stringResource(R.string.dashboard_printing_file, fileName ?: stringResource(R.string.common_none)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
+            Text(stringResource(R.string.dashboard_progress_percent, progress), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
         }
         LinearProgressIndicator(
             progress = { progress / 100f },
@@ -76,7 +78,7 @@ internal fun JobProgressHeader(fileName: String?, progress: Int, stateLabel: Str
             trackColor = Color.Transparent,
             strokeCap = StrokeCap.Round
         )
-        Text("State: $stateLabel", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.dashboard_state_label, stateLabel), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -91,24 +93,26 @@ internal fun HeaterGrid(status: PrinterDetailResponse?, onHeaterClick: (String) 
     val nozzleTarget = status?.rightTargetTemp ?: 0f
     val bedCurrent = status?.platTemp ?: 0f
     val bedTarget = status?.platTargetTemp ?: 0f
+    val nozzleLabel = stringResource(R.string.common_nozzle)
+    val bedLabel = stringResource(R.string.common_bed)
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         HeaterCard(
-            label = "NOZZLE",
-            value = "%.0f/%.0f°".format(nozzleCurrent, nozzleTarget),
+            label = stringResource(R.string.dashboard_heater_nozzle),
+            value = stringResource(R.string.dashboard_temp_current_target, nozzleCurrent, nozzleTarget),
             progress = if (nozzleTarget > 0) (nozzleCurrent / nozzleTarget).coerceIn(0f, 1f) else 0f,
             barColor = GeometricOrangePrimary,
             trackColor = GeometricOrangeContainer,
-            onClick = { onHeaterClick("Nozzle") },
+            onClick = { onHeaterClick(nozzleLabel) },
             modifier = Modifier.weight(1f)
         )
         HeaterCard(
-            label = "BED",
-            value = "%.0f/%.0f°".format(bedCurrent, bedTarget),
+            label = stringResource(R.string.dashboard_heater_bed),
+            value = stringResource(R.string.dashboard_temp_current_target, bedCurrent, bedTarget),
             progress = if (bedTarget > 0) (bedCurrent / bedTarget).coerceIn(0f, 1f) else 0f,
             barColor = GeometricBluePrimary,
             trackColor = GeometricBlueContainer,
-            onClick = { onHeaterClick("Bed") },
+            onClick = { onHeaterClick(bedLabel) },
             modifier = Modifier.weight(1f)
         )
     }
@@ -123,15 +127,15 @@ internal fun JobStatsRow(status: PrinterDetailResponse?) {
         val jobActive = jobStateOf(status).isActiveJob
         val remMins = status?.estimatedTime?.takeIf { jobActive }?.let { (it / 60f).toInt() } ?: 0
         MetricCard(
-            label = "REMAINING",
-            value = if (jobActive) "${remMins / 60}:${(remMins % 60).toString().padStart(2, '0')} hr" else "—",
+            label = stringResource(R.string.dashboard_stat_remaining),
+            value = if (jobActive) stringResource(R.string.dashboard_remaining_value, remMins / 60, remMins % 60) else "—",
             modifier = Modifier.weight(1f)
         )
         val cur = status?.printLayer?.toInt() ?: 0
         val tgt = status?.targetPrintLayer?.toInt() ?: 0
         MetricCard(
-            label = "LAYER",
-            value = if (tgt > 0) "$cur/$tgt" else "—",
+            label = stringResource(R.string.dashboard_stat_layer),
+            value = if (tgt > 0) stringResource(R.string.dashboard_layer_value, cur, tgt) else "—",
             modifier = Modifier.weight(1f)
         )
     }
@@ -243,7 +247,7 @@ internal fun TemperatureDialog(
     var tempStr by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Set $heaterName Temperature") },
+        title = { Text(stringResource(R.string.dashboard_set_temp_title, heaterName)) },
         text = {
             OutlinedTextField(
                 value = tempStr,
@@ -254,23 +258,23 @@ internal fun TemperatureDialog(
                         ?.toString()
                         ?: digits
                 },
-                label = { Text("Temperature °C") },
+                label = { Text(stringResource(R.string.dashboard_temp_field_label)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
         },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onOff) { Text("Off") }
+                OutlinedButton(onClick = onOff) { Text(stringResource(R.string.common_off)) }
                 Button(onClick = {
                     tempStr.toIntOrNull()?.let { v ->
                         onSet(if (maxTemp != null) v.coerceAtMost(maxTemp) else v)
                     }
-                }) { Text("Set") }
+                }) { Text(stringResource(R.string.common_set)) }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
 }

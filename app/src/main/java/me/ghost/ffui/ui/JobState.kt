@@ -1,5 +1,8 @@
 package me.ghost.ffui.ui
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import me.ghost.ffui.R
 import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
 import me.ghost.ffapi.models.MachineInfo
 import me.ghost.ffapi.models.MachineState
@@ -55,28 +58,45 @@ fun jobStateOf(status: PrinterDetailResponse?): JobState {
 }
 
 /**
- * Friendly, user-facing label for the current status ("Paused", "Downloading", …) — used wherever
- * the dashboard or Controls tab shows the printer's state, so no surface renders a raw firmware
- * token like "pause". [status] null → "—".
+ * Resource ID of the friendly, user-facing label for [status] ("Paused", "Downloading", …), or
+ * null when the label must be derived dynamically — a null snapshot renders "—" and an
+ * unrecognized firmware token renders prettified ([prettifyStateToken]). Pure so the enum→label
+ * mapping stays unit-testable; [friendlyStateLabel] resolves it for Compose.
  */
-fun friendlyStateLabel(status: PrinterDetailResponse?): String {
-    if (status == null) return "—"
+fun friendlyStateLabelRes(status: PrinterDetailResponse?): Int? {
+    if (status == null) return null
     val raw = (status.status ?: "").lowercase()
-    if (raw == "building_completed") return "Completed"
+    if (raw == "building_completed") return R.string.common_state_completed
     return when (machineStateOf(status)) {
-        MachineState.Printing -> "Printing"
-        MachineState.Busy -> if (raw == "downloading") "Downloading" else "Busy"
-        MachineState.Heating -> "Heating"
-        MachineState.Calibrating -> "Calibrating"
-        MachineState.Paused -> "Paused"
-        MachineState.Pausing -> "Pausing"
-        MachineState.Cancelled -> "Cancelling"
-        MachineState.Completed -> "Completed"
-        MachineState.Error -> "Error"
-        MachineState.Ready -> "Ready"
-        MachineState.Unknown ->
-            if (raw.isBlank()) "—" else raw.replace('_', ' ').replaceFirstChar { it.uppercase() }
+        MachineState.Printing -> R.string.common_state_printing
+        MachineState.Busy -> if (raw == "downloading") R.string.common_state_downloading else R.string.common_state_busy
+        MachineState.Heating -> R.string.common_state_heating
+        MachineState.Calibrating -> R.string.common_state_calibrating
+        MachineState.Paused -> R.string.common_state_paused
+        MachineState.Pausing -> R.string.common_state_pausing
+        MachineState.Cancelled -> R.string.common_state_cancelling
+        MachineState.Completed -> R.string.common_state_completed
+        MachineState.Error -> R.string.common_state_error
+        MachineState.Ready -> R.string.common_state_ready
+        MachineState.Unknown -> null
     }
+}
+
+/** Prettifies an unrecognized firmware token ("cloud_slicing" → "Cloud slicing"); blank → "—". */
+fun prettifyStateToken(raw: String): String =
+    if (raw.isBlank()) "—" else raw.replace('_', ' ').replaceFirstChar { it.uppercase() }
+
+/**
+ * Friendly, user-facing label for the current status — used wherever the dashboard or Controls tab
+ * shows the printer's state, so no surface renders a raw firmware token like "pause". Known
+ * states resolve from string resources via [friendlyStateLabelRes]; [status] null or an
+ * unrecognized token falls back to "—" / [prettifyStateToken].
+ */
+@Composable
+fun friendlyStateLabel(status: PrinterDetailResponse?): String {
+    friendlyStateLabelRes(status)?.let { return stringResource(it) }
+    if (status == null) return "—"
+    return prettifyStateToken((status.status ?: "").lowercase())
 }
 
 /** Maps a snapshot onto the library's [MachineState] (Unknown when null/blank/unrecognized). */

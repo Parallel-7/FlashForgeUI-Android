@@ -1,6 +1,7 @@
 package me.ghost.ffui.ui
 
 import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
+import me.ghost.ffui.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -99,16 +100,17 @@ class JobStateTest {
 
     @Test
     fun `friendly labels never leak raw firmware tokens`() {
-        assertEquals("Paused", friendlyStateLabel(PrinterDetailResponse(status = "pause")))
-        assertEquals("Paused", friendlyStateLabel(PrinterDetailResponse(status = "paused")))
-        assertEquals("Downloading", friendlyStateLabel(PrinterDetailResponse(status = "downloading")))
-        assertEquals("Printing", friendlyStateLabel(PrinterDetailResponse(status = "printing")))
-        assertEquals("Heating", friendlyStateLabel(PrinterDetailResponse(status = "heating")))
-        assertEquals("Completed", friendlyStateLabel(PrinterDetailResponse(status = "completed")))
-        assertEquals("Ready", friendlyStateLabel(PrinterDetailResponse(status = "ready")))
-        assertEquals("Error", friendlyStateLabel(PrinterDetailResponse(status = "error")))
-        assertEquals("—", friendlyStateLabel(null))
+        assertEquals(R.string.common_state_paused, friendlyStateLabelRes(PrinterDetailResponse(status = "pause")))
+        assertEquals(R.string.common_state_paused, friendlyStateLabelRes(PrinterDetailResponse(status = "paused")))
+        assertEquals(R.string.common_state_downloading, friendlyStateLabelRes(PrinterDetailResponse(status = "downloading")))
+        assertEquals(R.string.common_state_printing, friendlyStateLabelRes(PrinterDetailResponse(status = "printing")))
+        assertEquals(R.string.common_state_heating, friendlyStateLabelRes(PrinterDetailResponse(status = "heating")))
+        assertEquals(R.string.common_state_completed, friendlyStateLabelRes(PrinterDetailResponse(status = "completed")))
+        assertEquals(R.string.common_state_ready, friendlyStateLabelRes(PrinterDetailResponse(status = "ready")))
+        assertEquals(R.string.common_state_error, friendlyStateLabelRes(PrinterDetailResponse(status = "error")))
+        assertEquals(null, friendlyStateLabelRes(null))
         // Unrecognized tokens render humanized, not as raw snake_case.
-        assertEquals("Cloud slicing", friendlyStateLabel(PrinterDetailResponse(status = "cloud_slicing")))
+        assertEquals("Cloud slicing", prettifyStateToken("cloud_slicing"))
+        assertEquals("—", prettifyStateToken(""))
     }
 }

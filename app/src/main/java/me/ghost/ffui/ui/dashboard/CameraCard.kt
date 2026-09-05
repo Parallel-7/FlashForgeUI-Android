@@ -52,9 +52,11 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import me.ghost.ffui.R
 import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.ThumbnailCache
 import me.ghost.ffui.ui.components.MpvController
@@ -100,6 +102,9 @@ fun CameraCard(
 ) {
     var isPlaying by remember(streamUrl) { mutableStateOf(autoPlay) }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
+    val cameraFeedCd = stringResource(R.string.dashboard_camera_feed_cd)
+    val playingDesc = stringResource(R.string.dashboard_camera_playing)
+    val pausedDesc = stringResource(R.string.dashboard_camera_paused)
 
     val controller = rememberMpvController()
     // Stream only while settled on this page (see isActivePage above); a pure page switch keeps
@@ -137,7 +142,7 @@ fun CameraCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "CAMERA",
+                    stringResource(R.string.dashboard_camera_title),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -148,7 +153,7 @@ fun CameraCard(
                     ) {
                         Icon(
                             Icons.Default.OpenInFull,
-                            contentDescription = "Expand to fullscreen",
+                            contentDescription = stringResource(R.string.dashboard_camera_expand_cd),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
@@ -168,8 +173,8 @@ fun CameraCard(
                     }
                     // TalkBack: the video surface is a play/pause toggle — announce it as one.
                     .semantics {
-                        contentDescription = "Camera feed"
-                        stateDescription = if (isPlaying) "Playing" else "Paused"
+                        contentDescription = cameraFeedCd
+                        stateDescription = if (isPlaying) playingDesc else pausedDesc
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -177,13 +182,13 @@ fun CameraCard(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             Icons.Default.VideocamOff,
-                            contentDescription = "No Camera",
+                            contentDescription = stringResource(R.string.dashboard_camera_none_cd),
                             tint = Color.Gray,
                             modifier = Modifier.size(48.dp)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            "Camera Not Available",
+                            stringResource(R.string.dashboard_camera_unavailable),
                             color = Color.Gray,
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -243,6 +248,9 @@ private fun FullscreenCamera(
     fps: Double,
     onClose: () -> Unit
 ) {
+    val cameraFeedCd = stringResource(R.string.dashboard_camera_feed_cd)
+    val playingDesc = stringResource(R.string.dashboard_camera_playing)
+    val pausedDesc = stringResource(R.string.dashboard_camera_paused)
     Dialog(
         onDismissRequest = onClose,
         // decorFitsSystemWindows=false lets the video draw edge-to-edge behind the system bars
@@ -256,8 +264,8 @@ private fun FullscreenCamera(
                 .clickable(onClick = onTogglePlay)
                 // TalkBack: the fullscreen video is the same play/pause toggle as the card.
                 .semantics {
-                    contentDescription = "Camera feed"
-                    stateDescription = if (isPlaying) "Playing" else "Paused"
+                    contentDescription = cameraFeedCd
+                    stateDescription = if (isPlaying) playingDesc else pausedDesc
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -277,7 +285,7 @@ private fun FullscreenCamera(
             ) {
                 Icon(
                     Icons.Default.CloseFullscreen,
-                    contentDescription = "Exit fullscreen",
+                    contentDescription = stringResource(R.string.dashboard_camera_exit_fullscreen_cd),
                     tint = Color.White
                 )
             }
@@ -305,7 +313,7 @@ private fun JobThumbnailTile(ref: JobThumbnailRef, modifier: Modifier = Modifier
     bitmap?.let {
         Image(
             bitmap = it,
-            contentDescription = "Printing ${ref.fileName}",
+            contentDescription = stringResource(R.string.dashboard_camera_printing_thumbnail_cd, ref.fileName),
             contentScale = ContentScale.Crop,
             modifier = modifier
                 .size(72.dp)
@@ -327,7 +335,7 @@ private fun BoxScope.PlayBadge() {
     ) {
         Icon(
             Icons.Default.PlayArrow,
-            contentDescription = "Play",
+            contentDescription = stringResource(R.string.dashboard_camera_play_cd),
             tint = Color.White,
             modifier = Modifier.size(32.dp)
         )
@@ -338,7 +346,7 @@ private fun BoxScope.PlayBadge() {
 @Composable
 private fun BoxScope.FpsBadge(fps: Double) {
     Text(
-        text = "${fps.toInt()} FPS",
+        text = stringResource(R.string.dashboard_camera_fps, fps.toInt()),
         color = Color.White,
         fontFamily = FontFamily.Monospace,
         fontWeight = FontWeight.Bold,

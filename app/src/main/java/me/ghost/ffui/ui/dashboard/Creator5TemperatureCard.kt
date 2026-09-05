@@ -21,11 +21,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
 import me.ghost.ffapi.api.controls.TempControl
 import me.ghost.ffapi.models.FFPrinterDetail
+import me.ghost.ffui.R
 import me.ghost.ffui.ui.theme.GeometricBlueContainer
 import me.ghost.ffui.ui.theme.GeometricBluePrimary
 import me.ghost.ffui.ui.theme.GeometricGreenPrimary
@@ -117,7 +119,7 @@ internal fun Creator5TemperatureCard(
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Temperature",
+                stringResource(R.string.dashboard_temperature_title),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground
             )
@@ -125,7 +127,7 @@ internal fun Creator5TemperatureCard(
             for (rowStart in 0 until nozzleCount step 2) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Creator5HeaterCell(
-                        label = "T${rowStart + 1}",
+                        label = stringResource(R.string.dashboard_tool_label, rowStart + 1),
                         current = toolCurrents[rowStart],
                         target = toolTargets[rowStart],
                         heatingColor = GeometricOrangePrimary,
@@ -135,7 +137,7 @@ internal fun Creator5TemperatureCard(
                         modifier = Modifier.weight(1f)
                     )
                     Creator5HeaterCell(
-                        label = "T${rowStart + 2}",
+                        label = stringResource(R.string.dashboard_tool_label, rowStart + 2),
                         current = toolCurrents[rowStart + 1],
                         target = toolTargets[rowStart + 1],
                         heatingColor = GeometricOrangePrimary,
@@ -150,7 +152,7 @@ internal fun Creator5TemperatureCard(
             // the bed cell stretches full-width — no phantom -108° cell.
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Creator5HeaterCell(
-                    label = "BED",
+                    label = stringResource(R.string.dashboard_heater_bed),
                     current = bedCurrent,
                     target = bedTarget,
                     heatingColor = GeometricBluePrimary,
@@ -161,7 +163,7 @@ internal fun Creator5TemperatureCard(
                 )
                 if (hasChamberSensor) {
                     Creator5HeaterCell(
-                        label = "CHAMBER",
+                        label = stringResource(R.string.dashboard_heater_chamber),
                         current = chamberCurrent,
                         target = chamberTarget,
                         heatingColor = GeometricYellowPrimary,
@@ -179,7 +181,7 @@ internal fun Creator5TemperatureCard(
     dialogTarget?.let { target ->
         when (target) {
             is Creator5HeaterTarget.Tool -> TemperatureDialog(
-                heaterName = "T${target.index + 1}",
+                heaterName = stringResource(R.string.dashboard_tool_label, target.index + 1),
                 onSet = { celsius -> onCreate5SetTool(target.index, celsius); dialogTarget = null },
                 onOff = { onCreate5CancelTool(target.index); dialogTarget = null },
                 onDismiss = { dialogTarget = null },
@@ -187,7 +189,7 @@ internal fun Creator5TemperatureCard(
             )
 
             Creator5HeaterTarget.Bed -> TemperatureDialog(
-                heaterName = "Bed",
+                heaterName = stringResource(R.string.common_bed),
                 onSet = { celsius -> onCreate5SetBed(celsius); dialogTarget = null },
                 onOff = { onCreate5CancelBed(); dialogTarget = null },
                 onDismiss = { dialogTarget = null },
@@ -195,7 +197,7 @@ internal fun Creator5TemperatureCard(
             )
 
             Creator5HeaterTarget.Chamber -> TemperatureDialog(
-                heaterName = "Chamber",
+                heaterName = stringResource(R.string.common_chamber),
                 onSet = { celsius -> onCreate5SetChamber(celsius); dialogTarget = null },
                 onOff = { onCreate5CancelChamber(); dialogTarget = null },
                 onDismiss = { dialogTarget = null },
@@ -244,7 +246,7 @@ private fun Creator5HeaterCell(
         Column(modifier = Modifier.padding(14.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-                "%.0f/%.0f°".format(current, target),
+                stringResource(R.string.dashboard_temp_current_target, current, target),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -256,8 +258,8 @@ private fun Creator5HeaterCell(
                 strokeCap = StrokeCap.Round
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onSet, modifier = Modifier.weight(1f)) { Text("Set") }
-                OutlinedButton(onClick = onOff, modifier = Modifier.weight(1f)) { Text("Off") }
+                OutlinedButton(onClick = onSet, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_set)) }
+                OutlinedButton(onClick = onOff, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_off)) }
             }
         }
     }

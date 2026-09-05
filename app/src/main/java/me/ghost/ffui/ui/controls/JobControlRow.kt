@@ -26,7 +26,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import me.ghost.ffui.R
 
 /**
  * At-a-glance job control: a Pause/Resume toggle plus a Stop button. Shared by the dashboard
@@ -57,9 +59,9 @@ fun JobControlRow(
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             ) {
-                Icon(Icons.Default.PlayArrow, contentDescription = "Resume")
+                Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.controls_resume_cd))
                 Spacer(Modifier.width(8.dp))
-                Text("RESUME")
+                Text(stringResource(R.string.controls_resume))
             }
         } else {
             Button(
@@ -72,9 +74,9 @@ fun JobControlRow(
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             ) {
-                Icon(Icons.Default.Pause, contentDescription = "Pause")
+                Icon(Icons.Default.Pause, contentDescription = stringResource(R.string.controls_pause_cd))
                 Spacer(Modifier.width(8.dp))
-                Text(if (isPausing) "PAUSING…" else "PAUSE")
+                Text(if (isPausing) stringResource(R.string.controls_pausing) else stringResource(R.string.controls_pause))
             }
         }
 
@@ -88,23 +90,23 @@ fun JobControlRow(
                 contentColor = MaterialTheme.colorScheme.onErrorContainer
             )
         ) {
-            Icon(Icons.Default.Stop, contentDescription = "Stop")
+            Icon(Icons.Default.Stop, contentDescription = stringResource(R.string.controls_stop_cd))
         }
     }
 
     if (showStopConfirm) {
         AlertDialog(
             onDismissRequest = { showStopConfirm = false },
-            title = { Text("Stop this print?") },
-            text = { Text("The print cannot resume after you stop it.") },
+            title = { Text(stringResource(R.string.controls_stop_confirm_title)) },
+            text = { Text(stringResource(R.string.controls_stop_confirm_text)) },
             confirmButton = {
                 TextButton(onClick = {
                     showStopConfirm = false
                     onCancel()
-                }) { Text("Stop") }
+                }) { Text(stringResource(R.string.controls_stop)) }
             },
             dismissButton = {
-                TextButton(onClick = { showStopConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showStopConfirm = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }

@@ -1,14 +1,17 @@
 package me.ghost.ffui.ui
 
 import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Unit tests for [jobStateOf] — the single source of truth that gates job controls on both the
- * dashboard and the Controls tab. Covers the modern HTTP states plus the legacy tokens that
- * `GenericLegacyBackend` normalizes into them.
+ * Unit tests for [jobStateOf] and [friendlyStateLabel] — the single source of truth that gates job
+ * controls on both the dashboard and the Controls tab. Both derive from the library's
+ * `MachineState` mapping, so these tests pin the app's enum→JobState translation on top of it:
+ * the firmware's two paused spellings, the busy-class tokens ("downloading", fw-5.x slicing
+ * states, "canceling"), and the legacy tokens `GenericLegacyBackend` normally normalizes away.
  */
 class JobStateTest {
 
@@ -36,6 +39,24 @@ class JobStateTest {
     fun `status matching is case-insensitive`() {
         assertTrue(stateFor("PRINTING").isPrinting)
         assertTrue(stateFor("Paused").isPaused)
+    }
+
+    @Test
+    fun `both firmware paused spellings keep the job controls`() {
+        // The Creator 5 Pro sends "pause" where the docs say "paused" — both are paused.
+        assertTrue(stateFor("paused").isPaused)
+        assertTrue(stateFor("pause").isPaused)
+        assertTrue(stateFor("pause").isActiveJob)
+        assertTrue(stateFor("pause").isPrinting.not())
+    }
+
+    @Test
+    fun `busy-class transient states stay active jobs`() {
+        // "downloading" (file transfer), the transient "canceling", a cancel in flight, and the
+        // fw-5.x slicing states must not drop the pause/resume/cancel controls.
+        listOf("downloading", "canceling", "cancel", "cloud_slicing", "sending", "unzipping").forEach {
+            assertTrue(it, stateFor(it).isActiveJob)
+        }
     }
 
     @Test
@@ -70,10 +91,24 @@ class JobStateTest {
     }
 
     @Test
-    fun `unrecognized status is all-false`() {
-        val s = stateFor("ready")
-        assertFalse(s.isPrinting)
-        assertFalse(s.isCompleted)
-        assertFalse(s.isActiveJob)
+    fun `unrecognized status with a value reads as busy, blank reads as idle`() {
+        assertTrue(stateFor("some_future_fw6_state").isPrinting)
+        assertFalse(jobStateOf(PrinterDetailResponse(status = "")).isActiveJob)
+        assertFalse(jobStateOf(PrinterDetailResponse(status = null)).isActiveJob)
+    }
+
+    @Test
+    fun `friendly labels never leak raw firmware tokens`() {
+        assertEquals("Paused", friendlyStateLabel(PrinterDetailResponse(status = "pause")))
+        assertEquals("Paused", friendlyStateLabel(PrinterDetailResponse(status = "paused")))
+        assertEquals("Downloading", friendlyStateLabel(PrinterDetailResponse(status = "downloading")))
+        assertEquals("Printing", friendlyStateLabel(PrinterDetailResponse(status = "printing")))
+        assertEquals("Heating", friendlyStateLabel(PrinterDetailResponse(status = "heating")))
+        assertEquals("Completed", friendlyStateLabel(PrinterDetailResponse(status = "completed")))
+        assertEquals("Ready", friendlyStateLabel(PrinterDetailResponse(status = "ready")))
+        assertEquals("Error", friendlyStateLabel(PrinterDetailResponse(status = "error")))
+        assertEquals("—", friendlyStateLabel(null))
+        // Unrecognized tokens render humanized, not as raw snake_case.
+        assertEquals("Cloud slicing", friendlyStateLabel(PrinterDetailResponse(status = "cloud_slicing")))
     }
 }

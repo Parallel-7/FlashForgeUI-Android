@@ -21,6 +21,7 @@ import me.ghost.ffui.data.ActivePrinterSession
 import me.ghost.ffui.data.ConnectionState
 import me.ghost.ffui.ui.MainViewModel
 import me.ghost.ffui.ui.controls.JobControlRow
+import me.ghost.ffui.ui.friendlyStateLabel
 import me.ghost.ffui.ui.jobStateOf
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -199,7 +200,7 @@ private fun DashboardContent(
 
     val scope = rememberCoroutineScope()
 
-    val printerState = status?.status ?: "—"
+    val printerState = friendlyStateLabel(status)
     val progress = status?.printProgress?.let { (it * 100).toInt() } ?: 0
 
     // Normalized job state → which controls show/enable. Shared with the Controls tab via jobStateOf.

@@ -1,5 +1,6 @@
 package me.ghost.ffui.data
 
+import android.os.SystemClock
 import me.ghost.ffapi.PrinterCapabilities
 import me.ghost.ffapi.PrinterModel
 import me.ghost.ffapi.api.FlashForgeHttpApi
@@ -7,10 +8,13 @@ import me.ghost.ffapi.backend.FiltrationMode
 import me.ghost.ffapi.backend.PrinterBackend
 import me.ghost.ffapi.backend.PrinterBackendFactory
 import me.ghost.ffapi.backend.SlotAction
+import me.ghost.ffapi.error.ApiErrorException
 import me.ghost.ffapi.error.AuthException
 import me.ghost.ffapi.models.AD5XMaterialMapping
 import me.ghost.ffapi.models.FFGcodeFileEntry
 import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
+import me.ghost.ffapi.models.MachineInfo
+import me.ghost.ffapi.models.MachineState
 import me.ghost.ffapi.models.MatlStationInfo
 import me.ghost.ffapi.models.PrintGcodeRequest
 import me.ghost.ffapi.tcpapi.FlashForgeClient
@@ -118,6 +122,9 @@ class ActivePrinterSession(
 
     private val _capabilities = MutableStateFlow(PrinterCapabilities())
     val capabilities: StateFlow<PrinterCapabilities> = _capabilities
+
+    /** Library transform used for state/capability derivations off each `/detail` snapshot. */
+    private val machineInfo = MachineInfo()
 
     @Volatile
     var backend: PrinterBackend? = null
@@ -329,7 +336,8 @@ class ActivePrinterSession(
     }
 
     // Tracks when the printer first entered `completed` so we can poll fast briefly (the user often
-    // clears the platform right after) then relax to idle cadence.
+    // clears the platform right after) then relax to idle cadence. Monotonic clock — wall-clock
+    // shifts (NTP, manual) must not stretch or skip the fast window.
     private var lastStatusKey: String? = null
     private var completedSinceMs: Long = 0L
 
@@ -352,21 +360,32 @@ class ActivePrinterSession(
             is ConnectionState.Offline -> return 3_000L
             else -> {}
         }
-        val status = _status.value?.status?.lowercase()
+        val detail = _status.value
+        val status = detail?.status?.lowercase()
         if (status != lastStatusKey) {
             lastStatusKey = status
-            if (status == "completed") completedSinceMs = System.currentTimeMillis()
+            if (status == "completed") completedSinceMs = SystemClock.elapsedRealtime()
         }
-        return when (status) {
-            // Active / user-watched operations — climb fast.
-            "printing", "working", "busy", "heating", "calibrate_doing", "canceling" -> 1_500L
-            // Paused or a transient end-of-job dialog the user is likely interacting with.
-            "paused", "pausing", "cancel" -> 2_500L
+        // Cadence classes follow the library's MachineState mapping (the same one jobStateOf
+        // uses) so polling speed and control gating can never disagree about what the printer
+        // is doing — "pause" and "downloading" included.
+        return when (detail?.let { machineInfo.fromDetail(it)?.machineState }) {
+            // Active / user-watched operations — climb fast. The Busy class also covers
+            // "downloading"; an unrecognized non-blank status is busy-class per the docs.
+            MachineState.Printing, MachineState.Busy,
+            MachineState.Heating, MachineState.Calibrating -> 1_500L
+            // Paused or a transient end-of-job dialog the user is likely interacting with
+            // ("pause"/"paused", "pausing", a cancel being processed).
+            MachineState.Paused, MachineState.Pausing, MachineState.Cancelled -> 2_500L
             // Just finished: stay responsive for ~30s (platform-clear), then fall to idle.
-            "completed" -> if (System.currentTimeMillis() - completedSinceMs < 30_000L) 2_500L else 5_000L
-            "error" -> 10_000L
-            // `ready` and anything unrecognized.
-            else -> 5_000L
+            MachineState.Completed ->
+                if (SystemClock.elapsedRealtime() - completedSinceMs < 30_000L) 2_500L else 5_000L
+            MachineState.Error -> 10_000L
+            // Docs: an unrecognized non-blank status means busy-class work in progress
+            // (fw-5.x cloud_slicing / sending / unzipping, the transient "canceling").
+            MachineState.Unknown -> if (!status.isNullOrBlank()) 1_500L else 5_000L
+            // `ready`, or no snapshot yet.
+            MachineState.Ready, null -> 5_000L
         }
     }
 
@@ -469,7 +488,10 @@ class ActivePrinterSession(
         /** Bed temp (°C) below which a finished print is considered safe to remove. */
         const val BED_SAFE_TEMP_C = 40f
         /** Wire statuses that mean a job is actively running (cancels a pending cooldown watch). */
-        val ACTIVE_PRINT_STATES = setOf("printing", "working", "busy", "heating")
+        val ACTIVE_PRINT_STATES = setOf(
+            "printing", "working", "busy", "heating", "calibrate_doing",
+            "pause", "paused", "pausing", "canceling", "downloading"
+        )
         /**
          * How long [stopSession]'s watcher waits for a possibly-still-blocking TCP connect to land
          * so it can release the `~M601` lock it acquires. Longer than any OS-level SYN retry

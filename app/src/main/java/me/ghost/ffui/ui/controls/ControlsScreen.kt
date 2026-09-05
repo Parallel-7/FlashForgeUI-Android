@@ -45,6 +45,8 @@ import me.ghost.ffui.ui.MainViewModel
 import me.ghost.ffui.ui.jobStateOf
 import me.ghost.ffui.ui.dashboard.FiltrationCard
 import me.ghost.ffui.ui.dashboard.HeaterGrid
+import me.ghost.ffui.ui.dashboard.BED_MAX_TEMP
+import me.ghost.ffui.ui.dashboard.NOZZLE_MAX_TEMP
 import me.ghost.ffui.ui.dashboard.Creator5TemperatureCard
 import me.ghost.ffui.ui.dashboard.TemperatureDialog
 
@@ -215,6 +217,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
         val isNozzle = heaterName == "Nozzle"
         TemperatureDialog(
             heaterName = heaterName,
+            maxTemp = if (isNozzle) NOZZLE_MAX_TEMP else BED_MAX_TEMP,
             onSet = { t ->
                 scope.launch { if (isNozzle) session.setNozzleTemp(t) else session.setBedTemp(t) }
                 showTempDialog = null

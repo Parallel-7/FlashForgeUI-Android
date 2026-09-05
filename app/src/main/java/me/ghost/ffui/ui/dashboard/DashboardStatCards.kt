@@ -184,33 +184,31 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
     }
 }
 
-/** Numeric temperature-set dialog for a heater ("Nozzle"/"Bed"); includes an Off button. */
+/** Firmware ceiling for nozzle-style heaters, °C (docs: `rightNozzle` 0-265). */
+internal const val NOZZLE_MAX_TEMP = 265
+
+/** Firmware ceiling for the heated bed, °C (docs: `platform` 0-100). */
+internal const val BED_MAX_TEMP = 100
+
+/**
+ * Numeric temperature-set dialog for a heater ("Nozzle"/"Bed") whose **Off** means `set(0)` — the
+ * single-toolhead 5M / 5M Pro / AD5X path. Delegates to the generalized overload with
+ * `onOff = onSet(0)`; pass [maxTemp] to clamp the entry client-side to the firmware ceiling
+ * ([NOZZLE_MAX_TEMP] / [BED_MAX_TEMP]).
+ */
 @Composable
-internal fun TemperatureDialog(heaterName: String, onSet: (Int) -> Unit, onDismiss: () -> Unit) {
-    var tempStr by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Set $heaterName Temperature") },
-        text = {
-            OutlinedTextField(
-                value = tempStr,
-                onValueChange = { tempStr = it.filter(Char::isDigit) },
-                label = { Text("Temperature °C") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-        },
-        confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { onSet(0) }) { Text("Off") }
-                Button(onClick = { tempStr.toIntOrNull()?.let(onSet) }) { Text("Set") }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
+internal fun TemperatureDialog(
+    heaterName: String,
+    onSet: (Int) -> Unit,
+    onDismiss: () -> Unit,
+    maxTemp: Int? = null,
+) = TemperatureDialog(
+    heaterName = heaterName,
+    onSet = onSet,
+    onOff = { onSet(0) },
+    onDismiss = onDismiss,
+    maxTemp = maxTemp,
+)
 
 /**
  * Generalized [TemperatureDialog] for heaters whose **Off** action must route to a dedicated cancel

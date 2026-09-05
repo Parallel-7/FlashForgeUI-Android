@@ -13,12 +13,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
@@ -26,6 +32,7 @@ import androidx.compose.ui.unit.dp
  * At-a-glance job control: a Pause/Resume toggle plus a Stop button. Shared by the dashboard
  * (shown inline during an active job) and the Controls tab so the two never drift. Pause and
  * Resume are mutually exclusive per [isPaused]; Pause is disabled mid-transition ([isPausing]).
+ * Stop asks for confirmation first — it kills a multi-hour print and can never be resumed.
  */
 @Composable
 fun JobControlRow(
@@ -37,6 +44,8 @@ fun JobControlRow(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showStopConfirm by rememberSaveable { mutableStateOf(false) }
+
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         if (isPaused) {
             Button(
@@ -70,7 +79,7 @@ fun JobControlRow(
         }
 
         Button(
-            onClick = onCancel,
+            onClick = { showStopConfirm = true },
             modifier = Modifier.size(56.dp),
             shape = RoundedCornerShape(16.dp),
             contentPadding = PaddingValues(0.dp),
@@ -81,5 +90,22 @@ fun JobControlRow(
         ) {
             Icon(Icons.Default.Stop, contentDescription = "Stop")
         }
+    }
+
+    if (showStopConfirm) {
+        AlertDialog(
+            onDismissRequest = { showStopConfirm = false },
+            title = { Text("Stop this print?") },
+            text = { Text("The print cannot resume after you stop it.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showStopConfirm = false
+                    onCancel()
+                }) { Text("Stop") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStopConfirm = false }) { Text("Cancel") }
+            }
+        )
     }
 }

@@ -288,6 +288,7 @@ private fun DashboardContent(session: ActivePrinterSession, viewModel: MainViewM
         val isNozzle = heaterName == "Nozzle"
         TemperatureDialog(
             heaterName = heaterName,
+            maxTemp = if (isNozzle) NOZZLE_MAX_TEMP else BED_MAX_TEMP,
             onSet = { t ->
                 scope.launch { if (isNozzle) session.setNozzleTemp(t) else session.setBedTemp(t) }
                 showTempDialog = null

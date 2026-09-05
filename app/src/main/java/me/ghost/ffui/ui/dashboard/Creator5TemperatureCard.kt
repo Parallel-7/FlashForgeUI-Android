@@ -68,8 +68,8 @@ private sealed interface Creator5HeaterTarget {
  *
  * The Off affordance routes to the heater's dedicated **cancel** lambda ([onCreate5CancelTool] /
  * [onCreate5CancelBed] / [onCreate5CancelChamber]) — it never calls a `set(0)` path, which is wrong
- * for Creator 5 tools. Set opens the shared [TemperatureDialog] (chamber client-clamped to
- * [CHAMBER_MAX_TEMP]).
+ * for Creator 5 tools. Set opens the shared [TemperatureDialog], client-clamped to each heater's
+ * firmware ceiling (tools [NOZZLE_MAX_TEMP], bed [BED_MAX_TEMP], chamber [CHAMBER_MAX_TEMP]).
  *
  * Rendered behind a Creator 5 capability gate in both [DashboardScreen] and the Controls tab
  * (gated on `PrinterCapabilities.model.isCreator5`).
@@ -175,7 +175,7 @@ internal fun Creator5TemperatureCard(
                 onSet = { celsius -> onCreate5SetTool(target.index, celsius); dialogTarget = null },
                 onOff = { onCreate5CancelTool(target.index); dialogTarget = null },
                 onDismiss = { dialogTarget = null },
-                maxTemp = null
+                maxTemp = NOZZLE_MAX_TEMP   // same clamp family as the nozzle heaters
             )
 
             Creator5HeaterTarget.Bed -> TemperatureDialog(
@@ -183,7 +183,7 @@ internal fun Creator5TemperatureCard(
                 onSet = { celsius -> onCreate5SetBed(celsius); dialogTarget = null },
                 onOff = { onCreate5CancelBed(); dialogTarget = null },
                 onDismiss = { dialogTarget = null },
-                maxTemp = null
+                maxTemp = BED_MAX_TEMP
             )
 
             Creator5HeaterTarget.Chamber -> TemperatureDialog(

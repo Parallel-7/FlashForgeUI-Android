@@ -17,7 +17,7 @@ import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
 import me.ghost.ffui.ui.dashboard.HeaterGrid
 import me.ghost.ffui.ui.dashboard.JobProgressHeader
 import me.ghost.ffui.ui.dashboard.JobStatsRow
-import me.ghost.ffui.ui.theme.MyApplicationTheme
+import me.ghost.ffui.ui.theme.Theme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,7 +56,7 @@ class DashboardCardsScreenshotTest {
         )
 
         composeTestRule.setContent {
-            MyApplicationTheme {
+            Theme {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     Column(
                         modifier = Modifier.width(360.dp).padding(16.dp),

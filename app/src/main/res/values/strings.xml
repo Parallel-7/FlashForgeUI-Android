@@ -1,3 +1,89 @@
 <resources>
     <string name="app_name">FlashForgeUI</string>
+
+    <!-- ═══════════════════════ Common / shared ═══════════════════════ -->
+    <string name="common_back">Back</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_close">Close</string>
+    <string name="common_off">Off</string>
+    <string name="common_printer">Printer</string>
+    <string name="common_seconds_format">%1$ds</string>
+
+    <!-- ═══════════════════════ Settings (global) ═══════════════════════ -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_startup">Startup</string>
+    <string name="settings_auto_reconnect_title">Auto Reconnect</string>
+    <string name="settings_auto_reconnect_subtitle">Choose which printers to reconnect when the app opens</string>
+    <string name="settings_reconnect_all">All previously connected printers</string>
+    <string name="settings_reconnect_last_active">Last active printer only</string>
+    <string name="settings_section_background">Background</string>
+    <string name="settings_background_monitoring_title">Keep monitoring in background</string>
+    <string name="settings_background_monitoring_subtitle">Stay connected for alerts even when the app is closed</string>
+    <string name="settings_allow_background_title">Allow background activity</string>
+    <string name="settings_allow_background_subtitle">Recommended — without it the system may pause monitoring</string>
+    <string name="settings_allow">Allow</string>
+    <string name="settings_throttle_title">Slow updates in background</string>
+    <string name="settings_throttle_subtitle">Check less often to save battery</string>
+    <string name="settings_throttle_interval">Update interval</string>
+    <string name="settings_section_privacy">Privacy</string>
+    <string name="settings_hide_serials_title">Hide serial numbers</string>
+    <string name="settings_hide_serials_subtitle">Mask printer serial numbers</string>
+    <string name="settings_section_spoolman">Spoolman</string>
+    <string name="settings_spoolman_enable_title">Enable Spoolman</string>
+    <string name="settings_spoolman_enable_subtitle">Track filament spools from your Spoolman server</string>
+    <string name="settings_spoolman_server_label">Server address</string>
+    <string name="settings_spoolman_server_placeholder">http://192.168.1.50:7912</string>
+    <string name="settings_spoolman_test_connection">Test connection</string>
+    <string name="settings_spoolman_test_connected">✓ Connected</string>
+    <string name="settings_spoolman_test_failed">✗ Couldn\'t reach server</string>
+    <string name="settings_spool_stat_title">Card stat</string>
+    <string name="settings_spool_stat_subtitle">Show percentage or weight on spool cards</string>
+    <string name="settings_spool_stat_percent">Percentage</string>
+    <string name="settings_spool_stat_weight">Weight</string>
+    <string name="settings_section_nfc">NFC tags</string>
+    <string name="settings_nfc_title">Scan &amp; write spool tags</string>
+    <string name="settings_nfc_subtitle">Read and program filament tags on the Spools tab</string>
+    <string name="settings_nfc_unavailable">This device has no NFC hardware</string>
+    <string name="settings_nfc_write_url_title">Also write web link</string>
+    <string name="settings_nfc_write_url_subtitle">Add a Spoolman link so any phone can open the spool</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_about_version">v%1$s</string>
+    <string name="settings_about_developer">Developer</string>
+    <string name="settings_about_organization">Organization</string>
+    <string name="settings_github_avatar_cd">%1$s avatar</string>
+    <string name="settings_github_open_cd">Open %1$s on GitHub</string>
+
+    <!-- ═══════════════════════ Printer settings (per-printer) ═══════════════════════ -->
+    <string name="printers_settings_title">Printer Settings</string>
+    <string name="printers_settings_for">Settings for %1$s</string>
+    <string name="printers_settings_section_led">LED Control</string>
+    <string name="printers_settings_custom_led_title">Custom LED control</string>
+    <string name="printers_settings_custom_led_subtitle">Enable LED control for printers with custom LEDs</string>
+    <string name="printers_settings_reconnect_hint">Reconnect for changes to take effect</string>
+    <string name="printers_settings_section_camera">Camera</string>
+    <string name="printers_settings_custom_camera_title">Custom camera URL</string>
+    <string name="printers_settings_custom_camera_subtitle">Use a user-provided RTSP, HTTP, or MJPEG camera stream</string>
+    <string name="printers_settings_autoplay_title">Auto-play camera</string>
+    <string name="printers_settings_autoplay_subtitle">Automatically start playing the camera stream when viewing the dashboard</string>
+    <string name="printers_settings_fps_title">Show FPS counter</string>
+    <string name="printers_settings_fps_subtitle">Show the frame rate on the camera feed</string>
+    <string name="printers_settings_camera_url_label">Camera URL</string>
+    <string name="printers_settings_camera_url_placeholder">rtsp://192.168.1.x:554/stream</string>
+    <string name="printers_settings_camera_url_hint">Blank falls back to the printer\'s built-in stream.</string>
+    <string name="printers_settings_section_api">API &amp; Behavior</string>
+    <string name="printers_settings_force_legacy_title">Force legacy API</string>
+    <string name="printers_settings_force_legacy_subtitle">Use TCP-only API even for modern printers. Requires reconnection.</string>
+    <string name="printers_settings_auto_match_title">Auto-match materials</string>
+    <string name="printers_settings_auto_match_subtitle">Automatically map tool slots when starting prints</string>
+    <string name="printers_settings_section_notifications">Notifications</string>
+    <string name="printers_settings_notify_complete_title">Print complete</string>
+    <string name="printers_settings_notify_complete_subtitle">Push a notification the moment a print finishes</string>
+    <string name="printers_settings_notify_cooled_title">Print cooled</string>
+    <string name="printers_settings_notify_cooled_subtitle">Notify once the bed cools below 40 °C — safe to remove the print</string>
+    <string name="printers_settings_notify_errors_title">Printer errors</string>
+    <string name="printers_settings_notify_errors_subtitle">Notify when the printer reports a new error code</string>
+    <string name="printers_settings_section_danger">Danger Zone</string>
+    <string name="printers_settings_delete">Delete Printer</string>
+    <string name="printers_settings_delete_confirm">Are you sure you want to remove \"%1$s\" (%2$s)? This cannot be undone.</string>
 </resources>

@@ -42,9 +42,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffapi.PrinterModel
+import me.ghost.ffui.R
 import me.ghost.ffui.ui.PrinterModelNames
 import me.ghost.ffui.data.PrinterEntity
 import me.ghost.ffui.data.maskSerial
@@ -74,6 +76,7 @@ fun PrinterSettingsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
     val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsStateWithLifecycle(initialValue = false)
+    val reconnectHint = stringResource(R.string.printers_settings_reconnect_hint)
 
     LaunchedEffect(serialNumber) {
         printer = viewModel.repository.getPrinter(serialNumber)
@@ -88,12 +91,12 @@ fun PrinterSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Printer Settings") },
+                title = { Text(stringResource(R.string.printers_settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.common_back)
                         )
                     }
                 }
@@ -129,9 +132,9 @@ fun PrinterSettingsScreen(
             // Full identity (model/firmware/IP/serial) lives behind the (i) info screen; this page
             // just needs to say which printer is being configured.
             item {
-                val modelName = PrinterModelNames.shortName(currentPrinter.modelPid).ifBlank { "Printer" }
+                val modelName = PrinterModelNames.shortName(currentPrinter.modelPid).ifBlank { stringResource(R.string.common_printer) }
                 Text(
-                    text = "Settings for ${currentPrinter.name.ifBlank { modelName }}",
+                    text = stringResource(R.string.printers_settings_for, currentPrinter.name.ifBlank { modelName }),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -140,36 +143,36 @@ fun PrinterSettingsScreen(
             // ── LED Control ─────────────────────────────────────────────────
             item {
                 Text(
-                    "LED Control",
+                    stringResource(R.string.printers_settings_section_led),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
             item {
                 SettingToggle(
-                    label = "Custom LED control",
-                    subtitle = "Enable LED control for printers with custom LEDs",
+                    label = stringResource(R.string.printers_settings_custom_led_title),
+                    subtitle = stringResource(R.string.printers_settings_custom_led_subtitle),
                     checked = currentPrinter.customLedEnabled,
                     onCheckedChange = { enabled ->
                         updatePrinter(currentPrinter.copy(customLedEnabled = enabled))
                         if (isConnected) viewModel.reconnectSession(serialNumber)
-                        else scope.launch { snackbarHostState.showSnackbar("Reconnect for changes to take effect") }
+                        else scope.launch { snackbarHostState.showSnackbar(reconnectHint) }
                     }
                 )
             }
 
-            // ── Camera ──────────────────────────────────────────────────────
+            // ── Camera ──────────────────────────────────────────────
             item {
                 Text(
-                    "Camera",
+                    stringResource(R.string.printers_settings_section_camera),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
             item {
                 SettingToggle(
-                    label = "Custom camera URL",
-                    subtitle = "Use a user-provided RTSP, HTTP, or MJPEG camera stream",
+                    label = stringResource(R.string.printers_settings_custom_camera_title),
+                    subtitle = stringResource(R.string.printers_settings_custom_camera_subtitle),
                     checked = currentPrinter.customCameraEnabled,
                     onCheckedChange = { enabled ->
                         val updated = if (enabled) {
@@ -186,8 +189,8 @@ fun PrinterSettingsScreen(
             }
             item {
                 SettingToggle(
-                    label = "Auto-play camera",
-                    subtitle = "Automatically start playing the camera stream when viewing the dashboard",
+                    label = stringResource(R.string.printers_settings_autoplay_title),
+                    subtitle = stringResource(R.string.printers_settings_autoplay_subtitle),
                     checked = currentPrinter.cameraAutoPlayEnabled,
                     onCheckedChange = { enabled ->
                         updatePrinter(currentPrinter.copy(cameraAutoPlayEnabled = enabled))
@@ -196,8 +199,8 @@ fun PrinterSettingsScreen(
             }
             item {
                 SettingToggle(
-                    label = "Show FPS counter",
-                    subtitle = "Show the frame rate on the camera feed",
+                    label = stringResource(R.string.printers_settings_fps_title),
+                    subtitle = stringResource(R.string.printers_settings_fps_subtitle),
                     checked = currentPrinter.cameraFpsCounterEnabled,
                     onCheckedChange = { enabled ->
                         updatePrinter(currentPrinter.copy(cameraFpsCounterEnabled = enabled))
@@ -227,11 +230,11 @@ fun PrinterSettingsScreen(
                         OutlinedTextField(
                             value = cameraUrl,
                             onValueChange = { url -> cameraUrl = url },
-                            label = { Text("Camera URL") },
-                            placeholder = { Text("rtsp://192.168.1.x:554/stream") },
+                            label = { Text(stringResource(R.string.printers_settings_camera_url_label)) },
+                            placeholder = { Text(stringResource(R.string.printers_settings_camera_url_placeholder)) },
                             singleLine = true,
                             supportingText = {
-                                Text("Blank falls back to the printer's built-in stream.")
+                                Text(stringResource(R.string.printers_settings_camera_url_hint))
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -244,20 +247,20 @@ fun PrinterSettingsScreen(
             // ── API & Behavior ──────────────────────────────────────────────
             item {
                 Text(
-                    "API & Behavior",
+                    stringResource(R.string.printers_settings_section_api),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
             item {
                 SettingToggle(
-                    label = "Force legacy API",
-                    subtitle = "Use TCP-only API even for modern printers. Requires reconnection.",
+                    label = stringResource(R.string.printers_settings_force_legacy_title),
+                    subtitle = stringResource(R.string.printers_settings_force_legacy_subtitle),
                     checked = currentPrinter.forceLegacy,
                     onCheckedChange = { enabled ->
                         updatePrinter(currentPrinter.copy(forceLegacy = enabled))
                         if (isConnected) viewModel.reconnectSession(serialNumber)
-                        else scope.launch { snackbarHostState.showSnackbar("Reconnect for changes to take effect") }
+                        else scope.launch { snackbarHostState.showSnackbar(reconnectHint) }
                     }
                 )
             }
@@ -265,8 +268,8 @@ fun PrinterSettingsScreen(
             if (currentPrinter.modelPid == PrinterModel.PID_AD5X) {
                 item {
                     SettingToggle(
-                        label = "Auto-match materials",
-                        subtitle = "Automatically map tool slots when starting prints",
+                        label = stringResource(R.string.printers_settings_auto_match_title),
+                        subtitle = stringResource(R.string.printers_settings_auto_match_subtitle),
                         checked = currentPrinter.autoMatchMaterials,
                         onCheckedChange = { enabled ->
                             updatePrinter(currentPrinter.copy(autoMatchMaterials = enabled))
@@ -278,15 +281,15 @@ fun PrinterSettingsScreen(
             // ── Notifications ───────────────────────────────────────────────
             item {
                 Text(
-                    "Notifications",
+                    stringResource(R.string.printers_settings_section_notifications),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
             item {
                 SettingToggle(
-                    label = "Print complete",
-                    subtitle = "Push a notification the moment a print finishes",
+                    label = stringResource(R.string.printers_settings_notify_complete_title),
+                    subtitle = stringResource(R.string.printers_settings_notify_complete_subtitle),
                     checked = currentPrinter.notifyOnComplete,
                     onCheckedChange = { enabled ->
                         updatePrinter(currentPrinter.copy(notifyOnComplete = enabled))
@@ -295,8 +298,8 @@ fun PrinterSettingsScreen(
             }
             item {
                 SettingToggle(
-                    label = "Print cooled",
-                    subtitle = "Notify once the bed cools below 40 °C — safe to remove the print",
+                    label = stringResource(R.string.printers_settings_notify_cooled_title),
+                    subtitle = stringResource(R.string.printers_settings_notify_cooled_subtitle),
                     checked = currentPrinter.notifyOnCooled,
                     onCheckedChange = { enabled ->
                         updatePrinter(currentPrinter.copy(notifyOnCooled = enabled))
@@ -305,8 +308,8 @@ fun PrinterSettingsScreen(
             }
             item {
                 SettingToggle(
-                    label = "Printer errors",
-                    subtitle = "Notify when the printer reports a new error code",
+                    label = stringResource(R.string.printers_settings_notify_errors_title),
+                    subtitle = stringResource(R.string.printers_settings_notify_errors_subtitle),
                     checked = currentPrinter.notifyOnError,
                     onCheckedChange = { enabled ->
                         updatePrinter(currentPrinter.copy(notifyOnError = enabled))
@@ -318,7 +321,7 @@ fun PrinterSettingsScreen(
             item { Spacer(modifier = Modifier.height(16.dp)) }
             item {
                 Text(
-                    "Danger Zone",
+                    stringResource(R.string.printers_settings_section_danger),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.error
                 )
@@ -345,7 +348,7 @@ fun PrinterSettingsScreen(
                             ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Delete Printer")
+                            Text(stringResource(R.string.printers_settings_delete))
                         }
                     }
                 }
@@ -356,11 +359,14 @@ fun PrinterSettingsScreen(
         if (showDeleteDialog) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
-                title = { Text("Delete Printer") },
+                title = { Text(stringResource(R.string.printers_settings_delete)) },
                 text = {
                     Text(
-                        "Are you sure you want to remove \"${currentPrinter.name}\" " +
-                            "(${maskSerial(currentPrinter.serialNumber, hideSerials)})? This cannot be undone."
+                        stringResource(
+                            R.string.printers_settings_delete_confirm,
+                            currentPrinter.name,
+                            maskSerial(currentPrinter.serialNumber, hideSerials)
+                        )
                     )
                 },
                 confirmButton = {
@@ -378,12 +384,12 @@ fun PrinterSettingsScreen(
                             contentColor = MaterialTheme.colorScheme.onError
                         )
                     ) {
-                        Text("Delete")
+                        Text(stringResource(R.string.common_delete))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteDialog = false }) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.common_cancel))
                     }
                 }
             )

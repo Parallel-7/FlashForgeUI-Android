@@ -28,13 +28,13 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.MyApplication">
+        android:theme="@style/Theme.FlashForgeUI">
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
-            android:theme="@style/Theme.MyApplication">
+            android:theme="@style/Theme.FlashForgeUI">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

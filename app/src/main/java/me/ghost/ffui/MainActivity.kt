@@ -20,7 +20,7 @@ import androidx.core.content.IntentCompat
 import androidx.lifecycle.lifecycleScope
 import me.ghost.ffui.data.DebugPrinterSeeder
 import me.ghost.ffui.ui.FlasherApp
-import me.ghost.ffui.ui.theme.MyApplicationTheme
+import me.ghost.ffui.ui.theme.Theme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
     maybeRequestNotificationPermission()
     handleSeedIntent(intent)
     setContent {
-      MyApplicationTheme {
+      Theme {
         FlasherApp()
       }
     }

@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -56,6 +57,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.ghost.ffui.BuildConfig
+import me.ghost.ffui.R
 import me.ghost.ffui.data.SettingsDataStore
 import me.ghost.ffui.data.SpoolStatStyle
 import me.ghost.ffui.data.StartupReconnect
@@ -90,7 +92,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { batteryIgnored = BatteryOptimization.isIgnored(context) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Settings") }) }
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.settings_title)) }) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
@@ -100,7 +102,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
             // ── Startup section ──
             item {
                 Text(
-                    "Startup",
+                    stringResource(R.string.settings_section_startup),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -118,29 +120,29 @@ fun SettingsScreen(viewModel: MainViewModel) {
                             .selectableGroup()
                     ) {
                         Text(
-                            "Auto Reconnect",
+                            stringResource(R.string.settings_auto_reconnect_title),
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Choose which printers to reconnect when the app opens",
+                            stringResource(R.string.settings_auto_reconnect_subtitle),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(12.dp))
 
                         ReconnectOption(
-                            label = "All previously connected printers",
+                            label = stringResource(R.string.settings_reconnect_all),
                             selected = reconnectMode == StartupReconnect.ALL,
                             onClick = { scope.launch { viewModel.settingsDataStore.setStartupReconnect(StartupReconnect.ALL) } }
                         )
                         ReconnectOption(
-                            label = "Last active printer only",
+                            label = stringResource(R.string.settings_reconnect_last_active),
                             selected = reconnectMode == StartupReconnect.LAST_ACTIVE,
                             onClick = { scope.launch { viewModel.settingsDataStore.setStartupReconnect(StartupReconnect.LAST_ACTIVE) } }
                         )
                         ReconnectOption(
-                            label = "Off",
+                            label = stringResource(R.string.common_off),
                             selected = reconnectMode == StartupReconnect.OFF,
                             onClick = { scope.launch { viewModel.settingsDataStore.setStartupReconnect(StartupReconnect.OFF) } }
                         )
@@ -152,7 +154,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
             item {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Background",
+                    stringResource(R.string.settings_section_background),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -167,9 +169,9 @@ fun SettingsScreen(viewModel: MainViewModel) {
                         // Master toggle: keep monitoring (and alerts) running after the app closes.
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Keep monitoring in background", style = MaterialTheme.typography.bodyLarge)
+                                Text(stringResource(R.string.settings_background_monitoring_title), style = MaterialTheme.typography.bodyLarge)
                                 Text(
-                                    "Stay connected for alerts even when the app is closed",
+                                    stringResource(R.string.settings_background_monitoring_subtitle),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -196,16 +198,16 @@ fun SettingsScreen(viewModel: MainViewModel) {
                                 Spacer(Modifier.height(8.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("Allow background activity", style = MaterialTheme.typography.bodyLarge)
+                                        Text(stringResource(R.string.settings_allow_background_title), style = MaterialTheme.typography.bodyLarge)
                                         Text(
-                                            "Recommended — without it the system may pause monitoring",
+                                            stringResource(R.string.settings_allow_background_subtitle),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                     Spacer(Modifier.width(12.dp))
                                     TextButton(onClick = { context.startActivity(BatteryOptimization.requestIntent(context)) }) {
-                                        Text("Allow")
+                                        Text(stringResource(R.string.settings_allow))
                                     }
                                 }
                             }
@@ -216,9 +218,9 @@ fun SettingsScreen(viewModel: MainViewModel) {
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Slow updates in background", style = MaterialTheme.typography.bodyLarge)
+                                    Text(stringResource(R.string.settings_throttle_title), style = MaterialTheme.typography.bodyLarge)
                                     Text(
-                                        "Check less often to save battery",
+                                        stringResource(R.string.settings_throttle_subtitle),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -239,11 +241,11 @@ fun SettingsScreen(viewModel: MainViewModel) {
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        "Update interval",
+                                        stringResource(R.string.settings_throttle_interval),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Text("${throttleSeconds}s", style = MaterialTheme.typography.bodyMedium)
+                                    Text(stringResource(R.string.common_seconds_format, throttleSeconds), style = MaterialTheme.typography.bodyMedium)
                                 }
                                 // Live-drag local value; persist on release so DataStore isn't spammed.
                                 var sliderValue by remember(throttleSeconds) { mutableFloatStateOf(throttleSeconds.toFloat()) }
@@ -269,7 +271,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
             item {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Privacy",
+                    stringResource(R.string.settings_section_privacy),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -285,9 +287,9 @@ fun SettingsScreen(viewModel: MainViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Hide serial numbers", style = MaterialTheme.typography.bodyLarge)
+                            Text(stringResource(R.string.settings_hide_serials_title), style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                "Mask printer serial numbers",
+                                stringResource(R.string.settings_hide_serials_subtitle),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -305,7 +307,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
             item {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Spoolman",
+                    stringResource(R.string.settings_section_spoolman),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -323,9 +325,9 @@ fun SettingsScreen(viewModel: MainViewModel) {
                         // Master toggle
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Enable Spoolman", style = MaterialTheme.typography.bodyLarge)
+                                Text(stringResource(R.string.settings_spoolman_enable_title), style = MaterialTheme.typography.bodyLarge)
                                 Text(
-                                    "Track filament spools from your Spoolman server",
+                                    stringResource(R.string.settings_spoolman_enable_subtitle),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -350,8 +352,8 @@ fun SettingsScreen(viewModel: MainViewModel) {
                             OutlinedTextField(
                                 value = serverUrl,
                                 onValueChange = { serverUrl = it },
-                                label = { Text("Server address") },
-                                placeholder = { Text("http://192.168.1.50:7912") },
+                                label = { Text(stringResource(R.string.settings_spoolman_server_label)) },
+                                placeholder = { Text(stringResource(R.string.settings_spoolman_server_placeholder)) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -384,19 +386,19 @@ fun SettingsScreen(viewModel: MainViewModel) {
                                         )
                                         Spacer(Modifier.width(8.dp))
                                     }
-                                    Text("Test connection")
+                                    Text(stringResource(R.string.settings_spoolman_test_connection))
                                 }
 
                                 testResult?.let { result ->
                                     if (result.isSuccess) {
                                         Text(
-                                            "✓ Connected",
+                                            stringResource(R.string.settings_spoolman_test_connected),
                                             color = MaterialTheme.colorScheme.primary,
                                             style = MaterialTheme.typography.bodyMedium
                                         )
                                     } else {
                                         Text(
-                                            "✗ Couldn't reach server",
+                                            stringResource(R.string.settings_spoolman_test_failed),
                                             color = MaterialTheme.colorScheme.error,
                                             style = MaterialTheme.typography.bodyMedium
                                         )
@@ -411,9 +413,9 @@ fun SettingsScreen(viewModel: MainViewModel) {
                             // Which stat the spool cards display.
                             val statStyle by viewModel.settingsDataStore.spoolStatStyle
                                 .collectAsStateWithLifecycle(initialValue = SpoolStatStyle.PERCENT)
-                            Text("Card stat", style = MaterialTheme.typography.bodyLarge)
+                            Text(stringResource(R.string.settings_spool_stat_title), style = MaterialTheme.typography.bodyLarge)
                             Text(
-                                "Show percentage or weight on spool cards",
+                                stringResource(R.string.settings_spool_stat_subtitle),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -426,7 +428,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
                                             viewModel.settingsDataStore.setSpoolStatStyle(SpoolStatStyle.PERCENT)
                                         }
                                     },
-                                    label = { Text("Percentage") }
+                                    label = { Text(stringResource(R.string.settings_spool_stat_percent)) }
                                 )
                                 FilterChip(
                                     selected = statStyle == SpoolStatStyle.WEIGHT,
@@ -435,7 +437,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
                                             viewModel.settingsDataStore.setSpoolStatStyle(SpoolStatStyle.WEIGHT)
                                         }
                                     },
-                                    label = { Text("Weight") }
+                                    label = { Text(stringResource(R.string.settings_spool_stat_weight)) }
                                 )
                             }
                         }
@@ -447,7 +449,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
             item {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "NFC tags",
+                    stringResource(R.string.settings_section_nfc),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -468,14 +470,14 @@ fun SettingsScreen(viewModel: MainViewModel) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    "Scan & write spool tags",
+                                    stringResource(R.string.settings_nfc_title),
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = if (nfcAvailable) MaterialTheme.colorScheme.onSurface
                                     else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                                 )
                                 Text(
-                                    if (nfcAvailable) "Read and program filament tags on the Spools tab"
-                                    else "This device has no NFC hardware",
+                                    if (nfcAvailable) stringResource(R.string.settings_nfc_subtitle)
+                                    else stringResource(R.string.settings_nfc_unavailable),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -495,9 +497,9 @@ fun SettingsScreen(viewModel: MainViewModel) {
                             Spacer(Modifier.height(8.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Also write web link", style = MaterialTheme.typography.bodyLarge)
+                                    Text(stringResource(R.string.settings_nfc_write_url_title), style = MaterialTheme.typography.bodyLarge)
                                     Text(
-                                        "Add a Spoolman link so any phone can open the spool",
+                                        stringResource(R.string.settings_nfc_write_url_subtitle),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -517,7 +519,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
             item {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "About",
+                    stringResource(R.string.settings_section_about),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -534,24 +536,24 @@ fun SettingsScreen(viewModel: MainViewModel) {
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        InfoRow("FlashForgeUI", "v${BuildConfig.VERSION_NAME}")
+                        InfoRow(stringResource(R.string.app_name), stringResource(R.string.settings_about_version, BuildConfig.VERSION_NAME))
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                         Text(
-                            "Developer",
+                            stringResource(R.string.settings_about_developer),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         GithubProfileRow(
                             handle = "GhostTypes",
-                            subtitle = "Developer",
+                            subtitle = stringResource(R.string.settings_about_developer),
                             avatarUrl = "https://github.com/GhostTypes.png",
                             profileUrl = "https://github.com/GhostTypes"
                         )
                         GithubProfileRow(
                             handle = "Parallel-7",
-                            subtitle = "Organization",
+                            subtitle = stringResource(R.string.settings_about_organization),
                             avatarUrl = "https://github.com/Parallel-7.png",
                             profileUrl = "https://github.com/Parallel-7"
                         )
@@ -586,7 +588,7 @@ private fun GithubProfileRow(
     ) {
         AsyncImage(
             model = ImageRequest.Builder(context).data(avatarUrl).crossfade(true).build(),
-            contentDescription = "$handle avatar",
+            contentDescription = stringResource(R.string.settings_github_avatar_cd, handle),
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .size(44.dp)
@@ -608,7 +610,7 @@ private fun GithubProfileRow(
         }
         Icon(
             Icons.AutoMirrored.Filled.OpenInNew,
-            contentDescription = "Open $handle on GitHub",
+            contentDescription = stringResource(R.string.settings_github_open_cd, handle),
             tint = MaterialTheme.colorScheme.primary
         )
     }

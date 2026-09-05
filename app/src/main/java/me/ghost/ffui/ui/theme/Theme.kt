@@ -25,6 +25,6 @@ private val GeometricColorScheme = darkColorScheme(
 
 /** The app's single dark Geometric scheme — there is no light/dynamic variant to pick. */
 @Composable
-fun MyApplicationTheme(content: @Composable () -> Unit) {
+fun Theme(content: @Composable () -> Unit) {
   MaterialTheme(colorScheme = GeometricColorScheme, typography = Typography, content = content)
 }

@@ -201,12 +201,13 @@ class ActivePrinterSession(
                 onIdentity(detail.pid, detail.firmwareVersion, detail.cameraStreamUrl)
             }
             .onFailure { e ->
-                if (e is AuthException) {
-                    // Credential rejection — fatal, no TCP fallback.
-                    applyFailure(e)
-                } else {
-                    // Connection-level error — printer may be legacy (no HTTP API). Try TCP.
-                    identifyViaTcp()
+                when (e) {
+                    is AuthException -> applyFailure(e)   // credentials rejected — fatal, no TCP fallback
+                    // An API envelope error means the HTTP API *answered* — this is not a legacy
+                    // printer without HTTP, so don't pointlessly probe 8899; surface the firmware's
+                    // own message (e.g. the Creator 5 LAN-mode gate) instead.
+                    is ApiErrorException -> applyFailure(e)
+                    else -> identifyViaTcp()               // connection-level error — printer may be legacy
                 }
             }
     }
@@ -348,7 +349,14 @@ class ActivePrinterSession(
         prevErrorCode = error
     }
 
-    /** Credential rejection ([AuthException]) is fatal; everything else is transient. */
+    /**
+     * Credential rejection ([AuthException]) is fatal; everything else is transient. With the
+     * library's 0.4.0 auth split, a typed [ApiErrorException] is *not* an auth failure: `-2` is
+     * the Creator 5 LAN-mode gate (the printer sits in cloud mode — the fix is switching it to
+     * LAN mode, not retyping credentials), `-1` a parameter error. Both land in
+     * [ConnectionState.Offline] with the firmware's message surfaced, never in
+     * [ConnectionState.AuthFailed].
+     */
     private fun applyFailure(e: Throwable) {
         if (e is AuthException) {
             // HTTP checkCode rejected: drop TCP so its keep-alive stops holding the ~M601 lock.
@@ -357,7 +365,12 @@ class ActivePrinterSession(
             }
             _connectionState.value = ConnectionState.AuthFailed(e.message)
         } else {
-            _connectionState.value = ConnectionState.Offline(e.message)
+            val reason = if (e is ApiErrorException && e.code == LAN_MODE_ERROR_CODE) {
+                "Printer is not in LAN mode — switch it to LAN mode on the printer"
+            } else {
+                e.message
+            }
+            _connectionState.value = ConnectionState.Offline(reason)
         }
     }
 
@@ -511,6 +524,8 @@ class ActivePrinterSession(
     }
 
     private companion object {
+        /** Firmware envelope code the Creator 5 series returns while in cloud mode. */
+        const val LAN_MODE_ERROR_CODE = -2
         /** Bed temp (°C) below which a finished print is considered safe to remove. */
         const val BED_SAFE_TEMP_C = 40f
         /** Wire statuses that mean a job is actively running (cancels a pending cooldown watch). */

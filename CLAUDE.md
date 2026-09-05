@@ -39,7 +39,7 @@ The FlashForge **wire protocol** (HTTP REST on **8898**, TCP G-code on **8899**,
 - **Repo:** `C:\Users\coper\Documents\GitHub\1flashforge_printers\ff-5mp-api-kt`, package
   `me.ghost.ffapi`, GitHub `GhostTypes/ff-5mp-api-kt` (private). It's a `com.android.library`
   AAR; a 1:1 port of the reference `ff-5mp-api-ts`. Read its `CLAUDE.md` + `docs/parity.md`.
-- **Coordinates:** `me.ghost:ff-5mp-api-kt:0.2.0`, consumed via **`mavenLocal()`** (see Build).
+- **Coordinates:** `me.ghost:ff-5mp-api-kt:0.4.0`, consumed via **`mavenLocal()`** (see Build).
 - **No package collision:** app is `me.ghost.ffui`, library is `me.ghost.ffapi`.
 
 **The rule:** when a task needs HTTP/TCP transport, a new `/detail` field, a new G-code command,
@@ -82,7 +82,7 @@ Gradle is rejected). Runs on **JDK 25** (Temurin). Windows shell is PowerShell �
   source/target; the Gradle/AGP toolchain itself runs on JDK 25.
 - **Depends on `ff-5mp-api-kt` via `mavenLocal()`** (see the protocol-library section above).
   `settings.gradle.kts` adds `mavenLocal()`; `app/build.gradle.kts` has
-  `implementation("me.ghost:ff-5mp-api-kt:0.2.0")`. The artifact must be present in the local
+  `implementation("me.ghost:ff-5mp-api-kt:0.4.0")`. The artifact must be present in the local
   Maven repo or the app won't resolve — if a fresh checkout / clean machine fails to build, run
   `./gradlew :ffapi:publishToMavenLocal` **in the library repo** first. After changing the
   library, re-publish there and (if the version changed) bump the coordinate here. The library
@@ -176,7 +176,8 @@ me.ghost.ffui
     │                         Owns only discovery + the foreground-only teardown in onCleared.
     ├── FlasherApp            Scaffold + bottom NavigationBar, 4 typed routes
     │                         (DashboardRoute / ControlsRoute / PrintersRoute / SettingsRoute)
-    ├── JobState.kt           jobStateOf(status) — shared job-state machine for dashboard + controls
+    ├── JobState.kt           jobStateOf/friendlyStateLabel — shared job-state machine (rebased on the
+    │                         library's MachineState enum) + friendly status labels, for dashboard + controls
     ├── components/           MpvPlayer.kt — MpvController + MpvVideoSurface (libmpv; see camera note)
     ├── controls/             ControlsScreen + JobControlRow (the Controls tab)
     ├── dashboard/ discovery/ settings/   screens
@@ -292,6 +293,41 @@ me.ghost.ffui
   list resolves; REMAINING shows — when idle. All are build/test-verified only — none
   re-tested on a real printer this wave.
 
+- **Audit wave 2 + protocol alignment (2026-09-05, library 0.4.0) — code-fixed, hardware-unverified.**
+  Status mapping is rebased on the library's `MachineState` enum: `jobStateOf` accepts BOTH paused
+  spellings (`pause` from a clog-self-paused Creator 5 Pro and the documented `paused`), keeps
+  pause/resume/cancel visible through busy-class transients (`downloading`, `canceling`, a cancel
+  in flight, fw-5.x `cloud_slicing`/`sending`/`unzipping` via the docs' "unknown ⇒ busy" rule),
+  and the poll cadence (`baseDelayMs`) + `ACTIVE_PRINT_STATES` follow the same enum so control
+  gating and polling speed can't disagree. `friendlyStateLabel` renders "Paused"/"Busy"/
+  "Downloading"… everywhere — no raw firmware tokens on any surface. Auth split: `AuthException`
+  (envelope code 1) still maps to `AuthFailed`; `ApiErrorException` (-1/-2) now lands in `Offline`
+  with the firmware message, and a C5 in cloud mode (-2) shows "Printer is not in LAN mode…"
+  instead of a bogus credentials banner; envelope errors no longer fall through to the TCP-identify
+  probe. Creator 5 chamber: `syncCapabilityTruth` gates `chamberTempControl` on the library's
+  `FFMachineInfo.hasChamberSensor` (base C5 reports the `-108` sentinel → no chamber cell, no
+  no-op Set/Off); C5 Pro chamber behavior unchanged. C5 Pro filtration: `circulateCtl_cmd` is a
+  no-op on the series, so the capability is forced off and the card never renders for Creator 5
+  (5M Pro keeps it); the 5M Pro TVOC readout now uses the printer's own thresholds (green < 30,
+  orange ≥ 30). Palettes: `IfsPalette` now delegates colors/materials/snapping to the library's
+  `Ad5xPalette`/`Creator5Palette`/`PaletteSnap` (the app kept only the Spoolman material-name
+  matching, the model dispatch, the null-on-unparseable contract, and the 21 C5 material strings
+  the library doesn't carry). Audit sweep: control passthroughs return the typed `notReady()`;
+  `PrintCooled` only arms after the bed was actually seen ≥ 40 °C; the completed fast-poll window
+  uses `SystemClock.elapsedRealtime`; the FGS no longer flaps across a settings-driven reconnect;
+  event notifications open the app and use a proper monochrome small icon; the zero-printer FGS
+  text is fixed; Spoolman `api` is `@Volatile` + refresh is mutex-guarded, models drop the fragile
+  `extra` maps and type the two temp fields `Float?`, endpoint catches are narrowed to
+  IO+serialization, and the health check parses the JSON status; NFC RTD_TEXT honors the UTF-16
+  flag; UDP discovery sets `reuseAddress` before bind and logs instead of `printStackTrace`;
+  matching/InfoRow/SectionHeader/luminance were deduped into shared components; the six wildcard-
+  import files now use explicit imports; the camera-URL field debounces its Room writes; the
+  Spoolman URL persists only after a successful test; auto-shutdown Save requires a valid number;
+  `MyApplicationTheme` dropped its dead params. Left open deliberately: per-session OkHttp client
+  (needs a library injection seam), string externalization (~234 literals — release checklist),
+  and the release-readiness batch (LICENSE/README/signing/CI — see the audit-C report). All
+  build/test-verified only — none re-tested on real hardware this wave.
+
 - **Phase 1 is verified against a live AD5X** (firmware 3.1.0): `/detail` poll loop, `pid`
   detection, `/product` capability gating, and the inline IFS card all work. Two gotchas were
   fixed in the process: (1) **cleartext HTTP must be permitted** — see
@@ -324,7 +360,8 @@ me.ghost.ffui
   backend is `httpOnly`, so temps go over HTTP via the new `PrinterRepository` pass-throughs
   `setToolTemp`/`cancelToolTemp`/`setChamberTemp`/`cancelChamberTemp`/`cancelBedTemp` (the
   `-100` TEMP_OFF cancel), surfaced in `ui/dashboard/Creator5TemperatureCard.kt` (4 tool cells
-  T1–T4 + Bed + Chamber, Set/Off). The earlier "cancelBedTemp wired to setBedTemp(0)"
+  T1–T4 + Bed, plus Chamber only when the unit really has the sensor — see the wave-2 bullet
+  above). The earlier "cancelBedTemp wired to setBedTemp(0)"
   deviation is **resolved** — the backend sends the canonical `-100` TEMP_OFF cancel, and the
   nozzle `Off` path routes to a per-heater cancel honoring the firmware quirk (0 = off in the
   nozzles array, `-100` ignored there). Since 2026-09-05 every set-temp dialog clamps
@@ -428,14 +465,18 @@ me.ghost.ffui
   load the full list), snaps its material + color to the printer's fixed lists, and **auto-applies**
   `msConfig_cmd` (brief success card → the sheet auto-dismisses; errors get Retry/Close). Deps are
   threaded `DashboardScreen → IfsStationCard → SlotEditorSheet` off `MainViewModel`. **Nearest-match
-  lives in `IfsPalette`:** `nearestColor` uses **CIEDE2000** over the 24 swatches (plain ΔE76 wrongly
-  mapped saturated blue→Violet and burgundy→Coral on the live Spoolman library; CIEDE2000 gives
-  `#0000FF`→Dark Blue, `#951e23`→Red — hex is parsed by hand, no `android.graphics`, so it stays
-  pure-JVM unit-tested in `IfsPaletteMatchingTest`). `nearestMaterial` is exact-then-leading-token
+  lives in the library now** (0.4.0's `Ad5xPalette`/`Creator5Palette` over shared `PaletteSnap`
+  CIEDE2000 — chosen after plain ΔE76 wrongly mapped saturated blue→Violet and burgundy→Coral on
+  the live Spoolman library; CIEDE2000 gives `#0000FF`→Dark Blue, `#951e23`→Red). `IfsPalette`
+  is a thin UI overlay: model dispatch, Compose swatch colors, the null-on-unparseable contract,
+  and the app-side material matching — still pure-JVM unit-tested in `IfsPaletteMatchingTest`,
+  which re-runs the live-library color fixtures through the delegated snap.
+  `nearestMaterial` is exact-then-leading-token
   (deliberately **not** longest-prefix, which mis-snapped `PCTG`→PC / `PA6`→PA; unmatched names fall
-  through to `null` so the caller keeps the current material). The 24 colors + 14 materials in
-  `IfsPalette` are an exact match to the API docs' `AD5X-IFS-Material-Station.md` (only the material
-  dropdown *order* differs — cosmetic). Matching is ~microseconds (benchmarked); any post-scan lag is
+  through to `null` so the caller keeps the current material). The AD5X 24 colors + 14 materials
+  (and the Creator 5 colors) come straight from the library palettes — byte-exact to the API docs'
+  `AD5X-IFS-Material-Station.md` (only the material dropdown *order* differs — cosmetic). Matching is
+  ~microseconds (benchmarked); any post-scan lag is
   the two network round-trips (Spoolman fetch + printer write), not the math. Intended to be
   **pioneered here, then backported to FlashForgeUI-Electron + the standalone Web UI.**
 - **Next session — Spoolman instant-load cache (TODO, keep it simple).** The Spools tab refetches

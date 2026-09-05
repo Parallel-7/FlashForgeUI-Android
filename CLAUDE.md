@@ -26,8 +26,9 @@ against the code before assuming a feature works.
 ## What this app is
 
 Native Android (Kotlin + Jetpack Compose) port of the desktop FlashForgeUI Electron app, for
-LAN monitoring & control of FlashForge Adventurer 5M / 5M Pro / AD5X printers. Single Gradle
-module (`:app`), package `me.ghost.ffui` (both `namespace` and `applicationId`).
+LAN monitoring & control of FlashForge Adventurer 5M / 5M Pro / AD5X printers, plus the
+Creator 5 / Creator 5 Pro. Single Gradle module (`:app`), package `me.ghost.ffui` (both
+`namespace` and `applicationId`).
 
 ## Protocol code lives in `ff-5mp-api-kt` — do NOT re-implement it here
 
@@ -38,7 +39,7 @@ The FlashForge **wire protocol** (HTTP REST on **8898**, TCP G-code on **8899**,
 - **Repo:** `C:\Users\coper\Documents\GitHub\1flashforge_printers\ff-5mp-api-kt`, package
   `me.ghost.ffapi`, GitHub `GhostTypes/ff-5mp-api-kt` (private). It's a `com.android.library`
   AAR; a 1:1 port of the reference `ff-5mp-api-ts`. Read its `CLAUDE.md` + `docs/parity.md`.
-- **Coordinates:** `me.ghost:ff-5mp-api-kt:0.1.0`, consumed via **`mavenLocal()`** (see Build).
+- **Coordinates:** `me.ghost:ff-5mp-api-kt:0.2.0`, consumed via **`mavenLocal()`** (see Build).
 - **No package collision:** app is `me.ghost.ffui`, library is `me.ghost.ffapi`.
 
 **The rule:** when a task needs HTTP/TCP transport, a new `/detail` field, a new G-code command,
@@ -81,7 +82,7 @@ Gradle is rejected). Runs on **JDK 25** (Temurin). Windows shell is PowerShell �
   source/target; the Gradle/AGP toolchain itself runs on JDK 25.
 - **Depends on `ff-5mp-api-kt` via `mavenLocal()`** (see the protocol-library section above).
   `settings.gradle.kts` adds `mavenLocal()`; `app/build.gradle.kts` has
-  `implementation("me.ghost:ff-5mp-api-kt:0.1.0")`. The artifact must be present in the local
+  `implementation("me.ghost:ff-5mp-api-kt:0.2.0")`. The artifact must be present in the local
   Maven repo or the app won't resolve — if a fresh checkout / clean machine fails to build, run
   `./gradlew :ffapi:publishToMavenLocal` **in the library repo** first. After changing the
   library, re-publish there and (if the version changed) bump the coordinate here. The library
@@ -211,12 +212,16 @@ me.ghost.ffui
   settings section prompts for the battery-optimization exemption when monitoring is enabled and
   keeps a persistent "Allow background activity" affordance until it's granted
   (`BatteryOptimization`, re-checked on `ON_RESUME`).
-- **Model is detected by `pid`** (35=5M, 36=5M Pro, 38=AD5X) on first `/detail`, not by name.
-  Legacy printers (Adventurer 3/4) are detected via TCP `~M115` `Machine Type:` string when
-  HTTP `/detail` fails. The library's `PrinterModel.fromDetail`/`fromMachineType` +
-  `PrinterBackendFactory` pick the backend; `/product` flags + per-printer `customLedEnabled`
-  resolve `PrinterCapabilities`. UI controls are capability-gated off that (hide unsupported). All
-  of this lives in the library — `ActivePrinterSession` just orchestrates the calls.
+- **Model is detected by `pid`** (35=5M, 36=5M Pro, 38=AD5X, 40=Creator 5, 41=Creator 5 Pro)
+  on first `/detail`, not by name. Legacy printers (Adventurer 3/4) are detected via TCP
+  `~M115` `Machine Type:` string when HTTP `/detail` fails. The library's
+  `PrinterModel.fromDetail`/`fromMachineType` + `PrinterBackendFactory` pick the backend;
+  `/product` flags + per-printer `customLedEnabled` resolve `PrinterCapabilities`. UI controls
+  are capability-gated off that (hide unsupported). All of this lives in the library —
+  `ActivePrinterSession` just orchestrates the calls. **Creator 5 backends are `httpOnly`** —
+  `ActivePrinterSession` gates `tcp.connect()` and TCP-based identity on `!backend.httpOnly`,
+  so a Creator 5 session never touches 8899 and degrades to Offline instead of hanging on a
+  dead TCP port.
 - **HTTP `/detail` is the single source of truth** for modern printers (status + IFS inline). TCP
   is control-only (custom LEDs `~M146`, homing `~G28`, temps M104/M140). Only the library's
   `GenericLegacyBackend` polls over TCP.
@@ -294,10 +299,18 @@ me.ghost.ffui
   PNG + A3 `0xa2a22a2a` magic); LED A4/Generic `~M146 r255...` (RGB) vs A3 `~M146 1/0`. Verified
   against flashforge-emulator-v2 headless A3; still not verified against real hardware. No legacy
   hardware on hand, so its status is unchanged by the library migration.
-- **Temperature SET now goes over TCP G-code (M104/M140)** via the library's
-  `FlashForgeClient.setExtruderTemp`/`setBedTemp` (the backend's `setNozzleTemp`/`setBedTemp`) —
-  the old suspect HTTP `temperatureCtl_cmd` path is gone. Still untested against real hardware
-  (it's a TCP write path; see the control-write caveat below).
+- **Temperature SET goes over TCP G-code (M104/M140)** for 5M/AD5X via the library's
+  `FlashForgeClient.setExtruderTemp`/`setBedTemp` (the backend's `setNozzleTemp`/`setBedTemp`)
+  — the old suspect HTTP `temperatureCtl_cmd` path is gone. **Creator 5 is different:** its
+  backend is `httpOnly`, so temps go over HTTP via the new `PrinterRepository` pass-throughs
+  `setToolTemp`/`cancelToolTemp`/`setChamberTemp`/`cancelChamberTemp`/`cancelBedTemp` (the
+  `-100` TEMP_OFF cancel), surfaced in `ui/dashboard/Creator5TemperatureCard.kt` (4 tool cells
+  T1–T4 + Bed + Chamber, Set/Off, Chamber clamped to 80°C). **Known deviation:**
+  `cancelBedTemp` is wired to `setBedTemp(0)` rather than the canonical `-100`, because only
+  five pass-throughs were added — functionally safe (0 = off for the bed) but not canonical;
+  the nozzle `Off` path correctly routes to a per-heater cancel honoring the firmware quirk
+  (0 = off in the nozzles array, `-100` ignored there). The 5M/AD5X TCP temp path and the
+  Creator 5 HTTP temp path are both still untested against real hardware.
 - **Camera + fullscreen + FPS work (verified live on AD5X).** The dashboard `CameraCard`
   (`ui/dashboard/CameraCard.kt`) plays the MJPEG feed via libmpv (`dev.jdtech.mpv:libmpv`,
   replacing the earlier libVLC player). The player is split into `ui/components/MpvPlayer.kt`:
@@ -321,6 +334,12 @@ me.ghost.ffui
   settings screen, and manual motion/temperature (the Controls tab, over TCP G-code). These exist
   in code and are capability-gated, but only the AD5X HTTP read paths are hardware-verified — treat
   the control/write paths (especially anything over TCP) as suspect until tested on real hardware.
+- **Creator 5 / Creator 5 Pro support is built but build-verified only** (no Creator 5 hardware on
+  hand): pid detection (40/41), the `httpOnly` TCP-skip session path, the 4-toolhead + bed +
+  chamber temp card (`Creator5TemperatureCard`), the HTTP temp pass-throughs, and the Creator 5
+  IFS slot palette overlay (`IfsPalette` colors live-streamed from the library's `Creator5Palette`,
+  materials a local 21-item copy). Single-toolhead (5M/AD5X) paths are untouched via a regression
+  guard, but none of the Creator 5 paths have been run against a real printer or the emulator yet.
 - **Notifications are built (Phase 5, partial).** Per-printer complete/cooled/error alerts work in
   the foreground, and an opt-in foreground service keeps them firing in the background (see the
   background-monitoring note in Architecture). Event detection is verified against the AD5X read
@@ -362,6 +381,19 @@ me.ghost.ffui
   clones left in `C:\Users\coper\Documents\Prototyping\`: `SpoolCompanion` (Kotlin/Compose+Spoolman
   NFC app — the model we followed) and `OpenSpool` (ESP32/PN532 firmware + a published
   `application/json` tag standard we chose not to adopt).
+- **NFC box tags — grouped spool storage (built, UI-verified on emulator, NOT hardware-tested).**
+  Extends the NFC integration beyond single spools: an NTAG can now represent a whole *box* (a
+  physical storage location holding multiple spools). `NfcManager` gained a second NDEF record
+  `BOX:<location>` + a `WritingBox` mode + `parseBoxLocation`; box→spool membership is tracked
+  device-locally in `SettingsDataStore.nfcTaggedBoxes` (location→ISO timestamp, same
+  no-Spoolman-mutation rule as spool tags). New modules: `SpoolBox`, `BoxGlyph`, `BoxCard`,
+  `BoxDetailDialog` (whose **Rename** action is the bulk-patch-location path), `BoxGridView`, and
+  `SpoolListView`. `SpoolsScreen` was rewritten with a **Spools | Boxes** segmented toggle and a
+  smart scan router that directs a tag scan to the right flow (spool read/write vs box write) based
+  on `NfcManager.mode`. `BoxGridView`'s open-box detail is derived live from the boxes list
+  (auto-refresh, auto-close when emptied). All box affordances gate on `nfcEnabled` **and** a live
+  `NfcAdapter` (so the emulator, which has none, hides them unless `nfcEnabled` is pre-set).
+  Hardware round-trip for box tags is not yet tested.
 - **Scan roll → IFS slot (built, hardware-verified on a real AD5X + NTAG215).** First feature to
   combine the NFC + Spoolman integrations. In the AD5X `SlotEditorSheet`, when **both** `nfcEnabled`
   and `spoolmanEnabled` are on, a **Scan roll** button scans a tagged spool, fetches it from Spoolman
@@ -391,10 +423,13 @@ me.ghost.ffui
   built and the app depends on it; the in-tree `api/{FlashForgeHttpApi,FlashForgeTcpClient,
   PrinterModel,FlashForgeModels}` + the whole `backend/` package were deleted (see the
   protocol-library section at the top). Live-verified connect/poll/controls against a real AD5X +
-  5M Pro. Known library-side gaps (documented in the library's `docs/parity.md`; none block the
-  app today): no HTTP/TCP **file upload** (M28/M29 / `/uploadGcode`), no one-call `FiveMClient`
-  bootstrap (the app assembles `FlashForgeHttpApi` + `FlashForgeClient` + factory itself), no
-  camera-stream probe. If any of those are wanted, do them in the **library**, not the app.
+  5M Pro. Remaining library-side gaps (documented in the library's `docs/parity.md`; none block the
+  app today): no one-call `FiveMClient` bootstrap (the app assembles `FlashForgeHttpApi` +
+  `FlashForgeClient` + factory itself), no camera-stream probe. **File upload is now in the
+  library (0.2.0: HTTP `/uploadGcode` + TCP M28/M29)** but is deliberately **not wired into the
+  app** — an explicit product decision (no `FilesScreen` upload UI). If upload is wanted in the
+  app, the transport is ready; build only the UI/state layer here. Everything else
+  protocol-shaped still belongs in the **library**, not the app.
 - **Possible follow-up — migrate discovery into the library too.** The app still ships its own
   `api/UdpDiscovery` (hardware-proven empty-payload broadcast); the library has an equivalent
   `PrinterDiscovery`. Switching is optional and low-priority — if done, **do not change the empty

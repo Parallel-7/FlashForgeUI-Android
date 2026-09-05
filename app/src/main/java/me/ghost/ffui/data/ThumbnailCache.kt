@@ -71,8 +71,10 @@ object ThumbnailCache {
         return decode(bytes)?.also { memory.put(key, it) }
     }
 
-    private fun decode(bytes: ByteArray): Bitmap? =
+    /** Decodes PNG bytes; runs on [Dispatchers.IO] — callers reach this from the main thread. */
+    private suspend fun decode(bytes: ByteArray): Bitmap? = withContext(Dispatchers.IO) {
         runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull()
+    }
 
     private fun ensureDir(context: Context): File {
         diskDir?.let { return it }

@@ -31,3 +31,4 @@ debug.keystore
 # Transient verification screenshots
 /ff_state.png
 /test-screenshots/
+.codegraph/

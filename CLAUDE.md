@@ -94,8 +94,6 @@ Gradle is rejected). Runs on **JDK 25** (Temurin). Windows shell is PowerShell �
   - `debug.keystore` at repo root. The `debugConfig` signing config expects it with the
     standard debug creds. Regenerate with:
     `keytool -genkeypair -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"`
-- Secrets Gradle Plugin reads a root **`.env`** file (template: `.env.example`); e.g.
-  `GEMINI_API_KEY`.
 - Release signing pulls from `KEYSTORE_PATH` / `STORE_PASSWORD` / `KEY_PASSWORD` env vars.
 - For device/emulator/SDK orchestration, logcat, and screenshots, use the **`android-cli`**
   skill (in `.claude/skills/`).
@@ -235,12 +233,13 @@ me.ghost.ffui
 - **Networking is `Dispatchers.IO`.** All socket and HTTP work runs on IO; socket reads use
   `soTimeout = 10000`. Release the TCP lock (`~M602`) and close socket/reader/writer in
   teardown.
-- **State via `StateFlow`**, collected in Compose with `collectAsState()` /
-  `collectAsStateWithLifecycle()`.
+- **State via `StateFlow`**, collected in Compose with `collectAsStateWithLifecycle()`
+  (lifecycle-aware everywhere since 2026-09-05 — plain `collectAsState()` keeps
+  collecting hot poll flows while the Activity is STOPPED; don't reintroduce it).
 - **Serialization is `kotlinx.serialization`** (`@Serializable`, `Json { ignoreUnknownKeys
-  = true; explicitNulls = false }`). Retrofit + Moshi are declared in `libs.versions.toml`
-  but currently unused — prefer the existing OkHttp + kotlinx pattern; don't introduce
-  Retrofit/Moshi without a reason.
+  = true; explicitNulls = false }`). The dead Retrofit/Moshi declarations and the Gemini/Firebase
+  AI Studio scaffolding (secrets plugin, `.env.example`, `metadata.json`) were removed 2026-09-05
+  — keep OkHttp + kotlinx; don't reintroduce Retrofit/Moshi without a reason.
 - **Theme tokens, no hardcoded colors.** Dark Slate-Blue scheme in `ui/theme/Color.kt`:
   `GeometricBackground` `#0F172A`, `GeometricSurface` `#1E293B`, `GeometricPrimary` `#3B82F6`.
   Use `GeometricOrangePrimary` `#F97316` for nozzle/hotend and `GeometricBluePrimary`
@@ -255,6 +254,11 @@ me.ghost.ffui
   in this file when we approach production — at that point we must never lose end-user data,
   so real migrations become mandatory. Until that change lands here, no migrations.
 - All DB access goes through `PrinterRepository` asynchronously.
+- **`allowBackup` stays ON deliberately** (audited twice, decision confirmed 2026-09-05): cloud
+  backup / device transfer restoring saved printers (serial + check-code) on a new device is the
+  intended UX; re-pairing every printer by hand after a phone upgrade is worse than the modest
+  exposure of LAN-only credentials sitting in the user's own Google backup. Do not flip it off or
+  add backup exclude rules without asking the maintainer.
 - Follow `GEMINI.md`'s rules: KDoc new API/services, no TODO-stub placeholders, idiomatic
   Kotlin (`val`, strict nullability, `@Serializable`).
 
@@ -272,6 +276,21 @@ me.ghost.ffui
   a short subtitle. Avoid long-winded descriptions that restate the obvious.
 
 ## Known rough edges (verify, don't trust)
+
+- **Audit wave 1 (2026-09-05) — code-fixed, hardware-unverified unless noted.** Stop/cancel now
+  confirms before killing a print; temperature dialogs clamp to firmware ceilings; file/job
+  thumbnails decode off the main thread; UDP discovery resets the receive-packet length per
+  receive (mixed legacy+modern fleets no longer cross-contaminate serials) and shows a
+  manual-serial hint for legacy printers; the discovery flag can't wedge on exception;
+  bottom-nav selection matches routes exactly (`hasRoute`, not `contains`); one shared
+  pid→name map (`ui/PrinterModelNames.kt`) labels Creator 5/Pro everywhere; `stopSession`
+  serializes teardown + re-disconnects if a late TCP connect lands after stop (app half of the
+  HIGH-1 race — the durable fix is library-side); legacy TCP identify no longer wipes persisted
+  `modelPid`/`cameraStreamUrl` (DAO COALESCEs); single-color AD5X starts send `gcodeToolCnt: 1`
+  (docs say 1-4; the library's 0 came from the TS port — revisit when the library carries the
+  fix); `SpoolmanApi` shares one OkHttpClient; `SpoolEditScreen` fields re-seed when the spool
+  list resolves; REMAINING shows — when idle. All are build/test-verified only — none
+  re-tested on a real printer this wave.
 
 - **Phase 1 is verified against a live AD5X** (firmware 3.1.0): `/detail` poll loop, `pid`
   detection, `/product` capability gating, and the inline IFS card all work. Two gotchas were
@@ -305,12 +324,13 @@ me.ghost.ffui
   backend is `httpOnly`, so temps go over HTTP via the new `PrinterRepository` pass-throughs
   `setToolTemp`/`cancelToolTemp`/`setChamberTemp`/`cancelChamberTemp`/`cancelBedTemp` (the
   `-100` TEMP_OFF cancel), surfaced in `ui/dashboard/Creator5TemperatureCard.kt` (4 tool cells
-  T1–T4 + Bed + Chamber, Set/Off, Chamber clamped to 80°C). **Known deviation:**
-  `cancelBedTemp` is wired to `setBedTemp(0)` rather than the canonical `-100`, because only
-  five pass-throughs were added — functionally safe (0 = off for the bed) but not canonical;
-  the nozzle `Off` path correctly routes to a per-heater cancel honoring the firmware quirk
-  (0 = off in the nozzles array, `-100` ignored there). The 5M/AD5X TCP temp path and the
-  Creator 5 HTTP temp path are both still untested against real hardware.
+  T1–T4 + Bed + Chamber, Set/Off). The earlier "cancelBedTemp wired to setBedTemp(0)"
+  deviation is **resolved** — the backend sends the canonical `-100` TEMP_OFF cancel, and the
+  nozzle `Off` path routes to a per-heater cancel honoring the firmware quirk (0 = off in the
+  nozzles array, `-100` ignored there). Since 2026-09-05 every set-temp dialog clamps
+  client-side to the firmware ceilings (nozzle/tools 265°C, bed 100°C, chamber
+  80°C — `NOZZLE_MAX_TEMP`/`BED_MAX_TEMP`/`CHAMBER_MAX_TEMP`). The 5M/AD5X TCP temp
+  path and the Creator 5 HTTP temp path are both still untested against real hardware.
 - **Camera + fullscreen + FPS work (verified live on AD5X).** The dashboard `CameraCard`
   (`ui/dashboard/CameraCard.kt`) plays the MJPEG feed via libmpv (`dev.jdtech.mpv:libmpv`,
   replacing the earlier libVLC player). The player is split into `ui/components/MpvPlayer.kt`:
@@ -324,6 +344,13 @@ me.ghost.ffui
     surface may be attached at a time — the card's `MpvVideoSurface` is gated off while
     fullscreen is open; (2) `activate()` must `attachSurface → force-window=yes → vo=gpu` **in
     that order** (vo before the surface → black screen). See `MpvController.activate()`.
+  - **Multi-printer pager gating (2026-09-05):** the dashboard pager keeps adjacent pages
+    composed (`beyondViewportPageCount = 1`) so each printer's `MpvController` survives a single
+    tab switch, but the *stream* only runs while its page is the settled one
+    (`CameraCard(isActivePage = …)` gates `setMedia`) — swiping past a printer no longer
+    opens/tears down its camera, and only the visible printer's stream is ever live. The
+    single-surface rule is untouched (one surface per controller; fullscreen still swaps surfaces
+    on the same controller). Build-verified; not yet re-verified on hardware.
   - **FPS** is measured by counting `onSurfaceTextureUpdated` callbacks over a 1s window, NOT
     mpv's `estimated-vf-fps` (which returns 0 under `untimed`). Per-printer toggle
     `cameraFpsCounterEnabled`; auto-play toggle `cameraAutoPlayEnabled`.

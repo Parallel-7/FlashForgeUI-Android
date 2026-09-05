@@ -77,10 +77,12 @@ fun SpoolEditScreen(
     var useGrams by remember { mutableStateOf("") }
     var setRemainingGrams by remember { mutableStateOf("") }
 
-    // Detail fields
-    var location by remember { mutableStateOf(spool?.location ?: "") }
-    var lotNr by remember { mutableStateOf(spool?.lot_nr ?: "") }
-    var comment by remember { mutableStateOf(spool?.comment ?: "") }
+    // Detail fields — keyed on spool id so they (re)seed once the spools list resolves. Without
+    // the key, a screen composed before the list loads (process-death restore, cold repo) stays
+    // blank forever even after `spool` resolves.
+    var location by remember(spool?.id) { mutableStateOf(spool?.location ?: "") }
+    var lotNr by remember(spool?.id) { mutableStateOf(spool?.lot_nr ?: "") }
+    var comment by remember(spool?.id) { mutableStateOf(spool?.comment ?: "") }
 
     // Track if detail fields were modified
     val detailsChanged = spool != null && (

@@ -25,14 +25,24 @@ import java.util.concurrent.TimeUnit
  */
 class SpoolmanApi(baseUrl: String) {
 
+    private companion object {
+        /**
+         * One shared client for every instance and URL — each SpoolmanApi would otherwise own a
+         * private connection pool + executor threads, and the repository rebuilds the instance on
+         * every base-URL change (settings edits), stacking short-lived pools. Timeouts are
+         * identical everywhere, so there is nothing per-instance to configure.
+         */
+        private val SHARED_CLIENT = OkHttpClient.Builder()
+            .connectTimeout(3, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .writeTimeout(5, TimeUnit.SECONDS)
+            .callTimeout(12, TimeUnit.SECONDS)
+            .build()
+    }
+
     private val baseUrl: String
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(3, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
-        .writeTimeout(5, TimeUnit.SECONDS)
-        .callTimeout(12, TimeUnit.SECONDS)
-        .build()
+    private val client = SHARED_CLIENT
 
     private val json = Json {
         ignoreUnknownKeys = true

@@ -47,6 +47,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -233,7 +236,12 @@ fun SlotEditorSheet(
                                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
                                 shape = CircleShape
                             )
-                            .clickable { hex = pc.hex },
+                            .clickable { hex = pc.hex }
+                            // TalkBack: each swatch is a named, selectable color option.
+                            .semantics {
+                                contentDescription = pc.name
+                                this.selected = selected
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         if (selected) {

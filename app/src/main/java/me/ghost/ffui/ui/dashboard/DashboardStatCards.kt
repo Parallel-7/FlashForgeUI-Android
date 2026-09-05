@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
+import me.ghost.ffui.ui.jobStateOf
 import me.ghost.ffui.ui.theme.GeometricBlueContainer
 import me.ghost.ffui.ui.theme.GeometricBluePrimary
 import me.ghost.ffui.ui.theme.GeometricOrangeContainer
@@ -117,10 +118,13 @@ internal fun HeaterGrid(status: PrinterDetailResponse?, onHeaterClick: (String) 
 @Composable
 internal fun JobStatsRow(status: PrinterDetailResponse?) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        val remMins = status?.estimatedTime?.let { (it / 60f).toInt() } ?: 0
+        // `estimatedTime` is remaining seconds and reads 0 when no job is running — don't render
+        // that as a bogus "0:00 hr" estimate; blank the card like LAYER does when idle.
+        val jobActive = jobStateOf(status).isActiveJob
+        val remMins = status?.estimatedTime?.takeIf { jobActive }?.let { (it / 60f).toInt() } ?: 0
         MetricCard(
             label = "REMAINING",
-            value = "${remMins / 60}:${(remMins % 60).toString().padStart(2, '0')} hr",
+            value = if (jobActive) "${remMins / 60}:${(remMins % 60).toString().padStart(2, '0')} hr" else "—",
             modifier = Modifier.weight(1f)
         )
         val cur = status?.printLayer?.toInt() ?: 0

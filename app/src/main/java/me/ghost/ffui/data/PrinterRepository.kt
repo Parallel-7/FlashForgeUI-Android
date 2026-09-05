@@ -12,6 +12,7 @@ import me.ghost.ffapi.models.AD5XMaterialMapping
 import me.ghost.ffapi.models.FFGcodeFileEntry
 import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
 import me.ghost.ffapi.models.MatlStationInfo
+import me.ghost.ffapi.models.PrintGcodeRequest
 import me.ghost.ffapi.tcpapi.FlashForgeClient
 import me.ghost.ffapi.tcpapi.KeepAliveMode
 import kotlinx.coroutines.CoroutineScope
@@ -411,8 +412,27 @@ class ActivePrinterSession(
         }
         return backend?.getThumbnail(fileName)?.getOrNull()
     }
-    suspend fun startPrint(fileName: String, leveling: Boolean, mappings: List<AD5XMaterialMapping> = emptyList()): Result<Unit> =
-        backend?.startPrint(fileName, leveling, mappings) ?: notReady()
+    suspend fun startPrint(fileName: String, leveling: Boolean, mappings: List<AD5XMaterialMapping> = emptyList()): Result<Unit> {
+        val b = backend ?: return notReady()
+        // Single-color AD5X start: the docs define `gcodeToolCnt` as the number of tool channels
+        // in the gcode (1-4) — a single-color file has exactly one (T0). The library's generic
+        // empty-mappings path sends 0, which is outside that documented range, so build the
+        // request here (matching the TS reference's single-tool shape) until the library carries
+        // the fix. Multi-color starts and every other model keep the backend path.
+        if (mappings.isEmpty() && b.model == PrinterModel.AD5X) {
+            return httpApi.printGcode(
+                PrintGcodeRequest(
+                    serialNumber = printer.serialNumber,
+                    checkCode = printer.checkCode,
+                    fileName = fileName,
+                    levelingBeforePrint = leveling,
+                    useMatlStation = false,
+                    gcodeToolCnt = 1,
+                )
+            )
+        }
+        return b.startPrint(fileName, leveling, mappings)
+    }
 
     /**
      * Tears the session down for good: stops the poll loop, drops the backend, and closes the TCP

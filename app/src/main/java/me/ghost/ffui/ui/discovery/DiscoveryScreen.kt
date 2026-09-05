@@ -285,12 +285,24 @@ fun AddPrinterDialog(
     var name by remember { mutableStateOf(initialName) }
     var serial by remember { mutableStateOf(initialSerial) }
     var pin by remember { mutableStateOf("") }
+
+    // A discovered legacy printer reports no serial over UDP — the user must read it off the
+    // printer and type it in. Say so instead of showing a blank required field.
+    val needsManualSerial = initialIp.isNotBlank() && initialSerial.isBlank()
     
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initialSerial.isEmpty()) "Add Printer" else "Connect to $name") },
         text = {
             Column {
+                if (needsManualSerial) {
+                    Text(
+                        "This printer reports no serial number. Enter the one shown on the printer.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
                     label = { Text("Printer Name") },

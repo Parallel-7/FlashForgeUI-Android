@@ -71,6 +71,11 @@ object UdpDiscovery {
                 val endTime = System.currentTimeMillis() + 3000
                 while (System.currentTimeMillis() < endTime) {
                     try {
+                        // Reset the packet length before EVERY receive: receive() caps writes at
+                        // packet.getLength() (the PREVIOUS packet's size) and never grows it back,
+                        // so without this a short (legacy ~140 B) response first would truncate
+                        // every later modern (~276/280 B) one — misread as legacy with stale bytes.
+                        receivePacket.length = receiveBuf.size
                         socket.receive(receivePacket)
                         val len = receivePacket.length
                         val ip = receivePacket.address.hostAddress ?: continue
@@ -104,8 +109,10 @@ object UdpDiscovery {
                     } catch (e: SocketTimeoutException) {
                         break
                     } catch (e: Exception) {
+                        // One bad packet (e.g. a transient ICMP port-unreachable) doesn't kill the
+                        // socket — skip it and keep listening; the window's time bound still exits.
                         e.printStackTrace()
-                        break
+                        continue
                     }
                 }
                 

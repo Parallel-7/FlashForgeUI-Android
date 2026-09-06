@@ -39,7 +39,7 @@ The FlashForge **wire protocol** (HTTP REST on **8898**, TCP G-code on **8899**,
 - **Repo:** `C:\Users\coper\Documents\GitHub\1flashforge_printers\ff-5mp-api-kt`, package
   `me.ghost.ffapi`, GitHub `GhostTypes/ff-5mp-api-kt` (private). It's a `com.android.library`
   AAR; a 1:1 port of the reference `ff-5mp-api-ts`. Read its `CLAUDE.md` + `docs/parity.md`.
-- **Coordinates:** `me.ghost:ff-5mp-api-kt:0.4.0`, consumed via **`mavenLocal()`** (see Build).
+- **Coordinates:** `me.ghost:ff-5mp-api-kt:0.4.1`, consumed via **`mavenLocal()`** (see Build).
 - **No package collision:** app is `me.ghost.ffui`, library is `me.ghost.ffapi`.
 
 **The rule:** when a task needs HTTP/TCP transport, a new `/detail` field, a new G-code command,
@@ -82,7 +82,7 @@ Gradle is rejected). Runs on **JDK 25** (Temurin). Windows shell is PowerShell â
   source/target; the Gradle/AGP toolchain itself runs on JDK 25.
 - **Depends on `ff-5mp-api-kt` via `mavenLocal()`** (see the protocol-library section above).
   `settings.gradle.kts` adds `mavenLocal()`; `app/build.gradle.kts` has
-  `implementation("me.ghost:ff-5mp-api-kt:0.4.0")`. The artifact must be present in the local
+  `implementation("me.ghost:ff-5mp-api-kt:0.4.1")`. The artifact must be present in the local
   Maven repo or the app won't resolve â€” if a fresh checkout / clean machine fails to build, run
   `./gradlew :ffapi:publishToMavenLocal` **in the library repo** first. After changing the
   library, re-publish there and (if the version changed) bump the coordinate here. The library

@@ -113,4 +113,33 @@ class JobStateTest {
         assertEquals("Cloud slicing", prettifyStateToken("cloud_slicing"))
         assertEquals("—", prettifyStateToken(""))
     }
+
+    @Test
+    fun `cancel token stays an active job and labels as Cancelling`() {
+        // "cancel" maps onto MachineState.Cancelled: the stop is still in flight, so the
+        // controls must not vanish mid-cancel.
+        val s = stateFor("cancel")
+        assertTrue(s.isPrinting)
+        assertTrue(s.isActiveJob)
+        assertEquals(R.string.common_state_cancelling, friendlyStateLabelRes(PrinterDetailResponse(status = "cancel")))
+    }
+
+    @Test
+    fun `remaining enum labels resolve to their string resources`() {
+        assertEquals(R.string.common_state_calibrating, friendlyStateLabelRes(PrinterDetailResponse(status = "calibrate_doing")))
+        assertEquals(R.string.common_state_pausing, friendlyStateLabelRes(PrinterDetailResponse(status = "pausing")))
+        assertEquals(R.string.common_state_busy, friendlyStateLabelRes(PrinterDetailResponse(status = "busy")))
+    }
+
+    @Test
+    fun `fw5 busy-class tokens render prettified fallbacks`() {
+        // cloud_slicing / sending / unzipping are Unknown to the library enum → label is null and
+        // the surface falls back to the prettified token; blank stays "—".
+        listOf("cloud_slicing", "sending", "unzipping", "canceling").forEach { token ->
+            assertEquals(token, null, friendlyStateLabelRes(PrinterDetailResponse(status = token)))
+        }
+        assertEquals("Sending", prettifyStateToken("sending"))
+        assertEquals("Unzipping", prettifyStateToken("unzipping"))
+        assertEquals("Canceling", prettifyStateToken("canceling"))
+    }
 }

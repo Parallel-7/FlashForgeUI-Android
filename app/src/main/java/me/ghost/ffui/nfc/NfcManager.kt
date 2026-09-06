@@ -170,7 +170,7 @@ class NfcManager(
     // ---- Write: Spool ----
 
     private fun writeSpool(tag: Tag, spoolId: Int): NfcWriteResult {
-        val message = buildSpoolMessage(spoolId)
+        val message = buildSpoolNdefMessage(spoolId, spoolmanBaseUrl, writeUrlEnabled)
         return try {
             val ndef = Ndef.get(tag)
             if (ndef != null) {
@@ -201,19 +201,6 @@ class NfcManager(
         }
     }
 
-    private fun buildSpoolMessage(spoolId: Int): NdefMessage {
-        val records = mutableListOf(NdefRecord.createTextRecord(null, "$SPOOL_PREFIX$spoolId"))
-        val url = spoolmanBaseUrl.trim().trimEnd('/')
-        if (writeUrlEnabled && url.isNotBlank()) {
-            try {
-                records.add(NdefRecord.createUri("$url/spool/show/$spoolId"))
-            } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Skipping URL record for malformed base URL: $url", e)
-            }
-        }
-        return NdefMessage(records.toTypedArray())
-    }
-
     private fun markTaggedLocally(spoolId: Int) {
         scope.launch { settings.markSpoolTagged(spoolId, Instant.now().toString()) }
     }
@@ -221,7 +208,7 @@ class NfcManager(
     // ---- Write: Box ----
 
     private fun writeBox(tag: Tag, location: String): NfcWriteResult {
-        val message = buildBoxMessage(location)
+        val message = buildBoxNdefMessage(location)
         return try {
             val ndef = Ndef.get(tag)
             if (ndef != null) {
@@ -251,10 +238,6 @@ class NfcManager(
         }
     }
 
-    private fun buildBoxMessage(location: String): NdefMessage {
-        return NdefMessage(arrayOf(NdefRecord.createTextRecord(null, "$BOX_PREFIX$location")))
-    }
-
     private fun markBoxTaggedLocally(location: String) {
         scope.launch { settings.markBoxTagged(location, Instant.now().toString()) }
     }
@@ -263,6 +246,28 @@ class NfcManager(
         private const val TAG = "NfcManager"
         private const val SPOOL_PREFIX = "SPOOL:"
         private const val BOX_PREFIX = "BOX:"
+
+        /**
+         * Builds the canonical spool tag payload: one NDEF text record `SPOOL:<id>`, plus an
+         * optional URI record (`<baseUrl>/spool/show/<id>`) appended **only** when [writeUrlEnabled]
+         * is on and [baseUrl] is non-blank. Pure (no tag I/O) so the wire shape is unit-testable.
+         */
+        internal fun buildSpoolNdefMessage(spoolId: Int, baseUrl: String, writeUrlEnabled: Boolean): NdefMessage {
+            val records = mutableListOf(NdefRecord.createTextRecord(null, "$SPOOL_PREFIX$spoolId"))
+            val url = baseUrl.trim().trimEnd('/')
+            if (writeUrlEnabled && url.isNotBlank()) {
+                try {
+                    records.add(NdefRecord.createUri("$url/spool/show/$spoolId"))
+                } catch (e: IllegalArgumentException) {
+                    Log.w(TAG, "Skipping URL record for malformed base URL: $url", e)
+                }
+            }
+            return NdefMessage(records.toTypedArray())
+        }
+
+        /** Builds the canonical box tag payload: a single NDEF text record `BOX:<location>`. */
+        internal fun buildBoxNdefMessage(location: String): NdefMessage =
+            NdefMessage(arrayOf(NdefRecord.createTextRecord(null, "$BOX_PREFIX$location")))
 
         /** Parse a `SPOOL:<id>` payload (first matching line) into a spool ID, or null. */
         fun parseSpoolId(payload: String?): Int? {
@@ -291,7 +296,7 @@ class NfcManager(
          * written by other apps in UTF-16 decode correctly instead of as mojibake (our own
          * writes are always UTF-8).
          */
-        private fun NdefRecord.toText(): String? {
+        internal fun NdefRecord.toText(): String? {
             if (tnf != NdefRecord.TNF_WELL_KNOWN || !type.contentEquals(NdefRecord.RTD_TEXT)) {
                 return null
             }

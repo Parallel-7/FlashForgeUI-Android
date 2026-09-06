@@ -199,6 +199,23 @@ internal const val NOZZLE_MAX_TEMP = 265
 internal const val BED_MAX_TEMP = 100
 
 /**
+ * Sanitizes raw temperature-dialog input for display: keeps digits only and clamps to [maxTemp]
+ * (null = no clamp). Empty / garbage input stays empty (nothing parseable to send); a digit run
+ * like `"26x5"` reads as `265`. Extracted so the clamp family is unit-testable headlessly.
+ */
+internal fun sanitizeTempInput(raw: String, maxTemp: Int?): String {
+    val digits = raw.filter(Char::isDigit)
+    return clampTempValue(digits, maxTemp)?.toString() ?: digits
+}
+
+/**
+ * Resolves the (already sanitized) display string to the value the Set button sends, clamped to
+ * [maxTemp] (null = no clamp); null when there is nothing parseable to send.
+ */
+internal fun clampTempValue(displayed: String, maxTemp: Int?): Int? =
+    displayed.toIntOrNull()?.let { v -> if (maxTemp != null) v.coerceAtMost(maxTemp) else v }
+
+/**
  * Numeric temperature-set dialog for a heater ("Nozzle"/"Bed") whose **Off** means `set(0)` — the
  * single-toolhead 5M / 5M Pro / AD5X path. Delegates to the generalized overload with
  * `onOff = onSet(0)`; pass [maxTemp] to clamp the entry client-side to the firmware ceiling
@@ -252,11 +269,7 @@ internal fun TemperatureDialog(
             OutlinedTextField(
                 value = tempStr,
                 onValueChange = { raw ->
-                    val digits = raw.filter(Char::isDigit)
-                    tempStr = digits.toIntOrNull()
-                        ?.let { v -> if (maxTemp != null) v.coerceAtMost(maxTemp) else v }
-                        ?.toString()
-                        ?: digits
+                    tempStr = sanitizeTempInput(raw, maxTemp)
                 },
                 label = { Text(stringResource(R.string.dashboard_temp_field_label)) },
                 singleLine = true,
@@ -267,9 +280,7 @@ internal fun TemperatureDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onOff) { Text(stringResource(R.string.common_off)) }
                 Button(onClick = {
-                    tempStr.toIntOrNull()?.let { v ->
-                        onSet(if (maxTemp != null) v.coerceAtMost(maxTemp) else v)
-                    }
+                    clampTempValue(tempStr, maxTemp)?.let { v -> onSet(v) }
                 }) { Text(stringResource(R.string.common_set)) }
             }
         },

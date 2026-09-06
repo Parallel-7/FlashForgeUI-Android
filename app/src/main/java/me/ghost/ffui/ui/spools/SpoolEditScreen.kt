@@ -38,11 +38,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
+import me.ghost.ffui.R
 import me.ghost.ffui.api.SpoolPatchBody
 import me.ghost.ffui.ui.MainViewModel
 import me.ghost.ffui.ui.components.SpoolDisc
@@ -70,6 +73,7 @@ fun SpoolEditScreen(
     val spools by repo.spools.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     val spool = spools.find { it.id == spoolId }
     var saving by remember { mutableStateOf(false) }
@@ -95,10 +99,10 @@ fun SpoolEditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(spool?.displayName ?: "Edit Spool") },
+                title = { Text(spool?.displayName ?: stringResource(R.string.spools_edit_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 }
             )
@@ -114,9 +118,9 @@ fun SpoolEditScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Spool not found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.spools_not_found), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = onBack) { Text("Go back") }
+                Button(onClick = onBack) { Text(stringResource(R.string.spools_go_back)) }
             }
             return@Scaffold
         }
@@ -152,12 +156,12 @@ fun SpoolEditScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            "Remaining: ${spool.remaining_weight?.roundToInt() ?: "—"} g",
+                            stringResource(R.string.spools_edit_remaining, spool.remaining_weight?.roundToInt() ?: "—"),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            "Used: ${spool.used_weight?.roundToInt() ?: "—"} g",
+                            stringResource(R.string.spools_edit_used, spool.used_weight?.roundToInt() ?: "—"),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -166,7 +170,7 @@ fun SpoolEditScreen(
             }
 
             // ── Adjust usage section ──
-            SectionHeader("Adjust usage", emphasized = true)
+            SectionHeader(stringResource(R.string.spools_edit_section_usage), emphasized = true)
 
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -181,7 +185,7 @@ fun SpoolEditScreen(
                     OutlinedTextField(
                         value = useGrams,
                         onValueChange = { useGrams = it },
-                        label = { Text("Deduct used (g)") },
+                        label = { Text(stringResource(R.string.spools_edit_deduct_label)) },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
@@ -198,9 +202,9 @@ fun SpoolEditScreen(
                                     saving = false
                                     if (result.isSuccess) {
                                         useGrams = ""
-                                        snackbarHostState.showSnackbar("Usage updated")
+                                        snackbarHostState.showSnackbar(context.getString(R.string.spools_edit_usage_saved))
                                     } else {
-                                        snackbarHostState.showSnackbar("Failed: ${result.exceptionOrNull()?.message}")
+                                        snackbarHostState.showSnackbar(context.getString(R.string.common_failed, result.exceptionOrNull()?.message ?: ""))
                                     }
                                 }
                             }
@@ -208,7 +212,7 @@ fun SpoolEditScreen(
                         enabled = !saving && useGrams.toFloatOrNull()?.let { it > 0f } == true,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Deduct usage")
+                        Text(stringResource(R.string.spools_edit_deduct_button))
                     }
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -216,7 +220,7 @@ fun SpoolEditScreen(
                     OutlinedTextField(
                         value = setRemainingGrams,
                         onValueChange = { setRemainingGrams = it },
-                        label = { Text("Set remaining (g)") },
+                        label = { Text(stringResource(R.string.spools_edit_set_remaining_label)) },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
@@ -233,9 +237,9 @@ fun SpoolEditScreen(
                                     saving = false
                                     if (result.isSuccess) {
                                         setRemainingGrams = ""
-                                        snackbarHostState.showSnackbar("Remaining updated")
+                                        snackbarHostState.showSnackbar(context.getString(R.string.spools_edit_remaining_saved))
                                     } else {
-                                        snackbarHostState.showSnackbar("Failed: ${result.exceptionOrNull()?.message}")
+                                        snackbarHostState.showSnackbar(context.getString(R.string.common_failed, result.exceptionOrNull()?.message ?: ""))
                                     }
                                 }
                             }
@@ -243,13 +247,13 @@ fun SpoolEditScreen(
                         enabled = !saving && setRemainingGrams.toFloatOrNull()?.let { it >= 0f } == true,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Set remaining")
+                        Text(stringResource(R.string.spools_edit_set_remaining_button))
                     }
                 }
             }
 
             // ── Details section ──
-            SectionHeader("Details", emphasized = true)
+            SectionHeader(stringResource(R.string.spools_details), emphasized = true)
 
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -264,7 +268,7 @@ fun SpoolEditScreen(
                     OutlinedTextField(
                         value = location,
                         onValueChange = { location = it },
-                        label = { Text("Location") },
+                        label = { Text(stringResource(R.string.spools_edit_location)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp)
@@ -273,7 +277,7 @@ fun SpoolEditScreen(
                     OutlinedTextField(
                         value = lotNr,
                         onValueChange = { lotNr = it },
-                        label = { Text("Lot number") },
+                        label = { Text(stringResource(R.string.spools_edit_lot)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp)
@@ -282,7 +286,7 @@ fun SpoolEditScreen(
                     OutlinedTextField(
                         value = comment,
                         onValueChange = { comment = it },
-                        label = { Text("Comment") },
+                        label = { Text(stringResource(R.string.spools_edit_comment)) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 2,
                         maxLines = 4,
@@ -303,22 +307,22 @@ fun SpoolEditScreen(
                                 )
                                 saving = false
                                 if (result.isSuccess) {
-                                    snackbarHostState.showSnackbar("Details saved")
+                                    snackbarHostState.showSnackbar(context.getString(R.string.spools_edit_details_saved))
                                 } else {
-                                    snackbarHostState.showSnackbar("Failed: ${result.exceptionOrNull()?.message}")
+                                    snackbarHostState.showSnackbar(context.getString(R.string.common_failed, result.exceptionOrNull()?.message ?: ""))
                                 }
                             }
                         },
                         enabled = !saving && detailsChanged,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Save details")
+                        Text(stringResource(R.string.spools_edit_save_details))
                     }
                 }
             }
 
             // ── Archive section ──
-            SectionHeader("Archive", emphasized = true)
+            SectionHeader(stringResource(R.string.spools_edit_section_archive), emphasized = true)
 
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -332,7 +336,7 @@ fun SpoolEditScreen(
                 ) {
                     if (spool.archived) {
                         Text(
-                            "This spool is archived.",
+                            stringResource(R.string.spools_edit_archived_note),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -341,19 +345,19 @@ fun SpoolEditScreen(
                                 scope.launch {
                                     val result = repo.setArchived(spoolId, false)
                                     if (result.isSuccess) {
-                                        snackbarHostState.showSnackbar("Spool unarchived")
+                                        snackbarHostState.showSnackbar(context.getString(R.string.spools_edit_unarchived_saved))
                                     } else {
-                                        snackbarHostState.showSnackbar("Failed: ${result.exceptionOrNull()?.message}")
+                                        snackbarHostState.showSnackbar(context.getString(R.string.common_failed, result.exceptionOrNull()?.message ?: ""))
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Unarchive")
+                            Text(stringResource(R.string.spools_edit_unarchive))
                         }
                     } else {
                         Text(
-                            "Archived spools are hidden from the default view.",
+                            stringResource(R.string.spools_edit_archive_hint),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -366,11 +370,11 @@ fun SpoolEditScreen(
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Archive spool")
+                                Text(stringResource(R.string.spools_edit_archive_spool))
                             }
                         } else {
                             Text(
-                                "Are you sure?",
+                                stringResource(R.string.spools_edit_archive_confirm),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -382,7 +386,7 @@ fun SpoolEditScreen(
                                     onClick = { confirmArchive = false },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("Cancel")
+                                    Text(stringResource(R.string.common_cancel))
                                 }
                                 Button(
                                     onClick = {
@@ -392,7 +396,7 @@ fun SpoolEditScreen(
                                                 onBack()
                                             } else {
                                                 confirmArchive = false
-                                                snackbarHostState.showSnackbar("Failed: ${result.exceptionOrNull()?.message}")
+                                                snackbarHostState.showSnackbar(context.getString(R.string.common_failed, result.exceptionOrNull()?.message ?: ""))
                                             }
                                         }
                                     },
@@ -401,7 +405,7 @@ fun SpoolEditScreen(
                                     ),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("Archive")
+                                    Text(stringResource(R.string.spools_edit_archive_action))
                                 }
                             }
                         }

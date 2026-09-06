@@ -31,11 +31,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import me.ghost.ffui.R
 import me.ghost.ffui.api.SpoolPatchBody
 import me.ghost.ffui.data.SpoolBox
 import me.ghost.ffui.data.SpoolmanRepository
@@ -115,7 +117,7 @@ fun BoxDetailDialog(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "${box.spools.size} rolls",
+                            text = stringResource(R.string.boxes_roll_count, box.spools.size),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -147,10 +149,10 @@ fun BoxDetailDialog(
                             )
                             val statText = when (statStyle) {
                                 SpoolStatStyle.PERCENT -> spool.progress?.let { p ->
-                                    "${(p * 100).roundToInt()}% left"
+                                    stringResource(R.string.spools_stat_percent_left, (p * 100).roundToInt())
                                 }
                                 SpoolStatStyle.WEIGHT -> spool.remaining_weight?.let {
-                                    "${it.roundToInt()} g left"
+                                    stringResource(R.string.spools_stat_grams_left, it.roundToInt())
                                 }
                             }
                             if (statText != null) {
@@ -162,7 +164,7 @@ fun BoxDetailDialog(
                             }
                         }
                         TextButton(onClick = { onSpoolInfo(spool.id) }) {
-                            Text("View")
+                            Text(stringResource(R.string.boxes_view))
                         }
                     }
                 }
@@ -175,11 +177,11 @@ fun BoxDetailDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = { showRenameDialog = true }) {
-                        Text("Rename")
+                        Text(stringResource(R.string.boxes_rename))
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(onClick = onDismiss) {
-                        Text("Close")
+                        Text(stringResource(R.string.common_close))
                     }
                 }
             }
@@ -209,7 +211,7 @@ fun BoxDetailDialog(
         AlertDialog(
             onDismissRequest = {},
             confirmButton = {},
-            title = { Text("Renaming…") },
+            title = { Text(stringResource(R.string.boxes_renaming)) },
             text = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -243,7 +245,7 @@ fun BoxDetailDialog(
                             renameResult = null
                             onRequestWrite(successName)
                             onDismiss()
-                        }) { Text("OK") }
+                        }) { Text(stringResource(R.string.common_ok)) }
                     }
                     is RenameResult.PartialFailure -> {
                         TextButton(onClick = {
@@ -255,34 +257,34 @@ fun BoxDetailDialog(
                                 renameInProgress = false
                                 renameResult = retryResult
                             }
-                        }) { Text("Retry") }
+                        }) { Text(stringResource(R.string.common_retry)) }
                         Spacer(Modifier.width(8.dp))
                         TextButton(onClick = {
                             renameResult = null
                             onRequestWrite(result.newName)
                             onDismiss()
-                        }) { Text("Skip") }
+                        }) { Text(stringResource(R.string.boxes_skip)) }
                     }
                 }
             },
             title = {
                 Text(
                     when (result) {
-                        is RenameResult.FullSuccess -> "Box renamed"
-                        is RenameResult.RetrySuccess -> "All rolls renamed"
-                        is RenameResult.PartialFailure -> "Partial rename"
+                        is RenameResult.FullSuccess -> stringResource(R.string.boxes_rename_success)
+                        is RenameResult.RetrySuccess -> stringResource(R.string.boxes_rename_retry_success)
+                        is RenameResult.PartialFailure -> stringResource(R.string.boxes_rename_partial)
                     }
                 )
             },
             text = {
                 Text(
                     when (result) {
-                        is RenameResult.FullSuccess -> "\"${result.oldName}\" is now \"${result.newName}\""
-                        is RenameResult.RetrySuccess -> "All rolls renamed to \"${result.newName}\""
+                        is RenameResult.FullSuccess -> stringResource(R.string.boxes_rename_success_detail, result.oldName, result.newName)
+                        is RenameResult.RetrySuccess -> stringResource(R.string.boxes_rename_retry_detail, result.newName)
                         is RenameResult.PartialFailure -> {
                             val success = result.successCount
                             val total = result.successCount + result.failedIds.size
-                            "Renamed $success of $total rolls — some couldn't be updated."
+                            stringResource(R.string.boxes_rename_partial_detail, success, total)
                         }
                     }
                 )
@@ -328,13 +330,13 @@ private fun RenameBoxDialog(
                 TextButton(onClick = {
                     showMergeConfirm = false
                     onConfirm(pendingName)
-                }) { Text("Merge") }
+                }) { Text(stringResource(R.string.boxes_merge)) }
             },
             dismissButton = {
-                TextButton(onClick = { showMergeConfirm = false }) { Text("Cancel") }
+                TextButton(onClick = { showMergeConfirm = false }) { Text(stringResource(R.string.common_cancel)) }
             },
-            title = { Text("Merge boxes?") },
-            text = { Text("\"$pendingName\" already exists — spools will be merged into it.") }
+            title = { Text(stringResource(R.string.boxes_merge_title)) },
+            text = { Text(stringResource(R.string.boxes_merge_text, pendingName)) }
         )
     } else {
         AlertDialog(
@@ -356,18 +358,18 @@ private fun RenameBoxDialog(
                         }
                     },
                     enabled = newName.trim().isNotBlank() && newName.trim() != currentName
-                ) { Text("Rename") }
+                ) { Text(stringResource(R.string.boxes_rename)) }
             },
             dismissButton = {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
             },
-            title = { Text("Rename box") },
+            title = { Text(stringResource(R.string.boxes_rename_title)) },
             text = {
                 OutlinedTextField(
                     value = newName,
                     onValueChange = { newName = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("New name") },
+                    label = { Text(stringResource(R.string.boxes_new_name)) },
                     singleLine = true
                 )
             }

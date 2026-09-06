@@ -25,9 +25,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import me.ghost.ffui.R
 import me.ghost.ffui.api.SpoolmanSpool
 import me.ghost.ffui.ui.components.parseHexColor
 import me.ghost.ffui.ui.components.InfoRow
@@ -87,25 +89,25 @@ fun SpoolInfoDialog(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // Info rows
-                InfoRow("Vendor", spool.filament.vendor?.name)
-                InfoRow("Material", spool.filament.material)
-                InfoRow("Color", spool.filament.color_hex?.let { "#${it.removePrefix("#")}" })
-                InfoRow("Remaining", spool.remaining_weight?.let { "${it.roundToInt()} g" })
-                InfoRow("Used", spool.used_weight?.let { "${it.roundToInt()} g" })
-                InfoRow("Initial weight", spool.initial_weight?.let { "${it.roundToInt()} g" })
-                InfoRow("Diameter", spool.filament.diameter?.let { "$it mm" })
-                InfoRow("Density", spool.filament.density?.let { "$it g/cm³" })
-                InfoRow("Extruder temp", spool.filament.settings_extruder_temp?.let { "$it °C" })
-                InfoRow("Bed temp", spool.filament.settings_bed_temp?.let { "$it °C" })
-                InfoRow("Location", spool.location)
-                InfoRow("Lot", spool.lot_nr)
-                InfoRow("Comment", spool.comment)
-                InfoRow("Price", spool.price?.let { "$it" })
-                InfoRow("Tagged", taggedAt?.let { formatTaggedAt(it) })
+                InfoRow(stringResource(R.string.spools_info_vendor), spool.filament.vendor?.name)
+                InfoRow(stringResource(R.string.spools_info_material), spool.filament.material)
+                InfoRow(stringResource(R.string.spools_info_color), spool.filament.color_hex?.let { "#${it.removePrefix("#")}" })
+                InfoRow(stringResource(R.string.spools_info_remaining), spool.remaining_weight?.let { stringResource(R.string.spools_info_grams, it.roundToInt()) })
+                InfoRow(stringResource(R.string.spools_info_used), spool.used_weight?.let { stringResource(R.string.spools_info_grams, it.roundToInt()) })
+                InfoRow(stringResource(R.string.spools_info_initial_weight), spool.initial_weight?.let { stringResource(R.string.spools_info_grams, it.roundToInt()) })
+                InfoRow(stringResource(R.string.spools_info_diameter), spool.filament.diameter?.let { stringResource(R.string.spools_info_mm, it) })
+                InfoRow(stringResource(R.string.spools_info_density), spool.filament.density?.let { stringResource(R.string.spools_info_density_value, it) })
+                InfoRow(stringResource(R.string.spools_info_extruder_temp), spool.filament.settings_extruder_temp?.let { stringResource(R.string.spools_info_temp_value, it) })
+                InfoRow(stringResource(R.string.spools_info_bed_temp), spool.filament.settings_bed_temp?.let { stringResource(R.string.spools_info_temp_value, it) })
+                InfoRow(stringResource(R.string.spools_info_location), spool.location)
+                InfoRow(stringResource(R.string.spools_info_lot), spool.lot_nr)
+                InfoRow(stringResource(R.string.spools_info_comment), spool.comment)
+                InfoRow(stringResource(R.string.spools_info_price), spool.price?.let { "$it" })
+                InfoRow(stringResource(R.string.spools_info_tagged), taggedAt?.let { formatTaggedAt(it) })
 
                 if (spool.archived) {
                     Text(
-                        "Archived",
+                        stringResource(R.string.spools_info_archived),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -119,14 +121,14 @@ fun SpoolInfoDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Close")
+                        Text(stringResource(R.string.common_close))
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(onClick = {
                         onDismiss()
                         onEditClick()
                     }) {
-                        Text("Edit")
+                        Text(stringResource(R.string.spools_edit))
                     }
                 }
             }
@@ -135,11 +137,15 @@ fun SpoolInfoDialog(
 }
 
 /** Render an ISO-8601 instant as a short local date/time, falling back to the raw string. */
-private fun formatTaggedAt(iso: String): String = try {
-    java.time.Instant.parse(iso)
-        .atZone(java.time.ZoneId.systemDefault())
-        .format(java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy · h:mm a"))
-} catch (_: Exception) {
-    iso
+@Composable
+private fun formatTaggedAt(iso: String): String {
+    val pattern = stringResource(R.string.spools_info_tagged_format)
+    return try {
+        java.time.Instant.parse(iso)
+            .atZone(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofPattern(pattern))
+    } catch (_: Exception) {
+        iso
+    }
 }
 

@@ -35,9 +35,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import me.ghost.ffui.R
 import me.ghost.ffui.data.SpoolBox
 import me.ghost.ffui.ui.components.BoxGlyph
 
@@ -108,7 +110,7 @@ fun BoxCard(
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = "${box.spools.size} rolls",
+                        text = stringResource(R.string.boxes_roll_count, box.spools.size),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1
@@ -121,7 +123,7 @@ fun BoxCard(
                 if (nfcEnabled && tagged) {
                     Icon(
                         Icons.Default.Contactless,
-                        contentDescription = "Tagged",
+                        contentDescription = stringResource(R.string.nfc_tagged_cd),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp)
                     )
@@ -158,11 +160,11 @@ fun BoxCard(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Options")
+                    Text(stringResource(R.string.spools_options))
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text("Details") },
+                        text = { Text(stringResource(R.string.spools_details)) },
                         leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                         onClick = {
                             menuOpen = false
@@ -171,7 +173,7 @@ fun BoxCard(
                     )
                     if (nfcEnabled) {
                         DropdownMenuItem(
-                            text = { Text("Write to tag") },
+                            text = { Text(stringResource(R.string.nfc_write_to_tag)) },
                             leadingIcon = { Icon(Icons.Default.Contactless, contentDescription = null) },
                             onClick = {
                                 menuOpen = false

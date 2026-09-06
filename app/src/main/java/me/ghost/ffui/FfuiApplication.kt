@@ -39,7 +39,7 @@ class FfuiApplication : Application() {
             settings = settings
         )
         spoolmanRepository = SpoolmanRepository(settings)
-        nfcManager = NfcManager(settings, appScope)
+        nfcManager = NfcManager(this, settings, appScope)
         sessionManager.start()
     }
 }

@@ -15,6 +15,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -25,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import me.ghost.ffui.R
 import me.ghost.ffui.api.SpoolmanSpool
 import me.ghost.ffui.data.SpoolStatStyle
 import me.ghost.ffui.nfc.NfcManager
@@ -69,6 +72,7 @@ fun SpoolListView(
 ) {
     val scope = rememberCoroutineScope()
     var highlightedSpoolId by remember { mutableStateOf<Int?>(null) }
+    val context = LocalContext.current
 
     // Consume the pending scroll target from smart scan routing
     LaunchedEffect(pendingScrollSpoolId, filteredSpools) {
@@ -81,7 +85,7 @@ fun SpoolListView(
         } else if (filteredSpools.isNotEmpty()) {
             // The spool isn't in the current filtered list
             onPendingScrollConsumed()
-            onSnackbar("Spool #$target isn't shown — check search/filters")
+            onSnackbar(context.getString(R.string.spools_scan_not_shown, target))
         }
     }
 
@@ -96,7 +100,7 @@ fun SpoolListView(
     if (filteredSpools.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                if (spools.isEmpty()) "No spools found." else "No spools match your search.",
+                if (spools.isEmpty()) stringResource(R.string.spools_empty) else stringResource(R.string.spools_no_match),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium

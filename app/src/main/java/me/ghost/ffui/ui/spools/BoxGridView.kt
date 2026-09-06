@@ -45,6 +45,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -53,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
+import me.ghost.ffui.R
 import me.ghost.ffui.api.SpoolmanSpool
 import me.ghost.ffui.data.SpoolmanLoadState
 import me.ghost.ffui.data.SpoolmanRepository
@@ -106,6 +109,7 @@ fun BoxGridView(
     var detailBoxLocation by remember { mutableStateOf<String?>(null) }
     var writeDialogLocation by remember { mutableStateOf<String?>(null) }
     var infoSpool by remember { mutableStateOf<SpoolmanSpool?>(null) }
+    val context = LocalContext.current
 
     // Derive boxes from the spool list
     val boxes = remember(spools) { boxesFrom(spools) }
@@ -142,7 +146,7 @@ fun BoxGridView(
         } else if (boxes.isNotEmpty()) {
             // Boxes are loaded but no match
             onPendingOpenBoxConsumed()
-            onSnackbar("No box named \"$target\"")
+            onSnackbar(context.getString(R.string.boxes_scan_no_match, target))
         }
     }
 
@@ -158,12 +162,12 @@ fun BoxGridView(
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search boxes…") },
+                placeholder = { Text(stringResource(R.string.boxes_search_hint)) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
                         IconButton(onClick = { query = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.common_clear_search))
                         }
                     }
                 },
@@ -182,7 +186,7 @@ fun BoxGridView(
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
-                        "Tags: ${nfcFilter.label}",
+                        stringResource(R.string.spools_tags_label, stringResource(nfcFilter.labelRes)),
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
@@ -195,8 +199,8 @@ fun BoxGridView(
                 if (filteredBoxes.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            if (boxes.isEmpty()) "No boxes found. Assign locations to spools."
-                            else "No boxes match your search.",
+                            if (boxes.isEmpty()) stringResource(R.string.boxes_empty)
+                            else stringResource(R.string.boxes_no_match),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium
@@ -227,7 +231,7 @@ fun BoxGridView(
             }
             is SpoolmanLoadState.Loading -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Loading boxes…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.boxes_loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             else -> {
@@ -305,8 +309,8 @@ internal fun NfcBoxWriteDialog(
     when (result) {
         null -> NfcPromptDialog(
             expanding = false,
-            title = "Write to a tag",
-            message = "Hold your phone to a tag to program it for \"$location\".",
+            title = stringResource(R.string.nfc_prompt_write_title),
+            message = stringResource(R.string.nfc_prompt_write_box_message, location),
             onDismiss = onDismiss
         )
         is NfcWriteResult.BoxSuccess -> {
@@ -328,7 +332,7 @@ internal fun NfcBoxWriteDialog(
                             modifier = Modifier.size(56.dp)
                         )
                         Text(
-                            "Tag written for \"$location\"",
+                            stringResource(R.string.nfc_write_box_success, location),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -354,7 +358,7 @@ internal fun NfcBoxWriteDialog(
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(56.dp)
                         )
-                        Text("Couldn't write tag", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.nfc_write_error_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(
                             result.message,
                             style = MaterialTheme.typography.bodyMedium,
@@ -364,9 +368,9 @@ internal fun NfcBoxWriteDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End
                         ) {
-                            TextButton(onClick = onDismiss) { Text("Close") }
+                            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) }
                             Spacer(Modifier.size(8.dp))
-                            Button(onClick = onRetry) { Text("Retry") }
+                            Button(onClick = onRetry) { Text(stringResource(R.string.common_retry)) }
                         }
                     }
                 }

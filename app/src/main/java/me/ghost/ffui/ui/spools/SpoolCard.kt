@@ -38,9 +38,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import me.ghost.ffui.R
 import me.ghost.ffui.api.SpoolmanSpool
 import me.ghost.ffui.data.SpoolStatStyle
 import me.ghost.ffui.ui.components.luminanceIsDark
@@ -154,7 +156,7 @@ fun SpoolCard(
                     Spacer(Modifier.width(6.dp))
                     Icon(
                         Icons.Default.Contactless,
-                        contentDescription = "Tagged",
+                        contentDescription = stringResource(R.string.nfc_tagged_cd),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp)
                     )
@@ -215,11 +217,11 @@ fun SpoolCard(
                             100 - remainingPct
                         }
                     }
-                    "$remainingPct% left · $usedPct% used"
+                    stringResource(R.string.spools_stat_percent, remainingPct, usedPct)
                 }
                 SpoolStatStyle.WEIGHT -> {
-                    val rem = spool.remaining_weight?.let { "${it.roundToInt()} g left" }
-                    val used = spool.used_weight?.let { "${it.roundToInt()} g used" }
+                    val rem = spool.remaining_weight?.let { stringResource(R.string.spools_stat_grams_left, it.roundToInt()) }
+                    val used = spool.used_weight?.let { stringResource(R.string.spools_stat_grams_used, it.roundToInt()) }
                     listOfNotNull(rem, used).joinToString(" · ").ifEmpty { null }
                 }
             }
@@ -255,11 +257,11 @@ fun SpoolCard(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Options")
+                    Text(stringResource(R.string.spools_options))
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text("Details") },
+                        text = { Text(stringResource(R.string.spools_details)) },
                         leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                         onClick = {
                             menuOpen = false
@@ -267,7 +269,7 @@ fun SpoolCard(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Edit") },
+                        text = { Text(stringResource(R.string.spools_edit)) },
                         leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
                         onClick = {
                             menuOpen = false
@@ -276,7 +278,7 @@ fun SpoolCard(
                     )
                     if (nfcEnabled) {
                         DropdownMenuItem(
-                            text = { Text("Write to tag") },
+                            text = { Text(stringResource(R.string.nfc_write_to_tag)) },
                             leadingIcon = { Icon(Icons.Default.Contactless, contentDescription = null) },
                             onClick = {
                                 menuOpen = false

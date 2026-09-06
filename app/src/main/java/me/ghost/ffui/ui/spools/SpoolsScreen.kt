@@ -1,6 +1,7 @@
 package me.ghost.ffui.ui.spools
 
 import android.nfc.NfcAdapter
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateFloat
@@ -62,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -70,6 +72,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import me.ghost.ffui.R
 import me.ghost.ffui.api.SpoolmanSpool
 import me.ghost.ffui.data.SpoolStatStyle
 import me.ghost.ffui.data.SpoolmanLoadState
@@ -79,18 +82,18 @@ import me.ghost.ffui.nfc.NfcWriteResult
 import me.ghost.ffui.ui.MainViewModel
 
 /** Sort options available in the Spools screen dropdown. */
-enum class SpoolSortOption(val label: String, val sortKey: String?) {
-    Remaining("Remaining", "remaining_weight:asc"),
-    Material("Material", "filament.material:asc"),
-    Vendor("Vendor", "filament.vendor.name:asc"),
-    RecentlyUsed("Recently used", "last_used:desc")
+enum class SpoolSortOption(@StringRes val labelRes: Int, val sortKey: String?) {
+    Remaining(R.string.spools_sort_remaining, "remaining_weight:asc"),
+    Material(R.string.spools_sort_material, "filament.material:asc"),
+    Vendor(R.string.spools_sort_vendor, "filament.vendor.name:asc"),
+    RecentlyUsed(R.string.spools_sort_recently_used, "last_used:desc")
 }
 
 /** Filter spools by their local NFC-tagged state. Only shown when NFC is enabled. */
-enum class NfcFilter(val label: String) {
-    All("All"),
-    Tagged("Tagged"),
-    Untagged("Untagged");
+enum class NfcFilter(@StringRes val labelRes: Int) {
+    All(R.string.nfc_filter_all),
+    Tagged(R.string.nfc_filter_tagged),
+    Untagged(R.string.nfc_filter_untagged);
 
     fun next(): NfcFilter = entries[(ordinal + 1) % entries.size]
 }
@@ -202,7 +205,7 @@ fun SpoolsScreen(
                 pendingOpenBox = result.location
             }
             is NfcReadResult.Unknown -> scope.launch {
-                snackbarHostState.showSnackbar("Tag has no spool data")
+                snackbarHostState.showSnackbar(context.getString(R.string.nfc_no_spool_data))
             }
             is NfcReadResult.Error -> scope.launch {
                 snackbarHostState.showSnackbar(result.message)
@@ -213,19 +216,19 @@ fun SpoolsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (viewMode == SpoolsViewMode.Boxes) "Boxes" else "Spools") },
+                title = { Text(if (viewMode == SpoolsViewMode.Boxes) stringResource(R.string.spools_boxes_title) else stringResource(R.string.spools_title)) },
                 actions = {
                     // Scan a tag → smart-routes to spool or box
                     if (nfcEnabled) {
                         IconButton(onClick = { nfc.beginRead() }) {
-                            Icon(Icons.Default.Contactless, contentDescription = "Scan tag")
+                            Icon(Icons.Default.Contactless, contentDescription = stringResource(R.string.nfc_scan_tag_cd))
                         }
                     }
                     // Refresh
                     IconButton(onClick = {
                         scope.launch { repo.refresh(allowArchived = showArchived, sort = sortOption.sortKey) }
                     }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.files_refresh_cd))
                     }
                 }
             )
@@ -248,14 +251,14 @@ fun SpoolsScreen(
                     onClick = { viewMode = SpoolsViewMode.Spools },
                     selected = viewMode == SpoolsViewMode.Spools
                 ) {
-                    Text("Spools")
+                    Text(stringResource(R.string.spools_title))
                 }
                 SegmentedButton(
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                     onClick = { viewMode = SpoolsViewMode.Boxes },
                     selected = viewMode == SpoolsViewMode.Boxes
                 ) {
-                    Text("Boxes")
+                    Text(stringResource(R.string.spools_boxes_title))
                 }
             }
 
@@ -273,12 +276,12 @@ fun SpoolsScreen(
                         value = query,
                         onValueChange = { query = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search spools…") },
+                        placeholder = { Text(stringResource(R.string.spools_search_hint)) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                         trailingIcon = {
                             if (query.isNotEmpty()) {
                                 IconButton(onClick = { query = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear search")
+                                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.common_clear_search))
                                 }
                             }
                         },
@@ -298,7 +301,7 @@ fun SpoolsScreen(
                         Box {
                             TextButton(onClick = { sortExpanded = true }) {
                                 Text(
-                                    "Sort: ${sortOption.label}",
+                                    stringResource(R.string.spools_sort_label, stringResource(sortOption.labelRes)),
                                     style = MaterialTheme.typography.labelMedium
                                 )
                                 Icon(
@@ -310,7 +313,7 @@ fun SpoolsScreen(
                             DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
                                 SpoolSortOption.entries.forEach { option ->
                                     DropdownMenuItem(
-                                        text = { Text(option.label) },
+                                        text = { Text(stringResource(option.labelRes)) },
                                         onClick = {
                                             sortOption = option
                                             sortExpanded = false
@@ -324,11 +327,11 @@ fun SpoolsScreen(
                         TextButton(onClick = { showArchived = !showArchived }) {
                             Icon(
                                 if (showArchived) Icons.Default.Inventory2 else Icons.Outlined.Inventory2,
-                                contentDescription = if (showArchived) "Hide archived" else "Show archived",
+                                contentDescription = if (showArchived) stringResource(R.string.spools_hide_archived) else stringResource(R.string.spools_show_archived),
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
-                                if (showArchived) "Hide archived" else "Show archived",
+                                if (showArchived) stringResource(R.string.spools_hide_archived) else stringResource(R.string.spools_show_archived),
                                 style = MaterialTheme.typography.labelMedium
                             )
                         }
@@ -342,7 +345,7 @@ fun SpoolsScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
-                                    "Tags: ${nfcFilter.label}",
+                                    stringResource(R.string.spools_tags_label, stringResource(nfcFilter.labelRes)),
                                     style = MaterialTheme.typography.labelMedium
                                 )
                             }
@@ -355,14 +358,14 @@ fun SpoolsScreen(
             when (val state = loadState) {
                 is SpoolmanLoadState.NotConfigured -> {
                     EmptyState(
-                        message = "Set your Spoolman server in Settings",
+                        message = stringResource(R.string.spools_not_configured),
                         onAction = onNavigateToSettings,
-                        actionLabel = "Open Settings"
+                        actionLabel = stringResource(R.string.spools_open_settings)
                     )
                 }
                 is SpoolmanLoadState.Loading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Loading spools…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.spools_loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 is SpoolmanLoadState.Error -> {
@@ -371,7 +374,7 @@ fun SpoolsScreen(
                         onAction = {
                             scope.launch { repo.refresh(allowArchived = showArchived, sort = sortOption.sortKey) }
                         },
-                        actionLabel = "Retry"
+                        actionLabel = stringResource(R.string.common_retry)
                     )
                 }
                 is SpoolmanLoadState.Loaded -> {
@@ -432,15 +435,15 @@ fun SpoolsScreen(
     if (nfcMode is NfcMode.Reading) {
         NfcPromptDialog(
             expanding = true,
-            title = "Scan a tag",
-            message = "Hold your phone to a spool or box tag.",
+            title = stringResource(R.string.nfc_prompt_scan_title),
+            message = stringResource(R.string.nfc_prompt_scan_message),
             onDismiss = { nfc.cancel() }
         )
     }
 
     // NFC write dialog for spools — shows the prompt, then the write result.
     writeDialogSpoolId?.let { spoolId ->
-        val spoolName = spools.firstOrNull { it.id == spoolId }?.displayName ?: "spool #$spoolId"
+        val spoolName = spools.firstOrNull { it.id == spoolId }?.displayName ?: stringResource(R.string.spools_fallback_name, spoolId)
         NfcWriteDialog(
             spoolName = spoolName,
             result = writeResult,
@@ -535,7 +538,7 @@ internal fun NfcPromptDialog(
                     textAlign = TextAlign.Center
                 )
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.common_cancel))
                 }
             }
         }
@@ -557,8 +560,8 @@ private fun NfcWriteDialog(
     when (result) {
         null -> NfcPromptDialog(
             expanding = false,
-            title = "Write to a tag",
-            message = "Hold your phone to a tag to program it for $spoolName.",
+            title = stringResource(R.string.nfc_prompt_write_title),
+            message = stringResource(R.string.nfc_prompt_write_message, spoolName),
             onDismiss = onDismiss
         )
         is NfcWriteResult.Success -> {
@@ -581,7 +584,7 @@ private fun NfcWriteDialog(
                             modifier = Modifier.size(56.dp)
                         )
                         Text(
-                            "Tag written for $spoolName",
+                            stringResource(R.string.nfc_write_success, spoolName),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center
@@ -608,7 +611,7 @@ private fun NfcWriteDialog(
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(56.dp)
                         )
-                        Text("Couldn't write tag", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.nfc_write_error_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(
                             result.message,
                             style = MaterialTheme.typography.bodyMedium,
@@ -619,9 +622,9 @@ private fun NfcWriteDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End
                         ) {
-                            TextButton(onClick = onDismiss) { Text("Close") }
+                            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) }
                             Spacer(Modifier.size(8.dp))
-                            Button(onClick = onRetry) { Text("Retry") }
+                            Button(onClick = onRetry) { Text(stringResource(R.string.common_retry)) }
                         }
                     }
                 }

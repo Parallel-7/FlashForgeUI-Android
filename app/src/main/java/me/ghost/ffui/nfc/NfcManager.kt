@@ -1,5 +1,6 @@
 package me.ghost.ffui.nfc
 
+import android.content.Context
 import android.nfc.NdefMessage
 import android.nfc.NdefRecord
 import android.nfc.Tag
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import me.ghost.ffui.R
 import me.ghost.ffui.data.SettingsDataStore
 import java.time.Instant
 
@@ -61,10 +63,12 @@ sealed interface NfcWriteResult {
  *   but is never read back.
  * - **Box:** a single NDEF text record `BOX:<location>`. No URI record.
  *
+ * @property appContext Application context used to resolve user-facing error strings.
  * @property settings Source of the write-URL flag, the Spoolman base URL, and the local tagged maps.
  * @property scope Process-lifetime scope used for the deferred settings writes (mark-as-tagged).
  */
 class NfcManager(
+    private val appContext: Context,
     private val settings: SettingsDataStore,
     private val scope: CoroutineScope
 ) {
@@ -153,7 +157,7 @@ class NfcManager(
             }?.records?.firstNotNullOfOrNull { record -> record.toText() }
         } catch (e: Exception) {
             Log.e(TAG, "Read failed", e)
-            return NfcReadResult.Error(e.message ?: "Failed to read tag")
+            return NfcReadResult.Error(e.message ?: appContext.getString(R.string.nfc_error_read_failed))
         }
         // Try spool first, then box
         val spoolId = parseSpoolId(text)
@@ -173,17 +177,17 @@ class NfcManager(
                 ndef.use {
                     it.connect()
                     if (!it.isWritable) {
-                        return NfcWriteResult.Error("This tag is read-only.")
+                        return NfcWriteResult.Error(appContext.getString(R.string.nfc_error_read_only))
                     }
                     if (it.maxSize < message.byteArrayLength) {
-                        return NfcWriteResult.Error("Tag is too small for this data.")
+                        return NfcWriteResult.Error(appContext.getString(R.string.nfc_error_too_small))
                     }
                     it.writeNdefMessage(message)
                 }
             } else {
                 // Fresh / unformatted tag — format it with the message in one shot.
                 val formatable = NdefFormatable.get(tag)
-                    ?: return NfcWriteResult.Error("This tag doesn't support NDEF.")
+                    ?: return NfcWriteResult.Error(appContext.getString(R.string.nfc_error_no_ndef))
                 formatable.use {
                     it.connect()
                     it.format(message)
@@ -193,7 +197,7 @@ class NfcManager(
             NfcWriteResult.Success(spoolId)
         } catch (e: Exception) {
             Log.e(TAG, "Write failed", e)
-            NfcWriteResult.Error(e.message ?: "Failed to write tag")
+            NfcWriteResult.Error(e.message ?: appContext.getString(R.string.nfc_error_write_failed))
         }
     }
 
@@ -224,16 +228,16 @@ class NfcManager(
                 ndef.use {
                     it.connect()
                     if (!it.isWritable) {
-                        return NfcWriteResult.Error("This tag is read-only.")
+                        return NfcWriteResult.Error(appContext.getString(R.string.nfc_error_read_only))
                     }
                     if (it.maxSize < message.byteArrayLength) {
-                        return NfcWriteResult.Error("Tag is too small for this data.")
+                        return NfcWriteResult.Error(appContext.getString(R.string.nfc_error_too_small))
                     }
                     it.writeNdefMessage(message)
                 }
             } else {
                 val formatable = NdefFormatable.get(tag)
-                    ?: return NfcWriteResult.Error("This tag doesn't support NDEF.")
+                    ?: return NfcWriteResult.Error(appContext.getString(R.string.nfc_error_no_ndef))
                 formatable.use {
                     it.connect()
                     it.format(message)
@@ -243,7 +247,7 @@ class NfcManager(
             NfcWriteResult.BoxSuccess(location)
         } catch (e: Exception) {
             Log.e(TAG, "Box write failed", e)
-            NfcWriteResult.Error(e.message ?: "Failed to write tag")
+            NfcWriteResult.Error(e.message ?: appContext.getString(R.string.nfc_error_write_failed))
         }
     }
 

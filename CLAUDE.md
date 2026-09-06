@@ -323,10 +323,26 @@ me.ghost.ffui
   matching/InfoRow/SectionHeader/luminance were deduped into shared components; the six wildcard-
   import files now use explicit imports; the camera-URL field debounces its Room writes; the
   Spoolman URL persists only after a successful test; auto-shutdown Save requires a valid number;
-  `MyApplicationTheme` dropped its dead params. Left open deliberately: per-session OkHttp client
-  (needs a library injection seam), string externalization (~234 literals — release checklist),
-  and the release-readiness batch (LICENSE/README/signing/CI — see the audit-C report). All
+  `MyApplicationTheme` dropped its dead params. Left open deliberately at the time: per-session
+  OkHttp client, string externalization, and the release-readiness batch — all since closed (see
+  waves 3–4 below; the OkHttp one via library 0.4.1's process-wide shared client). All
   build/test-verified only — none re-tested on real hardware this wave.
+
+- **Audit wave 3 — full string externalization (2026-09-05).** Every user-visible literal moved to
+  `res/values/strings.xml` — 388 entries + notification `plurals` (`getQuantityString`),
+  `feature_` prefix convention, positional format args (`%1$s`), escaped apostrophes. Also renamed
+  the leftover template identity: composable `MyApplicationTheme` → `Theme`, manifest style
+  `Theme.MyApplication` → `Theme.FlashForgeUI`. Build-verified only.
+
+- **Audit wave 4 — test expansion + release docs (2026-09-05): 32 → 111 tests.** New coverage:
+  poll cadence (both `pause`/`paused` spellings, 30 s completed fast-poll window, background
+  throttle floor), print-event detection (`bedWasHot` gate, baselining, opt-outs, new-job reset),
+  UDP datagram parsing (276/280-byte packets + the truncation regression), Spoolman model parsing
+  (int/decimal interchange), NFC payload round-trips (incl. UTF-16), pid→label map, stop-confirm
+  dialog, Creator 5 chamber gate, temp clamps, settings toggles, and the remaining job-state gaps.
+  Also landed: Apache-2.0 `LICENSE`, `THIRD_PARTY_NOTICES.md`, end-user `README.md` +
+  `DEVELOPING.md`, and the library pin bumped to **0.4.1** (process-wide shared HTTP client —
+  closes the per-session-OkHttp item above). All build/test-verified only.
 
 - **Phase 1 is verified against a live AD5X** (firmware 3.1.0): `/detail` poll loop, `pid`
   detection, `/product` capability gating, and the inline IFS card all work. Two gotchas were

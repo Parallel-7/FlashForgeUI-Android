@@ -228,9 +228,7 @@ private fun DashboardContent(
     // Normalized job state → which controls show/enable. Shared with the Controls tab via jobStateOf.
     val job = jobStateOf(status)
 
-    var showTempDialog by remember { mutableStateOf<String?>(null) } // heater label: nozzle / bed
-    val nozzleHeaterLabel = stringResource(R.string.common_nozzle)
-    val bedHeaterLabel = stringResource(R.string.common_bed)
+    var showTempDialog by remember { mutableStateOf<HeaterTarget?>(null) }
 
     Column(
         modifier = Modifier
@@ -325,10 +323,10 @@ private fun DashboardContent(
     }
 
     // ── Temperature dialog (scoped per page) ────────────────────────────────
-    showTempDialog?.let { heaterName ->
-        val isNozzle = heaterName == nozzleHeaterLabel
+    showTempDialog?.let { target ->
+        val isNozzle = target == HeaterTarget.Nozzle
         TemperatureDialog(
-            heaterName = heaterName,
+            heaterName = stringResource(if (isNozzle) R.string.common_nozzle else R.string.common_bed),
             maxTemp = if (isNozzle) NOZZLE_MAX_TEMP else BED_MAX_TEMP,
             onSet = { t ->
                 scope.launch { if (isNozzle) session.setNozzleTemp(t) else session.setBedTemp(t) }

@@ -50,6 +50,7 @@ import me.ghost.ffui.ui.dashboard.HeaterGrid
 import me.ghost.ffui.ui.dashboard.BED_MAX_TEMP
 import me.ghost.ffui.ui.dashboard.NOZZLE_MAX_TEMP
 import me.ghost.ffui.ui.dashboard.Creator5TemperatureCard
+import me.ghost.ffui.ui.dashboard.HeaterTarget
 import me.ghost.ffui.ui.dashboard.TemperatureDialog
 
 /**
@@ -102,9 +103,7 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
     // Shared job-state machine (see ui/JobState.kt) — same derivation the dashboard uses.
     val job = jobStateOf(status)
 
-    var showTempDialog by remember { mutableStateOf<String?>(null) } // heater label: nozzle / bed
-    val nozzleHeaterLabel = stringResource(R.string.common_nozzle)
-    val bedHeaterLabel = stringResource(R.string.common_bed)
+    var showTempDialog by remember { mutableStateOf<HeaterTarget?>(null) }
 
     Column(
         modifier = modifier
@@ -223,10 +222,10 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
         }
     }
 
-    showTempDialog?.let { heaterName ->
-        val isNozzle = heaterName == nozzleHeaterLabel
+    showTempDialog?.let { target ->
+        val isNozzle = target == HeaterTarget.Nozzle
         TemperatureDialog(
-            heaterName = heaterName,
+            heaterName = stringResource(if (isNozzle) R.string.common_nozzle else R.string.common_bed),
             maxTemp = if (isNozzle) NOZZLE_MAX_TEMP else BED_MAX_TEMP,
             onSet = { t ->
                 scope.launch { if (isNozzle) session.setNozzleTemp(t) else session.setBedTemp(t) }

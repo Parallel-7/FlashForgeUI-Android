@@ -83,18 +83,24 @@ internal fun JobProgressHeader(fileName: String?, progress: Int, stateLabel: Str
 }
 
 /**
+ * Which single-toolhead heater a [HeaterGrid] card (or the shared [TemperatureDialog]) refers to.
+ * A stable identity for dialog state — the display label is resolved via stringResource at render
+ * time and is never compared against (a localized string is a fragile sentinel). Mirrors the
+ * private sealed [Creator5HeaterTarget] pattern the Creator 5 card uses.
+ */
+internal enum class HeaterTarget { Nozzle, Bed }
+
+/**
  * Row of nozzle / bed (tap-to-set) heater cards. Split out from the old combined grid so the
  * dashboard can place job stats (remaining / layer) above the temperatures, and the Controls tab
  * can reuse just the heaters. See [JobStatsRow].
  */
 @Composable
-internal fun HeaterGrid(status: PrinterDetailResponse?, onHeaterClick: (String) -> Unit) {
+internal fun HeaterGrid(status: PrinterDetailResponse?, onHeaterClick: (HeaterTarget) -> Unit) {
     val nozzleCurrent = status?.rightTemp ?: 0f
     val nozzleTarget = status?.rightTargetTemp ?: 0f
     val bedCurrent = status?.platTemp ?: 0f
     val bedTarget = status?.platTargetTemp ?: 0f
-    val nozzleLabel = stringResource(R.string.common_nozzle)
-    val bedLabel = stringResource(R.string.common_bed)
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         HeaterCard(
@@ -103,7 +109,7 @@ internal fun HeaterGrid(status: PrinterDetailResponse?, onHeaterClick: (String) 
             progress = if (nozzleTarget > 0) (nozzleCurrent / nozzleTarget).coerceIn(0f, 1f) else 0f,
             barColor = GeometricOrangePrimary,
             trackColor = GeometricOrangeContainer,
-            onClick = { onHeaterClick(nozzleLabel) },
+            onClick = { onHeaterClick(HeaterTarget.Nozzle) },
             modifier = Modifier.weight(1f)
         )
         HeaterCard(
@@ -112,7 +118,7 @@ internal fun HeaterGrid(status: PrinterDetailResponse?, onHeaterClick: (String) 
             progress = if (bedTarget > 0) (bedCurrent / bedTarget).coerceIn(0f, 1f) else 0f,
             barColor = GeometricBluePrimary,
             trackColor = GeometricBlueContainer,
-            onClick = { onHeaterClick(bedLabel) },
+            onClick = { onHeaterClick(HeaterTarget.Bed) },
             modifier = Modifier.weight(1f)
         )
     }

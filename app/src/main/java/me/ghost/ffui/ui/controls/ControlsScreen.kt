@@ -131,8 +131,12 @@ private fun ControlsContent(session: ActivePrinterSession, modifier: Modifier = 
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            // Destructive while a job runs (the platform may hold the printed part, and the
+            // printer can refuse or abort) — gated like Home below; the dashboard additionally
+            // only offers it on completion.
             OutlinedButton(
                 onClick = { scope.launch { session.clearPlatform() } },
+                enabled = !job.isActiveJob,
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {

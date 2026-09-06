@@ -1,5 +1,9 @@
 package me.ghost.ffui.data
 
+import me.ghost.ffui.R
+
+import android.content.Context
+
 import android.os.SystemClock
 import me.ghost.ffapi.PrinterCapabilities
 import me.ghost.ffapi.PrinterModel
@@ -82,6 +86,7 @@ sealed interface ConnectionState {
  */
 class ActivePrinterSession(
     initialPrinter: PrinterEntity,
+    private val appContext: Context,
     private val scope: CoroutineScope,
     private val onIdentity: suspend (pid: Int?, firmware: String?, cameraUrl: String?) -> Unit = { _, _, _ -> },
     private val onEvent: (printer: PrinterEntity, event: PrinterEvent) -> Unit = { _, _ -> }
@@ -374,7 +379,7 @@ class ActivePrinterSession(
             _connectionState.value = ConnectionState.AuthFailed(e.message)
         } else {
             val reason = if (e is ApiErrorException && e.code == LAN_MODE_ERROR_CODE) {
-                "Printer is not in LAN mode — switch it to LAN mode on the printer"
+                appContext.getString(R.string.printers_lan_mode_reason)
             } else {
                 e.message
             }

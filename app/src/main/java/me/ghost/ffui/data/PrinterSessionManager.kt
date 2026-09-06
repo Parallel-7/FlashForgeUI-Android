@@ -191,6 +191,7 @@ class PrinterSessionManager(
         }
         val session = ActivePrinterSession(
             initialPrinter = printer,
+            appContext = appContext,
             scope = scope,
             onIdentity = { pid, firmware, cameraUrl ->
                 repository.updateIdentity(printer.serialNumber, pid, firmware, cameraUrl)

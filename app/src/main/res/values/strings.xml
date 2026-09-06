@@ -402,4 +402,23 @@
     <string name="common_clear_search">Clear search</string>
     <string name="common_ok">OK</string>
     <string name="common_failed">Failed: %1$s</string>
+    <string name="printers_lan_mode_reason">Printer is not in LAN mode — switch it to LAN mode on the printer</string>
+
+    <!-- ═══════════════════════ Notifications & monitor service ═══════════════════════ -->
+    <string name="notif_channel_status">Printer status</string>
+    <string name="notif_channel_status_desc">Print completion, bed-cooled, and printer error alerts</string>
+    <string name="notif_title">%1$s — %2$s</string>
+    <string name="notif_complete_suffix">print complete</string>
+    <string name="notif_complete_text">The print has finished.</string>
+    <string name="notif_cooled_suffix">ready to remove</string>
+    <string name="notif_cooled_text">The bed has cooled below 40 °C — safe to remove the print.</string>
+    <string name="notif_error_suffix">printer error</string>
+    <string name="notif_error_text">Reported error code %1$s.</string>
+    <string name="notif_monitoring_zero">Monitoring printers</string>
+    <string name="service_channel_name">Background monitoring</string>
+    <string name="service_channel_desc">Keeps printers monitored while the app is closed</string>
+    <plurals name="notif_monitoring_printers">
+        <item quantity="one">Monitoring 1 printer</item>
+        <item quantity="other">Monitoring %1$d printers</item>
+    </plurals>
 </resources>

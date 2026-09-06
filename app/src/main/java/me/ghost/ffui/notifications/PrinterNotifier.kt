@@ -28,10 +28,10 @@ class PrinterNotifier(private val context: Context) {
         // minSdk 26 == O — channel creation is required unconditionally, no guard needed.
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Printer status",
+            context.getString(R.string.notif_channel_status),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Print completion, bed-cooled, and printer error alerts"
+            description = context.getString(R.string.notif_channel_status_desc)
         }
         context.getSystemService(NotificationManager::class.java)
             .createNotificationChannel(channel)
@@ -44,9 +44,12 @@ class PrinterNotifier(private val context: Context) {
         ) return
 
         val (titleSuffix, text) = when (event) {
-            PrinterEvent.PrintCompleted -> "print complete" to "The print has finished."
-            PrinterEvent.PrintCooled -> "ready to remove" to "The bed has cooled below 40 °C — safe to remove the print."
-            is PrinterEvent.PrinterError -> "printer error" to "Reported error code ${event.code}."
+            PrinterEvent.PrintCompleted ->
+                context.getString(R.string.notif_complete_suffix) to context.getString(R.string.notif_complete_text)
+            PrinterEvent.PrintCooled ->
+                context.getString(R.string.notif_cooled_suffix) to context.getString(R.string.notif_cooled_text)
+            is PrinterEvent.PrinterError ->
+                context.getString(R.string.notif_error_suffix) to context.getString(R.string.notif_error_text, event.code)
         }
 
         // Tapping the alert opens the app — the heads-up "print complete" is exactly the
@@ -62,7 +65,7 @@ class PrinterNotifier(private val context: Context) {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_printer)
-            .setContentTitle("$printerName — $titleSuffix")
+            .setContentTitle(context.getString(R.string.notif_title, printerName, titleSuffix))
             .setContentText(text)
             .setContentIntent(openApp)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

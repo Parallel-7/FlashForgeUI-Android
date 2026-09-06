@@ -18,7 +18,6 @@ import me.ghost.ffapi.models.AD5XMaterialMapping
 import me.ghost.ffapi.models.FFGcodeFileEntry
 import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
 import me.ghost.ffapi.models.MachineInfo
-import me.ghost.ffapi.models.MachineState
 import me.ghost.ffapi.models.MatlStationInfo
 import me.ghost.ffapi.models.PrintGcodeRequest
 import me.ghost.ffapi.tcpapi.FlashForgeClient
@@ -310,56 +309,12 @@ class ActivePrinterSession(
     // Baselines captured on first observation so connecting to an already-completed or already-
     // errored printer doesn't fire a spurious alert. All opt-in flags are re-read from the live
     // `printer` at emit time, so toggling a notification in settings takes effect without reconnect.
-    private var seenFirstDetail = false
-    private var prevStatusKey: String? = null
-    private var prevErrorCode: String? = null
-    private var awaitingCooldown = false
-
-    /** Whether the bed was seen at/above [BED_SAFE_TEMP_C] since the job started — see [detectEvents]. */
-    private var bedWasHot = false
+    private val eventDetector = PrintEventDetector()
 
     private fun detectEvents(detail: PrinterDetailResponse) {
         val p = printer
-        val status = detail.status?.lowercase()
-        val error = detail.errorCode?.takeIf { it.isNotBlank() && it != "0" }
-
-        if (!seenFirstDetail) {
-            seenFirstDetail = true
-            prevStatusKey = status
-            prevErrorCode = error
-            return
-        }
-
-        // Bed cooled below the safe-to-remove threshold (only after a completion we witnessed
-        // AND only if the bed was actually hot at some point — a short PLA job on an already-cold
-        // bed must not fire "safe to remove" right behind "print complete").
-        if (awaitingCooldown) {
-            val bed = detail.platTemp
-            when {
-                status in ACTIVE_PRINT_STATES -> { awaitingCooldown = false; bedWasHot = false } // new job
-                bed != null && bed < BED_SAFE_TEMP_C -> {
-                    awaitingCooldown = false
-                    if (p.notifyOnCooled) onEvent(p, PrinterEvent.PrintCooled)
-                }
-            }
-        }
-
-        // Track whether the bed ever reached the removal threshold this job.
-        detail.platTemp?.let { if (it >= BED_SAFE_TEMP_C) bedWasHot = true }
-
-        // Print just finished — arm the cooled watch only when there is hot mass to cool.
-        if (status == "completed" && prevStatusKey != "completed") {
-            if (p.notifyOnComplete) onEvent(p, PrinterEvent.PrintCompleted)
-            awaitingCooldown = bedWasHot
-        }
-
-        // A new error code appeared.
-        if (error != null && error != prevErrorCode && p.notifyOnError) {
-            onEvent(p, PrinterEvent.PrinterError(error))
-        }
-
-        prevStatusKey = status
-        prevErrorCode = error
+        eventDetector.detect(detail, p.notifyOnComplete, p.notifyOnCooled, p.notifyOnError)
+            .forEach { onEvent(p, it) }
     }
 
     /**
@@ -400,45 +355,24 @@ class ActivePrinterSession(
      * the library's `GenericLegacyBackend` before they reach this point.
      */
     private fun nextDelayMs(): Long {
-        val base = baseDelayMs()
         // The background-throttle floor never speeds polling up, only slows it down.
-        return maxOf(base, pollFloorMs)
+        return PollCadence.throttledDelayMs(baseDelayMs(), pollFloorMs)
     }
 
     /** The adaptive cadence before any background-throttle floor is applied. */
     private fun baseDelayMs(): Long {
-        when (_connectionState.value) {
-            is ConnectionState.AuthFailed -> return 15_000L
-            is ConnectionState.Offline -> return 3_000L
-            else -> {}
-        }
         val detail = _status.value
         val status = detail?.status?.lowercase()
         if (status != lastStatusKey) {
             lastStatusKey = status
             if (status == "completed") completedSinceMs = SystemClock.elapsedRealtime()
         }
-        // Cadence classes follow the library's MachineState mapping (the same one jobStateOf
-        // uses) so polling speed and control gating can never disagree about what the printer
-        // is doing — "pause" and "downloading" included.
-        return when (detail?.let { machineInfo.fromDetail(it)?.machineState }) {
-            // Active / user-watched operations — climb fast. The Busy class also covers
-            // "downloading"; an unrecognized non-blank status is busy-class per the docs.
-            MachineState.Printing, MachineState.Busy,
-            MachineState.Heating, MachineState.Calibrating -> 1_500L
-            // Paused or a transient end-of-job dialog the user is likely interacting with
-            // ("pause"/"paused", "pausing", a cancel being processed).
-            MachineState.Paused, MachineState.Pausing, MachineState.Cancelled -> 2_500L
-            // Just finished: stay responsive for ~30s (platform-clear), then fall to idle.
-            MachineState.Completed ->
-                if (SystemClock.elapsedRealtime() - completedSinceMs < 30_000L) 2_500L else 5_000L
-            MachineState.Error -> 10_000L
-            // Docs: an unrecognized non-blank status means busy-class work in progress
-            // (fw-5.x cloud_slicing / sending / unzipping, the transient "canceling").
-            MachineState.Unknown -> if (!status.isNullOrBlank()) 1_500L else 5_000L
-            // `ready`, or no snapshot yet.
-            MachineState.Ready, null -> 5_000L
-        }
+        return PollCadence.baseDelayMs(
+            state = _connectionState.value,
+            detail = detail,
+            completedSinceMs = completedSinceMs,
+            nowMs = SystemClock.elapsedRealtime(),
+        )
     }
 
     // ---- Control passthrough (capability-aware via the backend) ----
@@ -542,13 +476,6 @@ class ActivePrinterSession(
     private companion object {
         /** Firmware envelope code the Creator 5 series returns while in cloud mode. */
         const val LAN_MODE_ERROR_CODE = -2
-        /** Bed temp (°C) below which a finished print is considered safe to remove. */
-        const val BED_SAFE_TEMP_C = 40f
-        /** Wire statuses that mean a job is actively running (cancels a pending cooldown watch). */
-        val ACTIVE_PRINT_STATES = setOf(
-            "printing", "working", "busy", "heating", "calibrate_doing",
-            "pause", "paused", "pausing", "canceling", "downloading"
-        )
         /**
          * How long [stopSession]'s watcher waits for a possibly-still-blocking TCP connect to land
          * so it can release the `~M601` lock it acquires. Longer than any OS-level SYN retry

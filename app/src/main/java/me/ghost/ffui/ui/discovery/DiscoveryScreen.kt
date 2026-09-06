@@ -316,6 +316,10 @@ fun AddPrinterDialog(
     // A discovered legacy printer reports no serial over UDP — the user must read it off the
     // printer and type it in. Say so instead of showing a blank required field.
     val needsManualSerial = initialIp.isNotBlank() && initialSerial.isBlank()
+
+    // Connect is disabled until every field is filled — previously a blank field made the tap a
+    // silent no-op (the blank-check lived inside onClick), which read as "nothing happened".
+    val formComplete = ip.isNotBlank() && name.isNotBlank() && serial.isNotBlank() && pin.isNotBlank()
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -354,11 +358,8 @@ fun AddPrinterDialog(
         },
         confirmButton = {
             Button(
-                onClick = {
-                    if (ip.isNotBlank() && name.isNotBlank() && serial.isNotBlank() && pin.isNotBlank()) {
-                        onConnect(PrinterEntity(serial, ip, name, pin))
-                    }
-                }
+                enabled = formComplete,
+                onClick = { onConnect(PrinterEntity(serial, ip, name, pin)) }
             ) {
                 Text(stringResource(R.string.discovery_connect))
             }

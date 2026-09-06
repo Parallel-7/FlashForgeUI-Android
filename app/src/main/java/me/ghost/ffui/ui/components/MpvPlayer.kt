@@ -2,6 +2,7 @@ package me.ghost.ffui.ui.components
 
 import android.content.Context
 import android.graphics.SurfaceTexture
+import android.util.Log
 import android.view.Surface
 import android.view.TextureView
 import androidx.compose.runtime.Composable
@@ -11,6 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.jdtech.mpv.MPVLib
+
+/** Log tag for the camera player — mpv failures must never crash the app, so they surface here. */
+private const val TAG = "MpvController"
 
 /**
  * libmpv (`dev.jdtech.mpv:libmpv`) camera playback, split into a [MpvController] (one mpv
@@ -124,6 +128,10 @@ class MpvController(context: Context) {
     private var playing = false
     private var loaded = false
 
+    /** Whether mpv currently has a surface attached — makes [deactivate] idempotent and safe to
+     * call when the binding stack is already empty (the VO must not outlive its Surface). */
+    private var surfaceAttached = false
+
     /** Nanosecond timestamps of frames rendered in the last second, for [currentFps]. */
     private val frameTimestamps = ArrayDeque<Long>()
 
@@ -221,6 +229,7 @@ class MpvController(context: Context) {
         // window BEFORE re-enabling the VO. Setting vo=gpu first (no surface attached) makes mpv
         // init the GL output with nowhere to draw → it fails and the view stays black.
         m.attachSurface(b.surface)
+        surfaceAttached = true
         m.setOptionString("force-window", "yes")
         m.setPropertyString("vo", "gpu")
         m.setPropertyString("android-surface-size", "${b.width}x${b.height}")
@@ -230,7 +239,11 @@ class MpvController(context: Context) {
 
     private fun deactivate() {
         val m = mpv ?: return
-        if (bindings.isEmpty()) return
+        // Guard on the attach state, NOT on the binding stack: the last binding may already be
+        // gone while mpv still holds (and renders into) its Surface. Idempotent — a second call
+        // with nothing attached is a no-op.
+        if (!surfaceAttached) return
+        surfaceAttached = false
         m.setPropertyString("vo", "null")
         m.setOptionString("force-window", "no")
         m.detachSurface()
@@ -259,12 +272,16 @@ class MpvController(context: Context) {
     fun release() {
         val m = mpv ?: return
         runCatching { m.command(arrayOf("stop")) }
+            .onFailure { Log.w(TAG, "mpv stop failed during release", it) }
         loaded = false
-        if (bindings.isNotEmpty()) {
+        if (surfaceAttached) {
             runCatching { m.detachSurface() }
+                .onFailure { Log.w(TAG, "mpv detachSurface failed during release", it) }
+            surfaceAttached = false
         }
         bindings.forEach { it.surface.release() }
         bindings.clear()
         runCatching { m.destroy() }
+            .onFailure { Log.w(TAG, "mpv destroy failed during release", it) }
     }
 }

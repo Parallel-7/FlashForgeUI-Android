@@ -47,8 +47,8 @@ phones are `arm64-v8a`.
 ## Release signing
 
 Release builds sign with credentials from environment variables:
-`KEYSTORE_PATH`, `STORE_PASSWORD`, `KEY_PASSWORD`. Debug builds sign with the
-repo-root `debug.keystore`. R8 minification is currently off by choice; revisit
+`KEYSTORE_PATH`, `STORE_PASSWORD`, `KEY_PASSWORD`. Without `KEYSTORE_PATH`, a
+release build still packages but stays unsigned (`app-*-release-unsigned.apk`). R8 minification is currently off by choice; revisit
 before any public release.
 
 ## Tests

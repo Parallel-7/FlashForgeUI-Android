@@ -32,3 +32,4 @@ debug.keystore
 /ff_state.png
 /test-screenshots/
 .codegraph/
+.zvec-grep/

@@ -191,6 +191,17 @@ me.ghost.ffui
   a `HorizontalPager` with a `PrinterTabBar` (tabs + swipe, two-way synced to `activeSerial`).
   Connecting an already-open serial just switches tabs — no duplicate connection. Connected-serials +
   active-tab are persisted eagerly (`persistSessionState`) for startup-reconnect.
+- **Connects resolve through discovery first (2026-09-07).** `PrinterSessionManager.connectToPrinter`
+  runs a short `UdpDiscovery` scan (1.5 s, early-exit when the target serial answers), matches by
+  `serialNumber`, and connects with the discovered IP — persisting it via `PrinterRepository.updateAddress`
+  when it changed (the saved IP is only a fallback; `ipAddress` is no longer write-once in practice).
+  `ConnectionResolver` holds the pure match decision. On a user-tapped connect where discovery missed AND
+  the saved IP fails with a transport-level failure (`ConnectionState.Offline(transportFailure=true)`,
+  distinct from auth/firmware errors), the serial enters `needsAddressSerials` and the Printers tab offers
+  an edit-address dialog (IP only — check code and settings untouched) → `updateAddressAndReconnect`.
+  Background/startup/sticky reconnects use the same resolver but never prompt. New-printer `saveAndConnect`
+  skips resolution (the IP is fresh). The Printers tab auto-scans on entry and shows a green “Ready” dot
+  when a saved printer appears in the latest scan (Connected pill still wins).
 - **Sessions outlive the UI (background monitoring).** `PrinterSessionManager` is created once in
   `FfuiApplication` and owns the sessions on a process-lifetime scope, so they survive Activity/
   ViewModel teardown. The global **Keep monitoring in background** toggle (Settings) gates this: when

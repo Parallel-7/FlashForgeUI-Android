@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -72,11 +73,16 @@ fun DiscoveryScreen(
     val savedPrinters by viewModel.savedPrinters.collectAsStateWithLifecycle()
     val isDiscovering by viewModel.isDiscovering.collectAsStateWithLifecycle()
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
+    val needsAddress by viewModel.needsAddressSerials.collectAsStateWithLifecycle()
     
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedToConnect by remember { mutableStateOf<DiscoveredPrinter?>(null) }
     var infoFor by remember { mutableStateOf<PrinterEntity?>(null) }
     val hideSerials by viewModel.settingsDataStore.hideSerials.collectAsStateWithLifecycle(initialValue = false)
+
+    // Auto-scan on tab entry so saved tiles get fresh Ready dots; discoverPrinters()'s own
+    // isDiscovering guard makes this a no-op while a scan is already running.
+    LaunchedEffect(Unit) { viewModel.discoverPrinters() }
 
     Scaffold(
         topBar = {
@@ -111,11 +117,16 @@ fun DiscoveryScreen(
                     }
                     items(savedPrinters, key = { it.serialNumber }) { printer ->
                         val isConnected = sessions.containsKey(printer.serialNumber)
+                        // "Ready" = seen in the latest scan with no live session; a live session
+                        // (Connected) always wins.
+                        val isReady = !isConnected &&
+                            discovered.any { it.serialNumber == printer.serialNumber }
                         PrinterTile(
                             name = printer.name,
                             ip = printer.ipAddress,
                             imageRes = printerImageRes(printer.modelPid, printer.name),
                             isConnected = isConnected,
+                            isReady = isReady,
                             onClick = {
                                 viewModel.connectToPrinter(printer)
                                 onNavigateToDashboard()
@@ -180,6 +191,17 @@ fun DiscoveryScreen(
             }
         )
     }
+
+    // Address re-entry: a user-tapped connect whose discovery + saved-address attempts both
+    // failed. One dialog at a time (first prompted serial); Save re-resolves, Cancel consumes.
+    needsAddress.firstNotNullOfOrNull { serial -> savedPrinters.find { it.serialNumber == serial } }?.let { printer ->
+        EditAddressDialog(
+            printerName = printer.name,
+            serialDisplay = maskSerial(printer.serialNumber, hideSerials),
+            onDismiss = { viewModel.dismissAddressPrompt(printer.serialNumber) },
+            onSave = { ip -> viewModel.updatePrinterAddress(printer.serialNumber, ip) }
+        )
+    }
 }
 
 /**
@@ -221,6 +243,7 @@ fun PrinterTile(
     @DrawableRes imageRes: Int,
     isConnected: Boolean,
     onClick: () -> Unit,
+    isReady: Boolean = false,
     onInfoClick: (() -> Unit)? = null,
     onSettingsClick: (() -> Unit)? = null
 ) {
@@ -237,7 +260,13 @@ fun PrinterTile(
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize().padding(12.dp)
             )
-            if (isConnected) {
+            // Live session wins; otherwise a serial seen in the latest scan shows Ready.
+            val badgeLabel = when {
+                isConnected -> stringResource(R.string.discovery_connected_badge)
+                isReady -> stringResource(R.string.discovery_ready_badge)
+                else -> null
+            }
+            if (badgeLabel != null) {
                 Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -252,7 +281,7 @@ fun PrinterTile(
                     Box(Modifier.size(8.dp).background(StatusConnected, CircleShape))
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        stringResource(R.string.discovery_connected_badge),
+                        badgeLabel,
                         style = MaterialTheme.typography.labelSmall,
                         color = StatusConnected
                     )
@@ -368,4 +397,70 @@ fun AddPrinterDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         }
     )
+}
+
+/**
+ * Address re-entry dialog for a saved printer whose discovery + saved-address connects both
+ * failed: the name and serial are read-only context, only the address is editable.
+ */
+@Composable
+fun EditAddressDialog(
+    printerName: String,
+    serialDisplay: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var ip by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.discovery_address_title)) },
+        text = {
+            Column {
+                Text(
+                    printerName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 2.dp)
+                )
+                Text(
+                    serialDisplay,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                OutlinedTextField(
+                    value = ip,
+                    onValueChange = { ip = it },
+                    label = { Text(stringResource(R.string.discovery_field_ip)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = isValidIpv4(ip),
+                onClick = { onSave(ip.trim()) }
+            ) {
+                Text(stringResource(R.string.common_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+        }
+    )
+}
+
+/**
+ * Light IPv4 validation for the address re-entry dialog: exactly four dotted decimal octets,
+ * each 0–255, no leading zeros. Not a full IP parser — just enough to block obvious typos.
+ */
+internal fun isValidIpv4(input: String): Boolean {
+    val parts = input.trim().split(".")
+    if (parts.size != 4) return false
+    return parts.all { part ->
+        part.isNotEmpty() && part.length <= 3 && part.all { it.isDigit() } &&
+            (part == "0" || !part.startsWith("0")) &&
+            part.toInt() < 256
+    }
 }

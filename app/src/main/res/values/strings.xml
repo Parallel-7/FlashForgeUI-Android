@@ -208,6 +208,8 @@
     <string name="discovery_saved_section">Saved Printers</string>
     <string name="discovery_network_section">Discovered on Network</string>
     <string name="discovery_connected_badge">Connected</string>
+    <string name="discovery_ready_badge">Ready</string>
+    <string name="discovery_address_title">Printer not found</string>
     <string name="discovery_info_cd">Printer Info</string>
     <string name="discovery_connect_to">Connect to %1$s</string>
     <string name="discovery_manual_serial_hint">This printer reports no serial number. Enter the one shown on the printer.</string>

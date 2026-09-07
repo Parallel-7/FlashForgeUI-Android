@@ -5,6 +5,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import me.ghost.ffui.notifications.PrinterNotifier
+import me.ghost.ffui.api.UdpDiscovery
 import me.ghost.ffui.service.PrinterMonitorService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -65,6 +67,20 @@ class PrinterSessionManager(
     ) { map, serial ->
         serial?.let { map[it] }
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Serials with a discovery-resolution currently in flight; guards double-taps (main-thread confined). */
+    private val resolvingAddresses = mutableSetOf<String>()
+
+    private val _needsAddress = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * Serials whose *user-tapped* connect missed discovery AND then failed on the saved address at
+     * the transport level (host unreachable — not an auth rejection, not a firmware error envelope).
+     * The Printers tab renders an address-only re-entry dialog for these. Cleared when the address
+     * is updated, the dialog is dismissed, or the session connects after all. Background reconnects
+     * (startup / sticky restart) never arm it.
+     */
+    val needsAddressSerials: StateFlow<Set<String>> = _needsAddress
 
     // ---- Hot snapshots of the settings that gate background behaviour ----
     // Kept as plain fields (not just flows) so synchronous callers — onCleared, evaluateService,
@@ -137,9 +153,11 @@ class PrinterSessionManager(
                 val serials = settings.lastConnectedSerials.first()
                 val lastActive = settings.lastActiveSerial.first()
                 for (serial in serials) {
-                    repository.getPrinter(serial)?.let { connectToPrinter(it) }
+                    repository.getPrinter(serial)?.let { connectToPrinter(it, activate = false) }
                 }
-                if (lastActive != null && _sessions.value.containsKey(lastActive)) {
+                // Sessions land asynchronously (address resolution first), so the tab is restored
+                // from the persisted set rather than the not-yet-populated sessions map.
+                if (lastActive != null && serials.contains(lastActive)) {
                     setActive(lastActive)
                 }
             }
@@ -153,9 +171,11 @@ class PrinterSessionManager(
                 val serials = settings.lastConnectedSerials.first()
                 val lastActive = settings.lastActiveSerial.first()
                 for (serial in serials) {
-                    repository.getPrinter(serial)?.let { connectToPrinter(it) }
+                    repository.getPrinter(serial)?.let { connectToPrinter(it, activate = false) }
                 }
-                if (lastActive != null && _sessions.value.containsKey(lastActive)) {
+                // Sessions land asynchronously (address resolution first), so the tab is restored
+                // from the persisted set rather than the not-yet-populated sessions map.
+                if (lastActive != null && serials.contains(lastActive)) {
                     setActive(lastActive)
                 }
             }
@@ -174,37 +194,130 @@ class PrinterSessionManager(
     fun saveAndConnect(printer: PrinterEntity) {
         scope.launch {
             repository.savePrinter(printer)
-            connectToPrinter(printer)
+            // The address was just typed in — no discovery cross-check on this path.
+            connectToPrinter(printer, resolveAddress = false)
         }
     }
 
     /**
-     * Opens a live session for [printer]. If a session for this serial already exists the call just
-     * switches the active tab to it (no duplicate connections). [deferServiceEvaluation] skips the
-     * trailing foreground-service evaluation — used by [reconnectSession] so a disconnect+connect
-     * pair doesn't stop/start the service around what is, from the user's view, one operation.
+     * Opens a live session for [printer], resolving its current address first. If a session for
+     * this serial already exists the call just switches the active tab to it (no duplicate
+     * connections). Otherwise — for a fresh connect — one short UDP discovery window (~1.5 s,
+     * early-exits the moment this serial answers) is matched by exact serial number
+     * ([ConnectionResolver]); a changed address is persisted before the session is built, so a
+     * DHCP rotation self-heals instead of leaving the saved entry pointing at a dead address.
+     * When discovery doesn't see the printer, the saved address is used as before.
+     *
+     * The session is created asynchronously, after the discovery window; [resolvingAddresses]
+     * guards against a second tap starting a second window for the same serial.
+     *
+     * @param resolveAddress false skips the discovery window (saveAndConnect just typed this IP).
+     * @param activate false leaves the active-tab choice alone (startup reconnect sets it
+     *   explicitly once it knows which persisted serial was last active).
+     * @param userInitiated true arms the needs-address prompt: when discovery missed *and* the
+     *   saved address then fails at the transport level, the serial is surfaced in
+     *   [needsAddressSerials] exactly once.
      */
-    fun connectToPrinter(printer: PrinterEntity, deferServiceEvaluation: Boolean = false) {
+    fun connectToPrinter(
+        printer: PrinterEntity,
+        resolveAddress: Boolean = true,
+        activate: Boolean = true,
+        userInitiated: Boolean = false
+    ) {
         if (_sessions.value.containsKey(printer.serialNumber)) {
             setActive(printer.serialNumber)
             return
         }
-        val session = ActivePrinterSession(
-            initialPrinter = printer,
-            appContext = appContext,
-            scope = scope,
-            onIdentity = { pid, firmware, cameraUrl ->
-                repository.updateIdentity(printer.serialNumber, pid, firmware, cameraUrl)
-            },
-            onEvent = { p, event ->
-                notifier.notify(p.serialNumber, p.name, event)
+        if (!resolvingAddresses.add(printer.serialNumber)) return
+        scope.launch {
+            var entity = printer
+            var discoveryMissed = false
+            if (resolveAddress) {
+                val resolved = resolveAddressViaDiscovery(printer)
+                if (resolved != null) entity = resolved else discoveryMissed = true
             }
-        ).apply { pollFloorMs = currentFloorMs() }
-        _sessions.update { it + (printer.serialNumber to session) }
-        setActive(printer.serialNumber)
-        session.startSession()
-        persistSessionState()
-        if (!deferServiceEvaluation) evaluateService()
+            resolvingAddresses.remove(printer.serialNumber)
+            val session = ActivePrinterSession(
+                initialPrinter = entity,
+                appContext = appContext,
+                scope = scope,
+                onIdentity = { pid, firmware, cameraUrl ->
+                    repository.updateIdentity(entity.serialNumber, pid, firmware, cameraUrl)
+                },
+                onEvent = { p, event ->
+                    notifier.notify(p.serialNumber, p.name, event)
+                }
+            ).apply { pollFloorMs = currentFloorMs() }
+            _sessions.update { it + (entity.serialNumber to session) }
+            if (activate) setActive(entity.serialNumber)
+            session.startSession()
+            persistSessionState()
+            if (userInitiated && discoveryMissed) watchForAddressPrompt(entity.serialNumber, session)
+            evaluateService()
+        }
+    }
+
+    /**
+     * Runs one short discovery window and resolves [printer]'s current address by exact serial
+     * match ([ConnectionResolver]). Returns the printer updated to the discovered address —
+     * persisted via [PrinterRepository.updateAddress] when it changed — or `null` when the window
+     * didn't see the serial (the caller falls back to the saved address). Discovery and the DB
+     * write run on `Dispatchers.IO` inside [UdpDiscovery] / Room. A discovery failure of any kind
+     * also yields `null`: resolution must never block a connect.
+     */
+    private suspend fun resolveAddressViaDiscovery(printer: PrinterEntity): PrinterEntity? {
+        val found = UdpDiscovery.discoverQuick(appContext, printer.serialNumber)
+        val ip = ConnectionResolver.resolve(printer.serialNumber, found) ?: return null
+        if (ip == printer.ipAddress) return printer
+        repository.updateAddress(printer.serialNumber, ip)
+        return printer.copy(ipAddress = ip)
+    }
+
+    /**
+     * Arms the needs-address prompt for a user-tapped connect that missed discovery: when the
+     * session's first non-connecting state is a transport-level [ConnectionState.Offline] (the
+     * saved address is unreachable), the serial is surfaced in [needsAddressSerials] exactly
+     * once; the poll loop's later retry ticks never re-fire it. The watch ends when the session
+     * leaves the sessions map (reconnect/disconnect), and the serial is cleared if the session
+     * connects after all.
+     */
+    private fun watchForAddressPrompt(serial: String, session: ActivePrinterSession) {
+        scope.launch {
+            var prompted = false
+            combine(session.connectionState, sessions) { state, live ->
+                state to (live[serial] === session)
+            }.takeWhile { (_, alive) -> alive }.collect { (state, _) ->
+                when {
+                    !prompted && state is ConnectionState.Offline && state.transportFailure -> {
+                        prompted = true
+                        _needsAddress.update { it + serial }
+                    }
+                    prompted && state is ConnectionState.Connected ->
+                        _needsAddress.update { it - serial }
+                }
+            }
+        }
+    }
+
+    /**
+     * Persists a user-supplied address for a printer whose saved address went dead, clears the
+     * prompt, and reconnects. The live session (if any) was built against the old address, so it
+     * is torn down and rebuilt from the updated row. The fresh connect re-runs address resolution,
+     * so a wrong entry fails the same way and prompts again.
+     */
+    fun updateAddressAndReconnect(serial: String, ipAddress: String) {
+        scope.launch {
+            repository.updateAddress(serial, ipAddress)
+            _needsAddress.update { it - serial }
+            disconnect(serial, deferServiceEvaluation = true)
+            repository.getPrinter(serial)?.let { connectToPrinter(it, userInitiated = true) }
+            evaluateService()
+        }
+    }
+
+    /** Consumes the address prompt for [serial] without changing anything (dialog dismissed). */
+    fun dismissNeedsAddress(serial: String) {
+        _needsAddress.update { it - serial }
     }
 
     /**
@@ -261,7 +374,7 @@ class PrinterSessionManager(
             val wasActive = _activeSerial.value == serial
             disconnect(serial, deferServiceEvaluation = true)
             repository.getPrinter(serial)?.let { entity ->
-                connectToPrinter(entity, deferServiceEvaluation = true)
+                connectToPrinter(entity)
                 if (wasActive) setActive(serial)
             }
             evaluateService()
@@ -302,7 +415,10 @@ class PrinterSessionManager(
      * from the UI), so the Android 12+ background-start restriction never applies.
      */
     private fun evaluateService() {
-        if (backgroundEnabled && _sessions.value.isNotEmpty()) {
+        // In-flight address resolutions count as live here: each will add a session in a moment,
+        // so a disconnect+connect pair (or a reconnect) must not stop the service in the gap
+        // between the old session's removal and the new session landing.
+        if (backgroundEnabled && (_sessions.value.isNotEmpty() || resolvingAddresses.isNotEmpty())) {
             PrinterMonitorService.start(appContext)
         } else {
             PrinterMonitorService.stop(appContext)

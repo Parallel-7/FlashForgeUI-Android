@@ -56,6 +56,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** The session the user is currently looking at. */
     val activeSession: StateFlow<ActivePrinterSession?> get() = sessionManager.activeSession
 
+    /**
+     * Serials whose user-tapped connect missed discovery and then failed on the saved address
+     * (transport-level). The Printers tab shows an address re-entry dialog for these.
+     */
+    val needsAddressSerials: StateFlow<Set<String>> get() = sessionManager.needsAddressSerials
+
     init {
         // Reconnect previously-connected printers when the UI opens (per the startup-reconnect
         // setting). Idempotent against any sessions the manager already holds.
@@ -83,7 +89,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun saveAndConnect(printer: PrinterEntity) = sessionManager.saveAndConnect(printer)
 
-    fun connectToPrinter(printer: PrinterEntity) = sessionManager.connectToPrinter(printer)
+    /** User-tapped connect: arms the needs-address prompt when the saved address turns out dead. */
+    fun connectToPrinter(printer: PrinterEntity) =
+        sessionManager.connectToPrinter(printer, userInitiated = true)
+
+    /** Saves a user-supplied address for an unreachable printer and reconnects it. */
+    fun updatePrinterAddress(serial: String, ipAddress: String) =
+        sessionManager.updateAddressAndReconnect(serial, ipAddress)
+
+    /** Dismisses the address re-entry dialog for [serial] without changing anything. */
+    fun dismissAddressPrompt(serial: String) = sessionManager.dismissNeedsAddress(serial)
 
     fun disconnect(serial: String) = sessionManager.disconnect(serial)
 

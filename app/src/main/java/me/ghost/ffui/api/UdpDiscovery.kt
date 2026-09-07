@@ -57,7 +57,35 @@ object UdpDiscovery {
         return DiscoveredPrinter(ip, nameStr, serial, isModern, cmdPort, httpPort)
     }
 
+    /**
+     * Full network scan: up to 3 probe rounds of ~3 s each (1 s pause between), returning early
+     * once anything answers. Used for the "refresh" action on the Printers tab.
+     */
     suspend fun discover(context: Context): List<DiscoveredPrinter> = withContext(Dispatchers.IO) {
+        scan(context, retries = 2, listenMsPerRound = 3000, targetSerial = null)
+    }
+
+    /**
+     * One short (~1.5 s) probe round for connect-time address resolution: sends the same probe
+     * burst once, listens for [listenMs], and returns early the moment [targetSerial] answers (a
+     * printer that is actually on the network typically replies in well under a second). Returns
+     * an empty list when the target wasn't seen — the caller then falls back to the saved address.
+     * Same probes and parser as [discover]; only the retry/window policy differs.
+     */
+    suspend fun discoverQuick(
+        context: Context,
+        targetSerial: String,
+        listenMs: Long = 1500
+    ): List<DiscoveredPrinter> = withContext(Dispatchers.IO) {
+        scan(context, retries = 0, listenMsPerRound = listenMs, targetSerial = targetSerial)
+    }
+
+    private suspend fun scan(
+        context: Context,
+        retries: Int,
+        listenMsPerRound: Long,
+        targetSerial: String?
+    ): List<DiscoveredPrinter> {
         val printers = mutableListOf<DiscoveredPrinter>()
         val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
         val multicastLock = wifiManager?.createMulticastLock("FlasherMulticastLock")
@@ -95,8 +123,8 @@ object UdpDiscovery {
             val receiveBuf = ByteArray(512)
             val receivePacket = DatagramPacket(receiveBuf, receiveBuf.size)
 
-            // We do 3 retries
-            for (retry in 0..2) {
+            // We do 3 retries for the full scan; the quick connect-time scan does one round
+            for (retry in 0..retries) {
                 targets.forEach { (ip, port) ->
                     try {
                         val addr = InetAddress.getByName(ip)
@@ -107,9 +135,10 @@ object UdpDiscovery {
                     }
                 }
 
-                // Listen for up to 3 seconds for this retry round
-                val endTime = System.currentTimeMillis() + 3000
-                while (System.currentTimeMillis() < endTime) {
+                // Listen for up to listenMsPerRound for this retry round
+                val endTime = System.currentTimeMillis() + listenMsPerRound
+                var targetSeen = false
+                while (!targetSeen && System.currentTimeMillis() < endTime) {
                     try {
                         // Reset the packet length before EVERY receive: receive() caps writes at
                         // packet.getLength() (the PREVIOUS packet's size) and never grows it back,
@@ -130,6 +159,10 @@ object UdpDiscovery {
                             printers.remove(existing)
                             printers.add(parsed)
                         }
+                        // Quick-scan early exit: stop the moment the printer being resolved answers.
+                        if (targetSerial != null && parsed.serialNumber == targetSerial) {
+                            targetSeen = true
+                        }
                     } catch (e: SocketTimeoutException) {
                         break
                     } catch (e: Exception) {
@@ -140,11 +173,11 @@ object UdpDiscovery {
                     }
                 }
                 
-                if (printers.isNotEmpty()) {
+                if (printers.isNotEmpty() || targetSeen) {
                     break // Early exit
                 }
-                
-                if (retry < 2) delay(1000)
+
+                if (retry < retries) delay(1000)
             }
         } catch (e: Exception) {
             Log.e(TAG, "discovery round failed", e)
@@ -159,8 +192,8 @@ object UdpDiscovery {
                 multicastLock.release()
             }
         }
-        
-        printers
+
+        return printers
     }
 }
 

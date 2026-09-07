@@ -33,6 +33,9 @@ interface PrinterDao {
     )
     suspend fun updateIdentity(serialNumber: String, pid: Int?, firmware: String?, cameraUrl: String?)
 
+    @Query("UPDATE printers SET ipAddress = :ip WHERE serialNumber = :serialNumber")
+    suspend fun updateAddress(serialNumber: String, ip: String)
+
     @Query("DELETE FROM printers WHERE serialNumber = :serialNumber")
     suspend fun delete(serialNumber: String)
 }

@@ -45,6 +45,12 @@ class PrinterRepository(private val dao: PrinterDao) {
     /** Persists identity/capability fields learned from the first successful /detail. */
     suspend fun updateIdentity(serialNumber: String, pid: Int?, firmware: String?, cameraUrl: String?) =
         dao.updateIdentity(serialNumber, pid, firmware, cameraUrl)
+
+    /**
+     * Persists a freshly resolved address (discovery-first connect or the address-retry dialog).
+     * Narrow on purpose — a new IP must not touch identity/capability fields.
+     */
+    suspend fun updateAddress(serialNumber: String, ip: String) = dao.updateAddress(serialNumber, ip)
 }
 
 /**
@@ -67,8 +73,10 @@ sealed interface ConnectionState {
     data object Connecting : ConnectionState
     /** Polling successfully. */
     data object Connected : ConnectionState
-    /** Transient network failure; the poll loop keeps retrying. */
-    data class Offline(val reason: String?) : ConnectionState
+    /** Transient network failure; the poll loop keeps retrying. [transportFailure] is true only
+     * for connection-level failures (unreachable host, timeouts) — the printer answered nothing.
+     * A firmware error envelope is NOT a transport failure: the address is fine. */
+    data class Offline(val reason: String?, val transportFailure: Boolean = false) : ConnectionState
     /** Credentials were rejected by the printer; retrying won't help. */
     data class AuthFailed(val reason: String?) : ConnectionState
 }
@@ -338,7 +346,8 @@ class ActivePrinterSession(
             } else {
                 e.message
             }
-            _connectionState.value = ConnectionState.Offline(reason)
+            _connectionState.value =
+                ConnectionState.Offline(reason, transportFailure = e !is ApiErrorException)
         }
     }
 

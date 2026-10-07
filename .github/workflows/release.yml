@@ -41,8 +41,6 @@ jobs:
 
       - name: Set up build
         uses: ./.github/actions/setup-build
-        with:
-          ffapi-token: ${{ secrets.FFAPI_REPO_TOKEN || github.token }}
 
       - name: Unit tests
         run: ./gradlew test --console=plain

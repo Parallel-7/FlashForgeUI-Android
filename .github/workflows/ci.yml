@@ -23,12 +23,8 @@ jobs:
       - name: Check out app
         uses: actions/checkout@v5
 
-      # While the library repo is private this needs an FFAPI_REPO_TOKEN secret (a fine-grained
-      # token with read access to GhostTypes/ff-5mp-api-kt). Once it is public, the default token works.
       - name: Set up build
         uses: ./.github/actions/setup-build
-        with:
-          ffapi-token: ${{ secrets.FFAPI_REPO_TOKEN || github.token }}
 
       - name: Unit tests
         run: ./gradlew test --console=plain

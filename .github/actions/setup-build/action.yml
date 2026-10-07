@@ -3,11 +3,6 @@ description: >
   JDK 25 + Gradle, the pinned ff-5mp-api-kt tag published to mavenLocal, and a throwaway debug
   keystore. Run after checking out the app.
 
-inputs:
-  ffapi-token:
-    description: Token with read access to GhostTypes/ff-5mp-api-kt (the default token works once it is public).
-    required: true
-
 runs:
   using: composite
   steps:
@@ -27,7 +22,6 @@ runs:
         repository: GhostTypes/ff-5mp-api-kt
         ref: v${{ steps.ffapi.outputs.version }}
         path: ff-5mp-api-kt
-        token: ${{ inputs.ffapi-token }}
 
     - name: Set up JDK 25
       uses: actions/setup-java@v5

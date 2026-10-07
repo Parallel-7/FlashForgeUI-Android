@@ -3,7 +3,8 @@
 Native Android (Kotlin + Jetpack Compose) app for LAN monitoring and control of FlashForge
 printers: Adventurer 5M / 5M Pro / AD5X, Creator 5 / 5 Pro, and partial (status-only) Adventurer
 3/4. Port of the desktop [FlashForgeUI-Electron](https://github.com/GhostTypes/FlashForgeUI-Electron)
-app. Single module `:app`, package `me.ghost.ffui` (namespace + applicationId). Pre-release beta.
+app. Single module `:app`, package `me.ghost.ffui` (namespace + applicationId). **Public repo** in
+beta (first release `v1.1.0-beta1`, 2026-10-07) — anything committed is visible to everyone.
 
 User docs: `README.md`. Build setup for humans: `DEVELOPING.md`.
 
@@ -54,8 +55,7 @@ Gradle wrapper **9.3.1** (required by AGP 9.1.1) on **JDK 25**. Shell is PowerSh
 - Fresh machine can't resolve the library → publish it to mavenLocal first (above).
 - **CI** (`.github/workflows/ci.yml`, shared setup in `.github/actions/setup-build`): checks out the
   library at tag `v<pinned version>`, publishes it to mavenLocal, then runs `test` + `assembleDebug`.
-  A library pin bump therefore needs a matching pushed library tag. While the library is private,
-  CI needs the `FFAPI_REPO_TOKEN` secret.
+  A library pin bump therefore needs a matching pushed library tag.
 - **Releases** (`.github/workflows/release.yml`): bump `versionName` (and `versionCode`), commit,
   then push tag `v<versionName>` (e.g. `v1.1.0-beta1`). CI checks the tag matches, builds signed
   APKs from the `RELEASE_KEYSTORE_BASE64` / `RELEASE_STORE_PASSWORD` / `RELEASE_KEY_PASSWORD`

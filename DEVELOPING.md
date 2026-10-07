@@ -7,7 +7,7 @@ This guide is for developers. If you want to install and use the app, read the
 
 A native Android app (Kotlin + Jetpack Compose, single `:app` module, package
 `me.ghost.ffui`) that monitors and controls FlashForge 3D printers over the local
-network. All printer protocol logic lives in a separate private library,
+network. All printer protocol logic lives in a separate library,
 [`ff-5mp-api-kt`](https://github.com/GhostTypes/ff-5mp-api-kt) (`me.ghost:ff-5mp-api-kt`),
 not in this repo.
 

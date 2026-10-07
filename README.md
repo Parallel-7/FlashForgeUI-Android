@@ -65,6 +65,12 @@ If you own an untested model, your feedback is especially valuable.
 2. Open the file on your phone and tap **Install**. Android may ask you to allow installs from
    your browser or file manager first.
 
+Release APKs are signed with this certificate (SHA-256), so you can check a download is genuine:
+
+```
+BB:B0:E6:65:57:47:E2:B1:DF:83:04:99:5B:07:84:D2:13:BE:63:77:4C:91:27:76:68:DC:8A:B7:01:61:29:4E
+```
+
 ## Getting started
 
 1. Open the app and go to the **Printers** tab. It scans your network automatically.

@@ -23,46 +23,12 @@ jobs:
       - name: Check out app
         uses: actions/checkout@v5
 
-      # The app consumes the ff-5mp-api-kt protocol library from mavenLocal, so build the exact
-      # tagged version the app pins and publish it locally first.
-      - name: Read pinned library version
-        id: ffapi
-        run: |
-          version=$(grep -oP 'me\.ghost:ff-5mp-api-kt:\K[0-9][0-9.]*' app/build.gradle.kts)
-          echo "Pinned ff-5mp-api-kt: $version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
       # While the library repo is private this needs an FFAPI_REPO_TOKEN secret (a fine-grained
       # token with read access to GhostTypes/ff-5mp-api-kt). Once it is public, the default token works.
-      - name: Check out ff-5mp-api-kt
-        uses: actions/checkout@v5
+      - name: Set up build
+        uses: ./.github/actions/setup-build
         with:
-          repository: GhostTypes/ff-5mp-api-kt
-          ref: v${{ steps.ffapi.outputs.version }}
-          path: ff-5mp-api-kt
-          token: ${{ secrets.FFAPI_REPO_TOKEN || github.token }}
-
-      - name: Set up JDK 25
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '25'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v5
-
-      - name: Publish ff-5mp-api-kt to mavenLocal
-        working-directory: ff-5mp-api-kt
-        run: |
-          chmod +x gradlew
-          ./gradlew :ffapi:publishToMavenLocal --console=plain
-
-      # The debug signing config expects a repo-root keystore (gitignored); generate a throwaway one.
-      - name: Create debug keystore
-        run: |
-          keytool -genkeypair -keystore debug.keystore -storepass android -alias androiddebugkey \
-            -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US" -noprompt
+          ffapi-token: ${{ secrets.FFAPI_REPO_TOKEN || github.token }}
 
       - name: Unit tests
         run: ./gradlew test --console=plain

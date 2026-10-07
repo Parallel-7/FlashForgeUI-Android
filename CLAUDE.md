@@ -52,9 +52,16 @@ Gradle wrapper **9.3.1** (required by AGP 9.1.1) on **JDK 25**. Shell is PowerSh
   (regen command in `DEVELOPING.md`). Release signing reads `KEYSTORE_PATH` / `STORE_PASSWORD` /
   `KEY_PASSWORD`; without them the release APK is unsigned. R8 is off.
 - Fresh machine can't resolve the library → publish it to mavenLocal first (above).
-- **CI** (`.github/workflows/ci.yml`): checks out the library at tag `v<pinned version>`, publishes it
-  to mavenLocal, then runs `test` + `assembleDebug`. A library pin bump therefore needs a matching
-  pushed library tag. Until the library is public, CI needs the `FFAPI_REPO_TOKEN` secret.
+- **CI** (`.github/workflows/ci.yml`, shared setup in `.github/actions/setup-build`): checks out the
+  library at tag `v<pinned version>`, publishes it to mavenLocal, then runs `test` + `assembleDebug`.
+  A library pin bump therefore needs a matching pushed library tag. While the library is private,
+  CI needs the `FFAPI_REPO_TOKEN` secret.
+- **Releases** (`.github/workflows/release.yml`): bump `versionName` (and `versionCode`), commit,
+  then push tag `v<versionName>` (e.g. `v1.1.0-beta1`). CI checks the tag matches, builds signed
+  APKs from the `RELEASE_KEYSTORE_BASE64` / `RELEASE_STORE_PASSWORD` / `RELEASE_KEY_PASSWORD`
+  secrets, fails unless the cert SHA-256 matches the one pinned in the workflow, and opens a
+  **draft** release (prerelease when the version has a `-suffix`). The maintainer publishes it.
+  The release key lives outside the repo; never commit it.
 - `scripts/seed_printers.py` / `scripts/emulator-printers.ps1` re-pair printers into the emulator
   after a DB wipe via the debug-only `DebugPrinterSeeder` intent extra. Check-codes live in the
   gitignored `scripts/printers.local.json`.

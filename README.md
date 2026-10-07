@@ -1,244 +1,113 @@
-<div align="center">
-  <h1>FlashForgeUI</h1>
-  <p>Monitor and control your FlashForge 3D printer from your Android phone.</p>
-</div>
-
 <p align="center">
-  <a href="#about">About</a> ·
-  <a href="#supported-printers">Supported printers</a> ·
-  <a href="#features">Features</a> ·
-  <a href="#requirements">Requirements</a> ·
-  <a href="#install">Install</a> ·
-  <a href="#first-setup">First setup</a> ·
-  <a href="#daily-use">Daily use</a> ·
-  <a href="#multiple-printers">Multiple printers</a> ·
-  <a href="#alerts">Alerts</a> ·
-  <a href="#spools-and-nfc-tags">Spools and NFC tags</a> ·
-  <a href="#troubleshooting">Troubleshooting</a> ·
-  <a href="#privacy">Privacy</a> ·
-  <a href="#for-developers">For developers</a>
+  <img src="docs/icon.png" alt="FlashForgeUI icon" width="96">
 </p>
 
-<div align="center">
-  <h2>About</h2>
-</div>
+<h1 align="center">FlashForgeUI for Android</h1>
 
-<div align="center">
-<p>FlashForgeUI is an Android app for FlashForge 3D printers. It shows the printer status and lets you control the printer from your phone. The app works on your Wi-Fi network. It is a test build.</p>
-<p><i>FlashForgeUI is a community project. FlashForge does not make this app.</i></p>
-</div>
+<p align="center">
+  Monitor and control FlashForge 3D printers from your phone, over your local Wi-Fi.
+</p>
 
-<div align="center">
-  <h2>Supported printers</h2>
-</div>
+<p align="center">
+  <b>Beta.</b> Expect rough edges, and please <a href="https://github.com/Parallel-7/FlashForgeUI-Android/issues">report what you find</a>.
+</p>
 
-<div align="center">
-<table>
-  <tr>
-    <th>Printer</th>
-    <th>Support</th>
-  </tr>
-  <tr>
-    <td>Adventurer 5M</td>
-    <td>Full</td>
-  </tr>
-  <tr>
-    <td>Adventurer 5M Pro</td>
-    <td>Full</td>
-  </tr>
-  <tr>
-    <td>AD5X</td>
-    <td>Full</td>
-  </tr>
-  <tr>
-    <td>Creator 5</td>
-    <td>Full</td>
-  </tr>
-  <tr>
-    <td>Creator 5 Pro</td>
-    <td>Full</td>
-  </tr>
-  <tr>
-    <td>Adventurer 3 and Adventurer 4</td>
-    <td>Partial. The app shows the printer status.</td>
-  </tr>
-</table>
-</div>
+---
 
-<div align="center">
-  <h2>Features</h2>
-</div>
+FlashForgeUI is a native Android companion to the desktop
+[FlashForgeUI](https://github.com/Parallel-7/FlashForgeUI-Electron) app. It talks to your
+printer directly on your home network, with no cloud, no account and no FlashForge app required.
 
-<div align="center">
+> FlashForgeUI is a community project. It is not made or endorsed by FlashForge.
 
-| Feature | What it does |
-|---------|--------------|
-| Printer search | The app finds FlashForge printers on your Wi-Fi network by itself. |
-| Live dashboard | See the nozzle and bed temperature, the print progress, the time left, and the print time. |
-| Print control | Start, pause, resume, and stop prints. |
-| Temperature control | Set the nozzle, bed, and chamber temperature. |
-| Camera | Watch your print live. Open the view in full screen. |
-| Material station (AD5X) | Set the material and the color of each slot. |
-| Filament palette (Creator 5) | Set the filament for each position. |
-| Files | Browse the files on the printer. Start a print from the list. |
-| Several printers | Watch many printers at the same time. Each printer gets its own tab. |
-| Alerts | Get an alert when a print finishes, when the bed cools down, or when a print stops with an error. |
-| Spoolman and NFC tags | Browse your Spoolman spool list. Write NFC tags for spools and storage boxes. |
+## Supported printers
 
-</div>
+| Printer | Status |
+|---|---|
+| Adventurer 5M Pro | ✅ Tested |
+| AD5X | ✅ Tested |
+| Adventurer 5M | Should work (shares the 5M Pro code path), not yet tested |
+| Creator 5 / Creator 5 Pro | 🧪 Experimental. Built but never tested on a real printer |
+| Adventurer 3 / Adventurer 4 | 🧪 Experimental. Status monitoring only |
 
-<div align="center">
-  <h2>Requirements</h2>
-</div>
+If you own an untested model, your feedback is especially valuable.
 
-<div align="center">
+## Features
 
-| You need | Details |
-|----------|---------|
-| **Phone** | Android 8.0 or newer |
-| **Network** | Phone and printer on the same Wi-Fi network |
-| **Printer access code** | Shown on the printer screen. You need it for full control. |
+- **Auto-discovery.** Finds FlashForge printers on your network automatically, and follows a
+  printer if its IP address changes.
+- **Live dashboard.** Temperatures, progress, layer, time remaining and the current file's thumbnail.
+- **Print control.** Pause, resume and stop, with a confirmation before stopping.
+- **Temperature, homing and lights.** Set nozzle, bed and (where present) chamber temperatures.
+- **Camera.** Live view of the printer camera, with tap-to-fullscreen. Custom camera URLs are supported.
+- **Files.** Browse the printer's files and start a print, with material matching on the AD5X.
+- **Material station.** View and edit AD5X IFS slots (material and color).
+- **Air filtration.** Controls and air-quality readout on the 5M Pro.
+- **Multiple printers.** Connect several at once, each in its own swipeable tab.
+- **Alerts.** Notifications when a print finishes, when the bed has cooled and the print is safe to
+  remove, or when the printer reports an error. Optionally keeps watching in the background.
+- **Spoolman.** Browse, search and edit your [Spoolman](https://github.com/Donkie/Spoolman)
+  filament inventory and log usage by hand.
+- **NFC spool tags.** Write NFC tags for spools and storage boxes. Scan a spool tag to jump to it,
+  or to load its material and color into an AD5X material-station slot.
 
-</div>
+## Requirements
 
-<div align="center">
-  <h2>Install</h2>
-</div>
+- Android 8.0 or newer.
+- Phone and printer on the same local network.
+- For 5M-series and newer printers: **LAN-only mode** enabled on the printer, plus its check code.
+  See [Pairing your printer](https://github.com/Parallel-7/FlashForgeUI-Electron/wiki/1.-Pairing-your-printer).
 
-<div align="center">
-<p>The app is in test. You install it from an APK file.</p>
-</div>
+## Install
 
-1. Copy the APK file to your phone.
-2. Open the file.
-3. Select **Install**.
+1. Download the APK from the [Releases](https://github.com/Parallel-7/FlashForgeUI-Android/releases) page.
+   Most phones need the **`arm64-v8a`** APK. Use `armeabi-v7a` only on older 32-bit phones.
+2. Open the file on your phone and tap **Install**. Android may ask you to allow installs from
+   your browser or file manager first.
 
-<div align="center">
-<p><i>Android can ask you to allow installs from your file app. Allow this when it asks.</i></p>
-<p><i>Most phones use the `arm64-v8a` APK.</i></p>
-</div>
+## Getting started
 
-<div align="center">
-  <h2>First setup</h2>
-</div>
+1. Open the app and go to the **Printers** tab. It scans your network automatically.
+2. Tap your printer and enter its check code.
+3. Tap **Connect**. The dashboard opens with live status.
 
-<div align="center">
-<p>Add your printer one time. The app finds printers on your Wi-Fi network by itself.</p>
-</div>
+The app reconnects to your printers the next time you open it (configurable in **Settings**).
 
-1. Open the app.
-2. Wait until the scan ends.
-3. Select your printer in the list.
-4. Type the printer access code.
-5. Select **Connect**.
+### Background alerts
 
-<div align="center">
-<p><i>You find the printer access code on the printer screen.</i></p>
-</div>
+To get alerts while the app is closed, turn on **Settings → Keep monitoring in background** and
+allow notifications. When the app asks, also allow background activity. Without it, many phones
+pause the app to save battery and alerts stop.
 
-<div align="center">
-  <h2>Daily use</h2>
-</div>
+### Spoolman and NFC
 
-<div align="center">
+Turn on **Settings → Spoolman**, enter your Spoolman server address (for example
+`http://192.168.1.50:7912`) and tap **Test connection**. A **Spools** tab appears. If your phone
+has NFC, enable **NFC tags** in the same screen to read and write spool and box tags.
 
-### Watch a print
+## Troubleshooting
 
-</div>
+| Problem | Try this |
+|---|---|
+| Printer doesn't show up | Make sure the phone and printer are on the same network (not a guest network). Some routers block discovery; you can still add the printer by IP. |
+| "Authentication failed" | Re-check the serial number and check code, and that LAN-only mode is on. |
+| "Not in LAN mode" | Enable LAN-only mode on the printer's network settings. |
+| Printer moved to a new IP | Reconnect from the Printers tab. If it can't be found, the app asks for the new address. |
+| Alerts stop when the app is closed | Enable background monitoring and allow background activity (see above). |
 
-The dashboard shows your printer at work. You see the nozzle and bed temperature, the print progress, the time left, and the print time.
+## Privacy
 
-<div align="center">
+Everything stays on your local network. The app has no account, no analytics and no cloud
+service. Saved printers are stored on your phone and included in your normal Android backup so
+they move with you to a new phone.
 
-### Control temperatures
+## Contributing
 
-</div>
+Bug reports and feedback are welcome via [Issues](https://github.com/Parallel-7/FlashForgeUI-Android/issues).
+Please include your printer model, firmware version and Android version.
 
-You can set the nozzle, bed, and chamber temperature. Select a temperature on the dashboard and type the new value.
+To build from source, see [DEVELOPING.md](DEVELOPING.md).
 
-<div align="center">
+## License
 
-### Stop or pause a print
-
-</div>
-
-You can pause, resume, and stop a print from the dashboard. The app asks you to confirm before it stops a print.
-
-<div align="center">
-
-### Camera
-
-</div>
-
-The dashboard shows a live view from the printer camera. Select the view to open it in full screen.
-
-<div align="center">
-
-### Filament slots
-
-</div>
-
-On the AD5X, you set the material and the color of each material station slot. On the Creator 5, you set the filament for each position of the palette.
-
-<div align="center">
-  <h2>Multiple printers</h2>
-</div>
-
-<div align="center">
-<p>You can connect more than one printer. Each printer gets its own tab on the dashboard. Select a tab or swipe to change the printer.</p>
-</div>
-
-<div align="center">
-  <h2>Alerts</h2>
-</div>
-
-<div align="center">
-<p>The app can keep watch in the background. It sends you an alert when:</p>
-</div>
-
-- A print finishes.
-- The bed cools down.
-- A print stops with an error.
-
-<div align="center">
-<p><i>The app needs permission to show notifications.</i></p>
-</div>
-
-<div align="center">
-  <h2>Spools and NFC tags</h2>
-</div>
-
-<div align="center">
-<p>The app can connect to Spoolman. Spoolman is a program that keeps a list of your filament spools. You browse the spool list in the app. You can also write NFC tags for spools and storage boxes. Scan a tag to find the spool in the list fast.</p>
-</div>
-
-<div align="center">
-  <h2>Troubleshooting</h2>
-</div>
-
-<div align="center">
-
-| Problem | What to do |
-|---------|------------|
-| **Printer not found** | Check that your phone and your printer use the same Wi-Fi network. |
-| **Connection drops** | Keep the phone near the router. Or turn off battery saving for the app. |
-| **No alerts** | Allow notifications for the app. |
-| **Wrong temperatures shown** | Pull down to refresh the data. |
-
-</div>
-
-<div align="center">
-  <h2>Privacy</h2>
-</div>
-
-<div align="center">
-<p>The app works on your local Wi-Fi network only. It needs no account. It sends no data to a cloud service. Your printer settings stay on your device.</p>
-</div>
-
-<div align="center">
-  <h2>For developers</h2>
-</div>
-
-<div align="center">
-<p>See <a href="DEVELOPING.md">DEVELOPING.md</a> for build instructions and technical details.</p>
-</div>
+[Apache 2.0](LICENSE). Third-party components are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

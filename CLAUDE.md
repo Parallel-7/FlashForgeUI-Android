@@ -11,11 +11,8 @@ User docs: `README.md`. Build setup for humans: `DEVELOPING.md`.
 
 - **Commit and push straight to `main`** — sole maintainer; no feature branches or PRs unless
   asked. Still only commit/push when asked.
-- **Before the repo goes public:** `.build-outputs/app-debug.apk` (19 MB, commits `e927d16`,
-  `532f577`) and the tracked, unused `debug.keystore.base64` are in history. Purge with
-  `git filter-repo --path .build-outputs/app-debug.apk --path debug.keystore.base64 --invert-paths`
-  + `git push --force` (rewrites SHAs, deletes no commits). Remind the maintainer when publishing
-  comes up; never run it unprompted. Delete this bullet once done.
+- Remote: `Parallel-7/FlashForgeUI-Android`. History was rewritten on 2026-10-07 to purge an old
+  APK and keystore blob — any clone from before then must be re-cloned, not pulled.
 
 ## Protocol code lives in `ff-5mp-api-kt` — never re-implement it here
 
@@ -156,6 +153,9 @@ me.ghost.ffui
 - Nothing is "done" until exercised on real hardware — keep the table below honest.
 
 ## Verification status
+
+The maintainer uses the app day-to-day on a real **5M Pro** and **AD5X**; the rows below record
+what has been specifically exercised. The README's printer table must stay consistent with this.
 
 | Area | Status |
 |---|---|

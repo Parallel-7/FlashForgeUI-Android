@@ -24,13 +24,6 @@ The following are licensed under the Apache License 2.0
 - OkHttp
 - Robolectric / Roborazzi (test-only)
 
-## Vendored documentation
-
-- `docs/spoolman/` contains documentation copied from the
-  [Spoolman](https://github.com/Donkie/Spoolman) project for integration reference.
-  Spoolman is not bundled with, or called by, the app build beyond the REST client
-  in `api/SpoolmanApi.kt`.
-
 ## License of this project
 
 See [LICENSE](LICENSE).

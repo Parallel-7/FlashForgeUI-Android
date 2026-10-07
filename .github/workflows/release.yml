@@ -47,15 +47,27 @@ jobs:
       - name: Unit tests
         run: ./gradlew test --console=plain
 
+      # Tolerates line breaks, CRs and PEM-style header lines in the secret; on failure it reports
+      # only lengths and counts, never the secret itself.
       - name: Decode release keystore
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
         run: |
           if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
             echo "::error::RELEASE_KEYSTORE_BASE64 secret is not set"
             exit 1
           fi
-          echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          b64=$(printf '%s' "$RELEASE_KEYSTORE_BASE64" | grep -v -- '-----' | tr -d ' \t\r\n')
+          if ! printf '%s' "$b64" | base64 -d > "$RUNNER_TEMP/release.jks" 2>/dev/null; then
+            bad=$(printf '%s' "$b64" | tr -d 'A-Za-z0-9+/=' | wc -c)
+            echo "::error::RELEASE_KEYSTORE_BASE64 is not valid base64: ${#b64} chars after trimming, $bad outside the base64 alphabet. Re-set it from the .jks file."
+            exit 1
+          fi
+          if ! keytool -list -keystore "$RUNNER_TEMP/release.jks" -storepass "$STORE_PASSWORD" -alias upload > /dev/null 2>&1; then
+            echo "::error::Decoded keystore ($(stat -c %s "$RUNNER_TEMP/release.jks") bytes) could not be opened with RELEASE_STORE_PASSWORD, or has no 'upload' alias."
+            exit 1
+          fi
 
       - name: Build signed release APKs
         env:

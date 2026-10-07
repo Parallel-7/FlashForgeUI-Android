@@ -55,14 +55,37 @@ class TempInputClampTest {
     @Test
     fun `non-digit characters are stripped mid-entry`() {
         assertEquals("265", sanitizeTempInput("26x5", NOZZLE_MAX_TEMP))
-        assertEquals("215", sanitizeTempInput("21.5", NOZZLE_MAX_TEMP)) // decimal point stripped, digits kept
         assertEquals("200", sanitizeTempInput(" 200 ", NOZZLE_MAX_TEMP))
+    }
+
+    @Test
+    fun `a decimal point is kept, never merged into the digits`() {
+        // Regression: stripping the separator turned a typed 21.5 into 215.
+        assertEquals("21.5", sanitizeTempInput("21.5", NOZZLE_MAX_TEMP))
+        assertEquals("21.", sanitizeTempInput("21.", NOZZLE_MAX_TEMP)) // mid-entry
+        assertEquals("21.5", sanitizeTempInput("21,5", NOZZLE_MAX_TEMP)) // comma locales
+        assertEquals(".5", sanitizeTempInput(".5", NOZZLE_MAX_TEMP))
+    }
+
+    @Test
+    fun `only one separator and one fractional digit survive`() {
+        assertEquals("21.5", sanitizeTempInput("21.55", NOZZLE_MAX_TEMP))
+        assertEquals("2.1", sanitizeTempInput("2.1.5", NOZZLE_MAX_TEMP))
+    }
+
+    @Test
+    fun `decimals above the ceiling clamp to it`() {
+        assertEquals("265", sanitizeTempInput("265.5", NOZZLE_MAX_TEMP))
+        assertEquals("100", sanitizeTempInput("100.1", BED_MAX_TEMP))
+        assertEquals("265.0", sanitizeTempInput("265.0", NOZZLE_MAX_TEMP))
     }
 
     @Test
     fun `leading zeros normalize away once parseable`() {
         assertEquals("7", sanitizeTempInput("007", NOZZLE_MAX_TEMP))
         assertEquals("0", sanitizeTempInput("000", NOZZLE_MAX_TEMP))
+        assertEquals("7.5", sanitizeTempInput("007.5", NOZZLE_MAX_TEMP))
+        assertEquals("0.5", sanitizeTempInput("0.5", NOZZLE_MAX_TEMP))
     }
 
     @Test
@@ -82,9 +105,18 @@ class TempInputClampTest {
     }
 
     @Test
+    fun `set rounds a decimal to whole degrees`() {
+        assertEquals(22, clampTempValue("21.5", NOZZLE_MAX_TEMP))
+        assertEquals(21, clampTempValue("21.4", NOZZLE_MAX_TEMP))
+        assertEquals(21, clampTempValue("21.", NOZZLE_MAX_TEMP))
+        assertEquals(265, clampTempValue("265.0", NOZZLE_MAX_TEMP))
+    }
+
+    @Test
     fun `set sends nothing for empty or garbage display`() {
         assertNull(clampTempValue("", NOZZLE_MAX_TEMP))
         assertNull(clampTempValue("abc", NOZZLE_MAX_TEMP))
+        assertNull(clampTempValue(".", NOZZLE_MAX_TEMP))
     }
 
     @Test

@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import me.ghost.ffapi.models.FFPrinterDetail as PrinterDetailResponse
 import me.ghost.ffui.R
 import me.ghost.ffui.ui.jobStateOf
@@ -205,21 +206,36 @@ internal const val NOZZLE_MAX_TEMP = 265
 internal const val BED_MAX_TEMP = 100
 
 /**
- * Sanitizes raw temperature-dialog input for display: keeps digits only and clamps to [maxTemp]
- * (null = no clamp). Empty / garbage input stays empty (nothing parseable to send); a digit run
- * like `"26x5"` reads as `265`. Extracted so the clamp family is unit-testable headlessly.
+ * Sanitizes raw temperature-dialog input for display: keeps digits plus one decimal separator
+ * (`.` or `,`, shown as `.`) with at most one fractional digit, drops leading zeros, and clamps to
+ * [maxTemp] (null = no clamp). Keeping the separator matters: stripping it turned a typed `21.5`
+ * into `215`. Empty / garbage input stays empty; a digit run like `"26x5"` reads as `265`.
+ * Extracted so the clamp family is unit-testable headlessly.
  */
 internal fun sanitizeTempInput(raw: String, maxTemp: Int?): String {
-    val digits = raw.filter(Char::isDigit)
-    return clampTempValue(digits, maxTemp)?.toString() ?: digits
+    val whole = StringBuilder()
+    var fraction: String? = null
+    for (c in raw) {
+        when {
+            c == '.' || c == ',' -> if (fraction == null) fraction = ""
+            !c.isDigit() -> Unit
+            fraction == null -> whole.append(c)
+            fraction.isEmpty() -> fraction = c.toString()
+        }
+    }
+    val wholeText = whole.trimStart('0').ifEmpty { if (whole.isNotEmpty()) "0" else "" }.toString()
+    val text = if (fraction == null) wholeText else "$wholeText.$fraction"
+    val value = text.toFloatOrNull() ?: return text
+    return if (maxTemp != null && value > maxTemp) maxTemp.toString() else text
 }
 
 /**
- * Resolves the (already sanitized) display string to the value the Set button sends, clamped to
- * [maxTemp] (null = no clamp); null when there is nothing parseable to send.
+ * Resolves the (already sanitized) display string to the whole-degree value the Set button sends
+ * (the firmware only takes integers, so `21.5` rounds to `22`), clamped to [maxTemp]
+ * (null = no clamp); null when there is nothing parseable to send.
  */
 internal fun clampTempValue(displayed: String, maxTemp: Int?): Int? =
-    displayed.toIntOrNull()?.let { v -> if (maxTemp != null) v.coerceAtMost(maxTemp) else v }
+    displayed.toFloatOrNull()?.roundToInt()?.let { v -> if (maxTemp != null) v.coerceAtMost(maxTemp) else v }
 
 /**
  * Numeric temperature-set dialog for a heater ("Nozzle"/"Bed") whose **Off** means `set(0)` — the
@@ -279,7 +295,7 @@ internal fun TemperatureDialog(
                 },
                 label = { Text(stringResource(R.string.dashboard_temp_field_label)) },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
             )
         },
         confirmButton = {

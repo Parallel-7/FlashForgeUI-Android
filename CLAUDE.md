@@ -52,6 +52,9 @@ Gradle wrapper **9.3.1** (required by AGP 9.1.1) on **JDK 25**. Shell is PowerSh
   (regen command in `DEVELOPING.md`). Release signing reads `KEYSTORE_PATH` / `STORE_PASSWORD` /
   `KEY_PASSWORD`; without them the release APK is unsigned. R8 is off.
 - Fresh machine can't resolve the library → publish it to mavenLocal first (above).
+- **CI** (`.github/workflows/ci.yml`): checks out the library at tag `v<pinned version>`, publishes it
+  to mavenLocal, then runs `test` + `assembleDebug`. A library pin bump therefore needs a matching
+  pushed library tag. Until the library is public, CI needs the `FFAPI_REPO_TOKEN` secret.
 - `scripts/seed_printers.py` / `scripts/emulator-printers.ps1` re-pair printers into the emulator
   after a DB wipe via the debug-only `DebugPrinterSeeder` intent extra. Check-codes live in the
   gitignored `scripts/printers.local.json`.
@@ -133,7 +136,8 @@ me.ghost.ffui
   migrations before production — this file will say so.
 - **`allowBackup` stays ON** deliberately (restores saved printers on a new phone). Don't change it
   or add exclude rules without asking.
-- **Temp dialogs clamp** to firmware ceilings: nozzle 265 °C, bed 100 °C, chamber 80 °C.
+- **Temp dialogs clamp** to firmware ceilings (nozzle 265 °C, bed 100 °C, chamber 80 °C), accept one
+  decimal and send the rounded integer — never strip the separator (that turned `21.5` into `215`).
 - Networking on `Dispatchers.IO`; release the TCP lock (`~M602`) and close sockets on teardown.
 
 ## Conventions
@@ -172,7 +176,6 @@ what has been specifically exercised. The README's printer table must stay consi
 
 ## Open items
 
-- Library **0.5.0** is published locally (Creator 5 upload material mappings); app still pins 0.4.1.
 - Spoolman instant-load: render last-known `spools` immediately, refresh silently. Keep it simple —
   no Room table; a DataStore JSON blob at most if cross-process-death persistence is wanted.
 - `SpoolsScreen` can stick on `NotConfigured` if Spoolman is enabled with a blank URL and the URL is

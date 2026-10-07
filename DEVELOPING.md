@@ -27,7 +27,7 @@ feature live in [`CLAUDE.md`](CLAUDE.md). Read it before you change code.
 
 - The `ff-5mp-api-kt` artifact in your local Maven repository. Clone the library
   repo, then run `./gradlew :ffapi:publishToMavenLocal` there. The app currently
-  pins version **0.4.1**.
+  pins version **0.5.0**.
 
 The Gradle wrapper is pinned to Gradle 9.3.1 (required by AGP 9.1.1). You do not
 need a local Gradle install.

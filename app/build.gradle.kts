@@ -74,7 +74,7 @@ android {
 
 dependencies {
   // FlashForge wire-protocol library (HTTP/TCP/UDP + per-model backends), 1:1 port of ff-5mp-api-ts.
-  implementation("me.ghost:ff-5mp-api-kt:0.4.1")
+  implementation("me.ghost:ff-5mp-api-kt:0.5.0")
   implementation(platform(libs.androidx.compose.bom))
   // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
